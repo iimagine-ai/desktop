@@ -128,7 +128,8 @@ async function validateToken() {
 // ── Ollama Helpers ──────────────────────────────────────────────
 async function checkOllama() {
   try {
-    const res = await fetch(`${OLLAMA_URL}/api/tags`);
+    const ollamaHost = store.get('local.ollamaHost') || OLLAMA_URL;
+    const res = await fetch(`${ollamaHost}/api/tags`);
     if (res.ok) {
       const data = await res.json();
       return { running: true, models: data.models || [] };
@@ -186,7 +187,8 @@ async function installOllama() {
 
 async function pullModel(modelName) {
   try {
-    const res = await fetch(`${OLLAMA_URL}/api/pull`, {
+    const ollamaHost = store.get('local.ollamaHost') || OLLAMA_URL;
+    const res = await fetch(`${ollamaHost}/api/pull`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ name: modelName, stream: true }),
@@ -339,10 +341,11 @@ async function autoEmbedCollection(collectionId) {
   if (!kbStorage.isVecLoaded()) return;
 
   const EMBED_MODEL = 'nomic-embed-text';
+  const ollamaHost = store.get('local.ollamaHost') || OLLAMA_URL;
 
   // Check Ollama is running
   try {
-    const res = await fetch(`${OLLAMA_URL}/api/tags`);
+    const res = await fetch(`${ollamaHost}/api/tags`);
     if (!res.ok) return;
   } catch {
     return; // Ollama not running — skip silently
@@ -350,7 +353,7 @@ async function autoEmbedCollection(collectionId) {
 
   // Check embedding model is available (don't auto-pull)
   try {
-    const res = await fetch(`${OLLAMA_URL}/api/tags`);
+    const res = await fetch(`${ollamaHost}/api/tags`);
     if (!res.ok) return;
     const data = await res.json();
     const hasModel = (data.models || []).some(m =>
@@ -380,7 +383,7 @@ async function autoEmbedCollection(collectionId) {
 
       for (const chunk of batch) {
         try {
-          const res = await fetch(`${OLLAMA_URL}/api/embed`, {
+          const res = await fetch(`${ollamaHost}/api/embed`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ model: EMBED_MODEL, input: chunk.content }),
@@ -599,7 +602,8 @@ function setupIPC() {
   // Ollama — check if a specific model is available
   ipcMain.handle('ollama:hasModel', async (event, modelName) => {
     try {
-      const res = await fetch(`${OLLAMA_URL}/api/tags`);
+      const ollamaHost = store.get('local.ollamaHost') || OLLAMA_URL;
+      const res = await fetch(`${ollamaHost}/api/tags`);
       if (!res.ok) return false;
       const data = await res.json();
       return (data.models || []).some(m => m.name === modelName || m.name.startsWith(modelName + ':'));
@@ -608,14 +612,49 @@ function setupIPC() {
     }
   });
 
+  // Ollama — test connection to a custom host
+  ipcMain.handle('ollama:testConnection', async (event, host) => {
+    try {
+      const url = host.replace(/\/$/, '');
+      const res = await fetch(`${url}/api/tags`, { signal: AbortSignal.timeout(5000) });
+      if (!res.ok) return { success: false, error: `HTTP ${res.status}` };
+      const data = await res.json();
+      return { success: true, models: (data.models || []).length };
+    } catch (err) {
+      return { success: false, error: err.message || 'Connection failed' };
+    }
+  });
+
+  // Ollama — get model storage location
+  ipcMain.handle('ollama:getModelLocation', async () => {
+    const { homedir } = require('os');
+    const home = homedir();
+    // Ollama stores models in different locations per OS
+    if (process.platform === 'darwin') {
+      return path.join(home, '.ollama', 'models');
+    } else if (process.platform === 'win32') {
+      return path.join(home, '.ollama', 'models');
+    } else {
+      return path.join(home, '.ollama', 'models');
+    }
+  });
+
+  // Ollama — open model storage location in file explorer
+  ipcMain.handle('ollama:openModelLocation', async () => {
+    const { homedir } = require('os');
+    const modelsPath = path.join(homedir(), '.ollama', 'models');
+    shell.openPath(modelsPath);
+  });
+
   // Ollama — generate embeddings for text chunks (batch)
   ipcMain.handle('ollama:embedBatch', async (event, { model, texts }) => {
+    const ollamaHost = store.get('local.ollamaHost') || OLLAMA_URL;
     const results = [];
     let processed = 0;
 
     for (const text of texts) {
       try {
-        const res = await fetch(`${OLLAMA_URL}/api/embed`, {
+        const res = await fetch(`${ollamaHost}/api/embed`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ model, input: text }),
@@ -644,10 +683,12 @@ function setupIPC() {
   // Ollama — non-streaming chat
   ipcMain.handle('ollama:chat', async (event, { model, messages }) => {
     try {
-      const res = await fetch(`${OLLAMA_URL}/api/chat`, {
+      const ollamaHost = store.get('local.ollamaHost') || OLLAMA_URL;
+      const numCtx = store.get('local.contextWindow') || 4096;
+      const res = await fetch(`${ollamaHost}/api/chat`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ model, messages, stream: false }),
+        body: JSON.stringify({ model, messages, stream: false, options: { num_ctx: numCtx } }),
       });
       if (!res.ok) throw new Error(`Ollama error: ${res.status}`);
       const data = await res.json();
@@ -660,10 +701,12 @@ function setupIPC() {
   // Ollama — streaming chat
   ipcMain.handle('ollama:chatStream', async (event, { model, messages }) => {
     try {
-      const res = await fetch(`${OLLAMA_URL}/api/chat`, {
+      const ollamaHost = store.get('local.ollamaHost') || OLLAMA_URL;
+      const numCtx = store.get('local.contextWindow') || 4096;
+      const res = await fetch(`${ollamaHost}/api/chat`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ model, messages, stream: true }),
+        body: JSON.stringify({ model, messages, stream: true, options: { num_ctx: numCtx } }),
       });
       if (!res.ok) throw new Error(`Ollama error: ${res.status}`);
 
@@ -801,13 +844,15 @@ function setupIPC() {
   ipcMain.handle('chat:ragSend', async (event, { conversationId, userMessage, collectionId, chatHistory }) => {
     try {
       console.log('[ChatRAG] Starting KB chat, collection:', collectionId);
+      const ollamaHost = store.get('local.ollamaHost') || OLLAMA_URL;
+      const numCtx = store.get('local.contextWindow') || 4096;
 
       // RAG: retrieve relevant KB chunks
       let contextChunks = [];
       if (collectionId && kbStorage.isVecLoaded()) {
         try {
           console.log('[ChatRAG] Embedding query for KB search...');
-          const embedRes = await fetch(`${OLLAMA_URL}/api/embed`, {
+          const embedRes = await fetch(`${ollamaHost}/api/embed`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ model: 'nomic-embed-text', input: userMessage }),
@@ -881,10 +926,10 @@ Remember: Answer based on the document content above. Do not make up information
         const model = pm?.model || chatModels[0].name;
         console.log('[ChatRAG] Using model:', model, 'with', messages.length, 'messages');
 
-        const res = await fetch(`${OLLAMA_URL}/api/chat`, {
+        const res = await fetch(`${ollamaHost}/api/chat`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ model, messages, stream: true }),
+          body: JSON.stringify({ model, messages, stream: true, options: { num_ctx: numCtx } }),
         });
         if (!res.ok) {
           mainWindow?.webContents.send('chat:rag-done');
@@ -942,6 +987,9 @@ Remember: Answer based on the document content above. Do not make up information
       const assistant = assistantStorage.getAssistant(assistantId);
       if (!assistant) return { success: false, error: 'Assistant not found' };
 
+      const ollamaHost = store.get('local.ollamaHost') || OLLAMA_URL;
+      const numCtx = store.get('local.contextWindow') || 4096;
+
       // Save user message
       assistantStorage.addMessage({ conversationId, role: 'user', content: userMessage });
 
@@ -950,7 +998,7 @@ Remember: Answer based on the document content above. Do not make up information
       if (assistant.collection_id && kbStorage.isVecLoaded()) {
         try {
           console.log('[RAG] Embedding query for KB search...');
-          const embedRes = await fetch(`${OLLAMA_URL}/api/embed`, {
+          const embedRes = await fetch(`${ollamaHost}/api/embed`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ model: 'nomic-embed-text', input: userMessage }),
@@ -1013,10 +1061,10 @@ Remember: Answer based on the document content above. Do not make up information
 
       console.log('[RAG] Sending to Ollama model:', model, 'messages:', finalMessages.length);
 
-      const res = await fetch(`${OLLAMA_URL}/api/chat`, {
+      const res = await fetch(`${ollamaHost}/api/chat`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ model, messages: finalMessages, stream: true }),
+        body: JSON.stringify({ model, messages: finalMessages, stream: true, options: { num_ctx: numCtx } }),
       });
 
       if (!res.ok) {
@@ -1079,6 +1127,17 @@ Remember: Answer based on the document content above. Do not make up information
   ipcMain.handle('plugins:getSidebarItems', () => pluginManager.getSidebarItems());
   ipcMain.handle('plugins:getDir', () => pluginManager.getPluginsDir());
   ipcMain.handle('plugins:uninstall', (event, id) => pluginManager.uninstall(id));
+
+  // Plugin chat hooks
+  ipcMain.handle('plugins:chatPreprocess', async (event, data) => {
+    return await pluginManager.runChatPreprocess(data);
+  });
+  ipcMain.handle('plugins:chatPostprocess', async (event, data) => {
+    return await pluginManager.runChatPostprocess(data);
+  });
+  ipcMain.handle('plugins:getCommands', () => pluginManager.getCommands());
+  ipcMain.handle('plugins:getMentions', () => pluginManager.getMentions());
+
   ipcMain.handle('plugins:install', async (event) => {
     const { dialog } = require('electron');
     const result = await dialog.showOpenDialog(mainWindow, {
@@ -1198,7 +1257,7 @@ app.whenReady().then(async () => {
     store,
     kbStorage,
     assistantStorage,
-    getOllamaUrl: () => OLLAMA_URL,
+    getOllamaUrl: () => store.get('local.ollamaHost') || OLLAMA_URL,
   });
 
   // Copy bundled sample plugins to user plugins dir if not present

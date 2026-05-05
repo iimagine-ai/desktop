@@ -1,245 +1,152 @@
 // Settings page — provider configuration UI
 
 const SettingsPage = {
-  _pollInterval: null,
+  _activeTab: 'profile',
 
   render(container) {
     container.innerHTML = `
-      <div id="settingsPage" class="flex-1 overflow-y-auto p-6 space-y-8">
-        <h2 class="text-lg font-semibold tracking-tight text-neutral-900 dark:text-neutral-100">Settings</h2>
+      <div id="settingsPage" class="flex flex-1 min-h-0">
+        <!-- Settings sidebar -->
+        <div class="w-40 border-r border-neutral-200/40 dark:border-neutral-700/40 flex flex-col flex-shrink-0 p-3 space-y-0.5">
+          <button data-settings-tab="profile" class="settings-tab-btn w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-sm font-medium transition-all text-left">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+            Profile
+          </button>
+          <button data-settings-tab="models" class="settings-tab-btn w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-sm font-medium transition-all text-left">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="16" height="16" rx="2"/><path d="M9 1v3M15 1v3M9 20v3M15 20v3M1 9h3M1 15h3M20 9h3M20 15h3"/><path d="m13 8-4 8h6l-4-8z"/></svg>
+            Models
+          </button>
+          <button data-settings-tab="plugins" class="settings-tab-btn w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-sm font-medium transition-all text-left">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10z"/><path d="M9 8v3M15 8v3M8 11h8v2a4 4 0 0 1-8 0v-2z"/></svg>
+            Plugins
+          </button>
+        </div>
 
-        <!-- Account -->
-        <section>
-          <h3 class="text-sm font-medium text-neutral-900 dark:text-neutral-100 mb-2">Account</h3>
-          <p id="settingsUserEmail" class="text-sm text-neutral-500 dark:text-neutral-400"></p>
-        </section>
-
-        <!-- Your Data -->
-        <section class="bg-white/50 dark:bg-neutral-800/50 border border-neutral-200/40 dark:border-neutral-700/40 rounded-2xl p-5 shadow-[0_2px_10px_rgb(0,0,0,0.02)] dark:shadow-[0_2px_10px_rgb(0,0,0,0.2)] backdrop-blur-md">
-          <div class="flex items-center gap-2 mb-3">
-            <div class="p-2 bg-white dark:bg-neutral-800 rounded-xl border border-neutral-100 dark:border-neutral-800 shadow-sm text-neutral-700 dark:text-neutral-300"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></svg></div>
-            <div>
-              <h3 class="text-sm font-semibold text-neutral-900 dark:text-neutral-100">Your Data</h3>
-              <p class="text-xs text-neutral-500 dark:text-neutral-400">Stored locally on this computer — you own it</p>
-            </div>
-          </div>
-          <div id="dataStats" class="space-y-1 text-sm text-neutral-600">
-            <p>Loading...</p>
-          </div>
-        </section>
-
-        <!-- Local AI -->
-        <section class="bg-white/50 dark:bg-neutral-800/50 border border-neutral-200/40 dark:border-neutral-700/40 rounded-2xl p-5 shadow-[0_2px_10px_rgb(0,0,0,0.02)] dark:shadow-[0_2px_10px_rgb(0,0,0,0.2)] backdrop-blur-md">
-          <div class="flex items-center gap-2 mb-3">
-            <div class="p-2 bg-white dark:bg-neutral-800 rounded-xl border border-neutral-100 dark:border-neutral-800 shadow-sm text-emerald-600"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="16" height="16" rx="2"/><path d="M9 1v3M15 1v3M9 20v3M15 20v3M1 9h3M1 15h3M20 9h3M20 15h3"/><path d="m13 8-4 8h6l-4-8z"/></svg></div>
-            <div>
-              <h3 class="text-sm font-semibold text-neutral-900 dark:text-neutral-100">Local AI</h3>
-              <p class="text-xs text-neutral-500 dark:text-neutral-400">Nothing leaves your machine</p>
-            </div>
-          </div>
-
-          <!-- Model Recommendation Wizard -->
-          <div id="wizardSection" class="mb-4">
-            <button id="wizardToggle" class="w-full flex items-center justify-between px-3 py-2.5 rounded-xl bg-white/50 dark:bg-neutral-800/50 border border-neutral-200/40 dark:border-neutral-700/40 hover:bg-white/70 dark:hover:bg-neutral-700/70 transition-all text-left group">
-              <div class="flex items-center gap-2.5">
-                <div class="p-1.5 bg-white dark:bg-neutral-800 rounded-lg border border-neutral-100 dark:border-neutral-800 shadow-sm text-neutral-600 dark:text-neutral-400">
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76"/></svg>
-                </div>
-                <div>
-                  <span class="text-sm font-medium text-neutral-900 dark:text-neutral-100">Find the right model for you</span>
-                  <p class="text-[11px] text-neutral-500 dark:text-neutral-400">Tell us about your computer and we'll recommend the best model</p>
-                </div>
-              </div>
-              <svg id="wizardChevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-neutral-400 transition-transform"><polyline points="6 9 12 15 18 9"/></svg>
-            </button>
-
-            <div id="wizardPanel" class="hidden mt-3 space-y-4">
-              <!-- Step 1: RAM -->
-              <div>
-                <label class="text-xs font-medium text-neutral-500 uppercase tracking-wider mb-1.5 block">How much RAM does your computer have?</label>
-                <select id="wizardRAM" class="w-full bg-white/60 dark:bg-neutral-800/60 border border-neutral-200/50 dark:border-neutral-700/50 rounded-xl px-3 py-2.5 text-sm text-neutral-700 dark:text-neutral-300 focus:bg-white/90 dark:focus:bg-neutral-800/90 focus:outline-none transition-all shadow-sm">
-                  <option value="">Select...</option>
-                </select>
-                <p class="text-[10px] text-neutral-400 mt-1">Mac: Apple menu → About This Mac. Windows: Settings → System → About.</p>
-              </div>
-
-              <!-- Step 2: GPU -->
-              <div>
-                <label class="text-xs font-medium text-neutral-500 uppercase tracking-wider mb-1.5 block">What GPU do you have?</label>
-                <select id="wizardGPU" class="w-full bg-white/60 dark:bg-neutral-800/60 border border-neutral-200/50 dark:border-neutral-700/50 rounded-xl px-3 py-2.5 text-sm text-neutral-700 dark:text-neutral-300 focus:bg-white/90 dark:focus:bg-neutral-800/90 focus:outline-none transition-all shadow-sm">
-                  <option value="">Select...</option>
-                </select>
-              </div>
-
-              <!-- Step 3: Use cases -->
-              <div>
-                <label class="text-xs font-medium text-neutral-500 uppercase tracking-wider mb-1.5 block">What will you use AI for? (select all that apply)</label>
-                <div id="wizardUseCases" class="flex flex-wrap gap-2"></div>
-              </div>
-
-              <!-- Get Recommendation button -->
-              <button id="wizardRecommendBtn" class="w-full px-4 py-2.5 rounded-lg bg-neutral-900 dark:bg-neutral-100 text-sm font-medium text-white dark:text-neutral-900 hover:bg-neutral-800 dark:hover:bg-neutral-200 transition-all shadow-sm disabled:opacity-40 disabled:cursor-not-allowed" disabled>
-                Get Recommendation
-              </button>
-
-              <!-- Results -->
-              <div id="wizardResults" class="hidden space-y-3"></div>
-            </div>
-          </div>
-
-          <!-- Engine status -->
-          <div id="engineStatus" class="mb-4">
-            <div class="flex items-center justify-between text-sm">
-              <span class="text-neutral-600 dark:text-neutral-400">AI Engine</span>
-              <span id="engineStatusBadge" class="text-xs px-2 py-0.5 rounded-full bg-neutral-100 dark:bg-neutral-800 text-neutral-500 dark:text-neutral-400 border border-neutral-200">Checking...</span>
-            </div>
-          </div>
-
-          <!-- Install engine button (shown when Ollama not found) -->
-          <div id="installSection" class="hidden mb-4">
-            <button id="installEngineBtn" class="w-full px-4 py-2.5 rounded-lg bg-neutral-900 dark:bg-neutral-100 text-sm font-medium text-white dark:text-neutral-900 hover:bg-neutral-800 dark:hover:bg-neutral-200 transition-all shadow-sm">
-              Install AI Engine
-            </button>
-            <p id="installProgress" class="text-xs text-neutral-500 mt-2 hidden"></p>
-          </div>
-
-          <!-- Model management (shown when engine is running) -->
-          <div id="modelSection" class="hidden">
-            <div class="flex items-center justify-between mb-2">
-              <span class="text-sm text-neutral-600 dark:text-neutral-400">Models</span>
-              <button id="pullModelBtn" class="px-4 py-2 rounded-lg bg-neutral-900 dark:bg-neutral-100 text-sm font-medium text-white dark:text-neutral-900 hover:bg-neutral-800 dark:hover:bg-neutral-200 transition-all shadow-sm flex items-center gap-2">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M8 12h8M12 8v8"/></svg> Install model
-              </button>
-            </div>
-
-            <!-- Model pull UI -->
-            <div id="pullUI" class="hidden mb-3 bg-white/50 dark:bg-neutral-800/50 border border-neutral-200/40 dark:border-neutral-700/40 rounded-2xl p-4 shadow-[0_2px_10px_rgb(0,0,0,0.02)] dark:shadow-[0_2px_10px_rgb(0,0,0,0.2)] backdrop-blur-md">
-              <label class="text-xs font-medium text-neutral-400 uppercase tracking-wider mb-1.5 block">Model name</label>
-              <div class="flex gap-2 mb-2">
-                <input id="pullModelInput" type="text" value="gemma3:4b"
-                  class="flex-1 bg-white/60 dark:bg-neutral-800/60 border border-neutral-200/50 dark:border-neutral-700/50 rounded-xl px-3 py-1.5 text-sm text-neutral-700 dark:text-neutral-300 focus:bg-white/90 dark:focus:bg-neutral-800/90 focus:outline-none transition-all shadow-sm" />
-                <button id="startPullBtn" class="px-4 py-2 rounded-lg bg-neutral-900 dark:bg-neutral-100 text-sm font-medium text-white dark:text-neutral-900 hover:bg-neutral-800 dark:hover:bg-neutral-200 transition-all shadow-sm">Pull</button>
-                <button id="cancelPullBtn" class="text-sm text-neutral-400 hover:text-neutral-600 px-2">✕</button>
-              </div>
-              <p class="text-[10px] text-neutral-400 mb-2">Recommended: gemma3:4b (~3GB), gemma3:1b (~1GB)</p>
-              <div id="pullProgress" class="hidden">
-                <div class="w-full bg-neutral-100 dark:bg-neutral-800 rounded-full h-2 shadow-inner mb-1">
-                  <div id="pullProgressBar" class="progress-bar bg-gradient-to-r from-neutral-600 to-neutral-900 h-2 rounded-full" style="width: 0%"></div>
-                </div>
-                <p id="pullProgressText" class="text-xs text-neutral-500"></p>
-              </div>
-            </div>
-
-            <!-- Installed models list -->
-            <div id="modelList" class="space-y-1"></div>
-          </div>
-        </section>
-
-        <!-- Vertex AI (Regional Cloud) -->
-        <section class="bg-white/50 dark:bg-neutral-800/50 border border-neutral-200/40 dark:border-neutral-700/40 rounded-2xl p-5 shadow-[0_2px_10px_rgb(0,0,0,0.02)] dark:shadow-[0_2px_10px_rgb(0,0,0,0.2)] backdrop-blur-md">
-          <div class="flex items-center gap-2 mb-3">
-            <div class="p-2 bg-white dark:bg-neutral-800 rounded-xl border border-neutral-100 dark:border-neutral-800 shadow-sm text-blue-600"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z"/></svg></div>
-            <div>
-              <h3 class="text-sm font-semibold text-neutral-900 dark:text-neutral-100">Regional Cloud</h3>
-              <p class="text-xs text-neutral-500 dark:text-neutral-400">Data stays in your chosen region via Google Cloud</p>
-            </div>
-          </div>
-
-          <div class="space-y-3">
-            <div>
-              <label class="text-xs font-medium text-neutral-400 uppercase tracking-wider mb-1.5 block">Region</label>
-              <select id="vertexRegion" class="w-full bg-white/60 dark:bg-neutral-800/60 border border-neutral-200/50 dark:border-neutral-700/50 rounded-xl px-3 py-2.5 text-sm text-neutral-700 dark:text-neutral-300 focus:bg-white/90 dark:focus:bg-neutral-800/90 focus:outline-none transition-all shadow-sm">
-                <option value="">Select a region...</option>
-              </select>
-            </div>
-            <div>
-              <label class="text-xs font-medium text-neutral-400 uppercase tracking-wider mb-1.5 block">Model</label>
-              <select id="vertexModel" class="w-full bg-white/60 dark:bg-neutral-800/60 border border-neutral-200/50 dark:border-neutral-700/50 rounded-xl px-3 py-2.5 text-sm text-neutral-700 dark:text-neutral-300 focus:bg-white/90 dark:focus:bg-neutral-800/90 focus:outline-none transition-all shadow-sm">
-                <option value="">Select a model...</option>
-              </select>
-            </div>
-            <button id="activateVertexBtn" class="w-full px-4 py-2.5 rounded-lg bg-neutral-900 dark:bg-neutral-100 text-sm font-medium text-white dark:text-neutral-900 hover:bg-neutral-800 dark:hover:bg-neutral-200 transition-all shadow-sm disabled:opacity-40 disabled:cursor-not-allowed disabled:transform-none" disabled>
-              Activate Regional Cloud
-            </button>
-            <div id="vertexStatus" class="hidden text-xs text-emerald-600 text-center"></div>
-          </div>
-        </section>
-
-        <!-- Cloud Models (AI Gateway) -->
-        <section class="bg-white/50 dark:bg-neutral-800/50 border border-neutral-200/40 dark:border-neutral-700/40 rounded-2xl p-5 shadow-[0_2px_10px_rgb(0,0,0,0.02)] dark:shadow-[0_2px_10px_rgb(0,0,0,0.2)] backdrop-blur-md">
-          <div class="flex items-center gap-2 mb-3">
-            <div class="p-2 bg-white dark:bg-neutral-800 rounded-xl border border-neutral-100 dark:border-neutral-800 shadow-sm text-violet-600"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="2" width="20" height="8" rx="2"/><rect x="2" y="14" width="20" height="8" rx="2"/><path d="M6 6h.01M6 18h.01"/></svg></div>
-            <div>
-              <h3 class="text-sm font-semibold text-neutral-900 dark:text-neutral-100">Cloud Models</h3>
-              <p class="text-xs text-neutral-500 dark:text-neutral-400">Access GPT, Claude, Gemini, Grok — no data privacy guarantee</p>
-            </div>
-          </div>
-
-          <div class="space-y-3">
-            <div>
-              <label class="text-xs font-medium text-neutral-400 uppercase tracking-wider mb-1.5 block">Model</label>
-              <select id="gatewayModel" class="w-full bg-white/60 dark:bg-neutral-800/60 border border-neutral-200/50 dark:border-neutral-700/50 rounded-xl px-3 py-2.5 text-sm text-neutral-700 dark:text-neutral-300 focus:bg-white/90 dark:focus:bg-neutral-800/90 focus:outline-none transition-all shadow-sm">
-                <option value="">Select a model...</option>
-              </select>
-            </div>
-            <button id="activateGatewayBtn" class="w-full px-4 py-2.5 rounded-lg bg-neutral-900 dark:bg-neutral-100 text-sm font-medium text-white dark:text-neutral-900 hover:bg-neutral-800 dark:hover:bg-neutral-200 transition-all shadow-sm disabled:opacity-40 disabled:cursor-not-allowed disabled:transform-none" disabled>
-              Activate Cloud Model
-            </button>
-            <div id="gatewayStatus" class="hidden text-xs text-violet-600 text-center"></div>
-            <p class="text-[10px] text-neutral-400">Data may be processed outside your region by third-party providers.</p>
-          </div>
-        </section>
-
-        <!-- Plugins -->
-        <section class="bg-white/50 dark:bg-neutral-800/50 border border-neutral-200/40 dark:border-neutral-700/40 rounded-2xl p-5 shadow-[0_2px_10px_rgb(0,0,0,0.02)] dark:shadow-[0_2px_10px_rgb(0,0,0,0.2)] backdrop-blur-md">
-          <div class="flex items-center justify-between mb-3">
-            <div class="flex items-center gap-2">
-              <div class="p-2 bg-white dark:bg-neutral-800 rounded-xl border border-neutral-100 dark:border-neutral-800 shadow-sm text-neutral-700 dark:text-neutral-300"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10z"/><path d="M9 8v3M15 8v3M8 11h8v2a4 4 0 0 1-8 0v-2z"/></svg></div>
-              <div>
-                <h3 class="text-sm font-semibold text-neutral-900 dark:text-neutral-100">Plugins</h3>
-                <p class="text-xs text-neutral-500 dark:text-neutral-400">Extend functionality with add-ons</p>
-              </div>
-            </div>
-            <button id="installPluginBtn" class="px-4 py-2 rounded-lg bg-neutral-900 dark:bg-neutral-100 text-sm font-medium text-white dark:text-neutral-900 hover:bg-neutral-800 dark:hover:bg-neutral-200 transition-all shadow-sm flex items-center gap-2"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M8 12h8M12 8v8"/></svg> Install</button>
-          </div>
-          <div id="pluginsList" class="space-y-2">
-            <p class="text-xs text-neutral-400">Loading...</p>
-          </div>
-          <p id="pluginsDir" class="text-[10px] text-neutral-400 mt-3"></p>
-        </section>
+        <!-- Settings content -->
+        <div id="settingsContent" class="flex-1 overflow-y-auto p-6 space-y-6"></div>
       </div>
     `;
 
-    this._bind(container);
+    this._bindTabs(container);
+    this._showTab('profile', container);
   },
 
-  async _bind(container) {
-    const settingsUserEmail = container.querySelector('#settingsUserEmail');
-    const engineStatusBadge = container.querySelector('#engineStatusBadge');
-    const installSection = container.querySelector('#installSection');
-    const installEngineBtn = container.querySelector('#installEngineBtn');
-    const installProgress = container.querySelector('#installProgress');
-    const modelSection = container.querySelector('#modelSection');
-    const pullModelBtn = container.querySelector('#pullModelBtn');
-    const pullUI = container.querySelector('#pullUI');
-    const pullModelInput = container.querySelector('#pullModelInput');
-    const startPullBtn = container.querySelector('#startPullBtn');
-    const cancelPullBtn = container.querySelector('#cancelPullBtn');
-    const pullProgress = container.querySelector('#pullProgress');
-    const pullProgressBar = container.querySelector('#pullProgressBar');
-    const pullProgressText = container.querySelector('#pullProgressText');
-    const modelList = container.querySelector('#modelList');
+  _bindTabs(container) {
+    container.querySelectorAll('.settings-tab-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        this._showTab(btn.dataset.settingsTab, container);
+      });
+    });
+  },
 
-    // Account
+  _highlightTab(tab, container) {
+    container.querySelectorAll('.settings-tab-btn').forEach(btn => {
+      const isActive = btn.dataset.settingsTab === tab;
+      if (isActive) {
+        btn.classList.remove('text-neutral-500', 'dark:text-neutral-400', 'hover:bg-white/40', 'dark:hover:bg-neutral-800/40');
+        btn.classList.add('bg-white/60', 'dark:bg-neutral-800/60', 'text-neutral-900', 'dark:text-neutral-100', 'shadow-sm');
+      } else {
+        btn.classList.remove('bg-white/60', 'dark:bg-neutral-800/60', 'text-neutral-900', 'dark:text-neutral-100', 'shadow-sm');
+        btn.classList.add('text-neutral-500', 'dark:text-neutral-400', 'hover:bg-white/40', 'dark:hover:bg-neutral-800/40');
+      }
+    });
+  },
+
+  _showTab(tab, container) {
+    this._activeTab = tab;
+    this._highlightTab(tab, container);
+    const content = container.querySelector('#settingsContent');
+
+    // Clear poll interval when switching tabs
+    if (this._pollInterval) {
+      clearInterval(this._pollInterval);
+      this._pollInterval = null;
+    }
+
+    if (tab === 'profile') this._renderProfile(content);
+    else if (tab === 'models') this._renderModelsTab(content);
+    else if (tab === 'plugins') this._renderPluginsTab(content);
+  },
+
+  // ─── Profile Tab ──────────────────────────────────────────────────────────
+  _renderProfile(content) {
+    content.innerHTML = `
+      <!-- Account -->
+      <section class="bg-white/50 dark:bg-neutral-800/50 border border-neutral-200/40 dark:border-neutral-700/40 rounded-2xl p-5 shadow-[0_2px_10px_rgb(0,0,0,0.02)] dark:shadow-[0_2px_10px_rgb(0,0,0,0.2)] backdrop-blur-md">
+        <div class="flex items-center gap-2 mb-3">
+          <div class="p-2 bg-white dark:bg-neutral-800 rounded-xl border border-neutral-100 dark:border-neutral-800 shadow-sm text-neutral-700 dark:text-neutral-300"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></div>
+          <div>
+            <h3 class="text-sm font-semibold text-neutral-900 dark:text-neutral-100">Profile</h3>
+            <p id="settingsUserEmail" class="text-xs text-neutral-500 dark:text-neutral-400"></p>
+          </div>
+        </div>
+        <div class="space-y-3">
+          <div>
+            <label class="text-xs font-medium text-neutral-400 uppercase tracking-wider mb-1.5 block">Display Name</label>
+            <div class="flex gap-2">
+              <input id="profileNameInput" type="text" placeholder="Enter your name"
+                class="flex-1 bg-white/60 dark:bg-neutral-800/60 border border-neutral-200/50 dark:border-neutral-700/50 rounded-xl px-3 py-2 text-sm text-neutral-700 dark:text-neutral-300 placeholder-neutral-400 dark:placeholder-neutral-500 focus:bg-white/90 dark:focus:bg-neutral-800/90 focus:outline-none transition-all shadow-sm" />
+              <button id="saveProfileNameBtn" class="px-4 py-2 rounded-lg bg-neutral-900 dark:bg-neutral-100 text-sm font-medium text-white dark:text-neutral-900 hover:bg-neutral-800 dark:hover:bg-neutral-200 transition-all shadow-sm">Save</button>
+            </div>
+            <p id="profileNameStatus" class="text-xs text-emerald-600 mt-1 hidden">Saved</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- Your Data -->
+      <section class="bg-white/50 dark:bg-neutral-800/50 border border-neutral-200/40 dark:border-neutral-700/40 rounded-2xl p-5 shadow-[0_2px_10px_rgb(0,0,0,0.02)] dark:shadow-[0_2px_10px_rgb(0,0,0,0.2)] backdrop-blur-md">
+        <div class="flex items-center gap-2 mb-3">
+          <div class="p-2 bg-white dark:bg-neutral-800 rounded-xl border border-neutral-100 dark:border-neutral-800 shadow-sm text-neutral-700 dark:text-neutral-300"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></svg></div>
+          <div>
+            <h3 class="text-sm font-semibold text-neutral-900 dark:text-neutral-100">Your Data</h3>
+            <p class="text-xs text-neutral-500 dark:text-neutral-400">Stored locally on this computer — you own it</p>
+          </div>
+        </div>
+        <div id="dataStats" class="space-y-1 text-sm text-neutral-600">
+          <p>Loading...</p>
+        </div>
+      </section>
+    `;
+
+    this._bindProfile(content);
+  },
+
+  async _bindProfile(content) {
+    const settingsUserEmail = content.querySelector('#settingsUserEmail');
+
+    // Account email
     if (window.AppState?.currentUser) {
       settingsUserEmail.textContent = window.AppState.currentUser.email || 'Not signed in';
     }
 
-    // ── Model Recommendation Wizard ──────────────────────────────
-    this._bindWizard(container);
+    // Profile name
+    const profileNameInput = content.querySelector('#profileNameInput');
+    const saveProfileNameBtn = content.querySelector('#saveProfileNameBtn');
+    const profileNameStatus = content.querySelector('#profileNameStatus');
+
+    const savedName = await window.api.settings.get('profile.displayName');
+    if (savedName) {
+      profileNameInput.value = savedName;
+    }
+
+    saveProfileNameBtn.addEventListener('click', async () => {
+      const name = profileNameInput.value.trim();
+      await window.api.settings.set('profile.displayName', name);
+      const sidebarUser = document.querySelector('#sidebarUser');
+      if (sidebarUser) sidebarUser.textContent = name || window.AppState?.currentUser?.email || 'Local User';
+      if (window.AppState?.currentUser) {
+        window.AppState.currentUser.displayName = name;
+      }
+      profileNameStatus.classList.remove('hidden');
+      setTimeout(() => profileNameStatus.classList.add('hidden'), 2000);
+    });
+
+    profileNameInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') saveProfileNameBtn.click();
+    });
 
     // Data stats
-    const dataStats = container.querySelector('#dataStats');
+    const dataStats = content.querySelector('#dataStats');
     try {
       const stats = await window.api.storage.getStats();
       dataStats.innerHTML = `
@@ -294,12 +201,278 @@ const SettingsPage = {
     } catch {
       dataStats.innerHTML = '<p class="text-xs text-neutral-400">Could not load stats</p>';
     }
+  },
 
-    // Vertex AI (Regional Cloud) setup
-    const vertexRegion = container.querySelector('#vertexRegion');
-    const vertexModel = container.querySelector('#vertexModel');
-    const activateVertexBtn = container.querySelector('#activateVertexBtn');
-    const vertexStatus = container.querySelector('#vertexStatus');
+  // ─── Models Tab ───────────────────────────────────────────────────────────
+  _renderModelsTab(content) {
+    content.innerHTML = `
+      <!-- Local AI -->
+      <section class="bg-white/50 dark:bg-neutral-800/50 border border-neutral-200/40 dark:border-neutral-700/40 rounded-2xl p-5 shadow-[0_2px_10px_rgb(0,0,0,0.02)] dark:shadow-[0_2px_10px_rgb(0,0,0,0.2)] backdrop-blur-md">
+        <div class="flex items-center gap-2 mb-3">
+          <div class="p-2 bg-white dark:bg-neutral-800 rounded-xl border border-neutral-100 dark:border-neutral-800 shadow-sm text-emerald-600"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="16" height="16" rx="2"/><path d="M9 1v3M15 1v3M9 20v3M15 20v3M1 9h3M1 15h3M20 9h3M20 15h3"/><path d="m13 8-4 8h6l-4-8z"/></svg></div>
+          <div>
+            <h3 class="text-sm font-semibold text-neutral-900 dark:text-neutral-100">Local AI</h3>
+            <p class="text-xs text-neutral-500 dark:text-neutral-400">Nothing leaves your machine</p>
+          </div>
+        </div>
+
+        <!-- Model Recommendation Wizard -->
+        <div id="wizardSection" class="mb-4">
+          <button id="wizardToggle" class="w-full flex items-center justify-between px-3 py-2.5 rounded-xl bg-white/50 dark:bg-neutral-800/50 border border-neutral-200/40 dark:border-neutral-700/40 hover:bg-white/70 dark:hover:bg-neutral-700/70 transition-all text-left group">
+            <div class="flex items-center gap-2.5">
+              <div class="p-1.5 bg-white dark:bg-neutral-800 rounded-lg border border-neutral-100 dark:border-neutral-800 shadow-sm text-neutral-600 dark:text-neutral-400">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76"/></svg>
+              </div>
+              <div>
+                <span class="text-sm font-medium text-neutral-900 dark:text-neutral-100">Find the right model for you</span>
+                <p class="text-[11px] text-neutral-500 dark:text-neutral-400">Tell us about your computer and we'll recommend the best model</p>
+              </div>
+            </div>
+            <svg id="wizardChevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-neutral-400 transition-transform"><polyline points="6 9 12 15 18 9"/></svg>
+          </button>
+
+          <div id="wizardPanel" class="hidden mt-3 space-y-4">
+            <!-- Step 1: RAM -->
+            <div>
+              <label class="text-xs font-medium text-neutral-500 uppercase tracking-wider mb-1.5 block">How much RAM does your computer have?</label>
+              <select id="wizardRAM" class="w-full bg-white/60 dark:bg-neutral-800/60 border border-neutral-200/50 dark:border-neutral-700/50 rounded-xl px-3 py-2.5 text-sm text-neutral-700 dark:text-neutral-300 focus:bg-white/90 dark:focus:bg-neutral-800/90 focus:outline-none transition-all shadow-sm">
+                <option value="">Select...</option>
+              </select>
+              <p class="text-[10px] text-neutral-400 mt-1">Mac: Apple menu → About This Mac. Windows: Settings → System → About.</p>
+            </div>
+
+            <!-- Step 2: GPU -->
+            <div>
+              <label class="text-xs font-medium text-neutral-500 uppercase tracking-wider mb-1.5 block">What GPU do you have?</label>
+              <select id="wizardGPU" class="w-full bg-white/60 dark:bg-neutral-800/60 border border-neutral-200/50 dark:border-neutral-700/50 rounded-xl px-3 py-2.5 text-sm text-neutral-700 dark:text-neutral-300 focus:bg-white/90 dark:focus:bg-neutral-800/90 focus:outline-none transition-all shadow-sm">
+                <option value="">Select...</option>
+              </select>
+            </div>
+
+            <!-- Step 3: Use cases -->
+            <div>
+              <label class="text-xs font-medium text-neutral-500 uppercase tracking-wider mb-1.5 block">What will you use AI for? (select all that apply)</label>
+              <div id="wizardUseCases" class="flex flex-wrap gap-2"></div>
+            </div>
+
+            <!-- Get Recommendation button -->
+            <button id="wizardRecommendBtn" class="w-full px-4 py-2.5 rounded-lg bg-neutral-900 dark:bg-neutral-100 text-sm font-medium text-white dark:text-neutral-900 hover:bg-neutral-800 dark:hover:bg-neutral-200 transition-all shadow-sm disabled:opacity-40 disabled:cursor-not-allowed" disabled>
+              Get Recommendation
+            </button>
+
+            <!-- Results -->
+            <div id="wizardResults" class="hidden space-y-3"></div>
+          </div>
+        </div>
+
+        <!-- Advanced Options -->
+        <div id="localAdvancedSection" class="mb-4">
+          <button id="advancedToggle" class="w-full flex items-center justify-between px-3 py-2.5 rounded-xl bg-white/50 dark:bg-neutral-800/50 border border-neutral-200/40 dark:border-neutral-700/40 hover:bg-white/70 dark:hover:bg-neutral-700/70 transition-all text-left group">
+            <div class="flex items-center gap-2.5">
+              <div class="p-1.5 bg-white dark:bg-neutral-800 rounded-lg border border-neutral-100 dark:border-neutral-800 shadow-sm text-neutral-600 dark:text-neutral-400">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+              </div>
+              <div>
+                <span class="text-sm font-medium text-neutral-900 dark:text-neutral-100">Advanced Options</span>
+                <p class="text-[11px] text-neutral-500 dark:text-neutral-400">Web search, context window, network & storage</p>
+              </div>
+            </div>
+            <svg id="advancedChevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-neutral-400 transition-transform"><polyline points="6 9 12 15 18 9"/></svg>
+          </button>
+
+          <div id="advancedPanel" class="hidden mt-3 space-y-4">
+            <!-- Web Search -->
+            <div>
+              <div class="flex items-center justify-between">
+                <div>
+                  <label class="text-xs font-medium text-neutral-500 uppercase tracking-wider">Web Search</label>
+                  <p class="text-[10px] text-neutral-400 mt-0.5">Allow the model to search the web for current information</p>
+                </div>
+                <button id="webSearchToggle" class="relative w-10 h-5 rounded-full transition-colors bg-neutral-200 dark:bg-neutral-700" role="switch" aria-checked="false">
+                  <span id="webSearchDot" class="absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform"></span>
+                </button>
+              </div>
+            </div>
+
+            <!-- Context Window -->
+            <div>
+              <label class="text-xs font-medium text-neutral-500 uppercase tracking-wider mb-1.5 block">Context Window</label>
+              <p class="text-[10px] text-neutral-400 mb-2">How much conversation history the model can see. Larger = more memory but slower.</p>
+              <select id="contextWindowSelect" class="w-full bg-white/60 dark:bg-neutral-800/60 border border-neutral-200/50 dark:border-neutral-700/50 rounded-xl px-3 py-2.5 text-sm text-neutral-700 dark:text-neutral-300 focus:bg-white/90 dark:focus:bg-neutral-800/90 focus:outline-none transition-all shadow-sm">
+                <option value="2048">2K tokens (fast, minimal memory)</option>
+                <option value="4096">4K tokens (default)</option>
+                <option value="8192">8K tokens (balanced)</option>
+                <option value="16384">16K tokens (good memory)</option>
+                <option value="32768">32K tokens (large context)</option>
+                <option value="65536">64K tokens (very large)</option>
+                <option value="131072">128K tokens (maximum — requires 16GB+ RAM)</option>
+              </select>
+            </div>
+
+            <!-- Network Connection -->
+            <div>
+              <label class="text-xs font-medium text-neutral-500 uppercase tracking-wider mb-1.5 block">Network Connection</label>
+              <p class="text-[10px] text-neutral-400 mb-2">Connect to a remote Ollama instance (e.g. another machine on your network).</p>
+              <div class="flex gap-2">
+                <input id="ollamaHostInput" type="text" placeholder="http://localhost:11434"
+                  class="flex-1 bg-white/60 dark:bg-neutral-800/60 border border-neutral-200/50 dark:border-neutral-700/50 rounded-xl px-3 py-2 text-sm text-neutral-700 dark:text-neutral-300 placeholder-neutral-400 dark:placeholder-neutral-500 focus:bg-white/90 dark:focus:bg-neutral-800/90 focus:outline-none transition-all shadow-sm font-mono" />
+                <button id="testConnectionBtn" class="px-3 py-2 rounded-lg bg-neutral-900 dark:bg-neutral-100 text-xs font-medium text-white dark:text-neutral-900 hover:bg-neutral-800 dark:hover:bg-neutral-200 transition-all shadow-sm">Test</button>
+              </div>
+              <p id="connectionStatus" class="text-[10px] mt-1.5 hidden"></p>
+            </div>
+
+            <!-- Model Storage Location -->
+            <div>
+              <label class="text-xs font-medium text-neutral-500 uppercase tracking-wider mb-1.5 block">Model Storage Location</label>
+              <p class="text-[10px] text-neutral-400 mb-2">Where Ollama stores downloaded models on disk.</p>
+              <div class="flex items-center gap-2">
+                <span id="modelLocationPath" class="flex-1 text-xs font-mono text-neutral-600 dark:text-neutral-400 bg-white/60 dark:bg-neutral-800/60 border border-neutral-200/50 dark:border-neutral-700/50 rounded-xl px-3 py-2 truncate">Detecting...</span>
+                <button id="openModelLocationBtn" class="px-3 py-2 rounded-lg bg-white dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 text-xs font-medium text-neutral-700 dark:text-neutral-300 hover:bg-neutral-50 dark:hover:bg-neutral-700 transition-all shadow-sm">Open</button>
+              </div>
+            </div>
+
+            <!-- Save Advanced Settings -->
+            <button id="saveAdvancedBtn" class="w-full px-4 py-2.5 rounded-lg bg-neutral-900 dark:bg-neutral-100 text-sm font-medium text-white dark:text-neutral-900 hover:bg-neutral-800 dark:hover:bg-neutral-200 transition-all shadow-sm">
+              Save Settings
+            </button>
+            <p id="advancedSaveStatus" class="text-xs text-emerald-600 text-center hidden">Settings saved</p>
+          </div>
+        </div>
+
+        <!-- Engine status -->
+        <div id="engineStatus" class="mb-4">
+          <div class="flex items-center justify-between text-sm">
+            <span class="text-neutral-600 dark:text-neutral-400">AI Engine</span>
+            <span id="engineStatusBadge" class="text-xs px-2 py-0.5 rounded-full bg-neutral-100 dark:bg-neutral-800 text-neutral-500 dark:text-neutral-400 border border-neutral-200">Checking...</span>
+          </div>
+        </div>
+
+        <!-- Install engine button (shown when Ollama not found) -->
+        <div id="installSection" class="hidden mb-4">
+          <button id="installEngineBtn" class="w-full px-4 py-2.5 rounded-lg bg-neutral-900 dark:bg-neutral-100 text-sm font-medium text-white dark:text-neutral-900 hover:bg-neutral-800 dark:hover:bg-neutral-200 transition-all shadow-sm">
+            Install AI Engine
+          </button>
+          <p id="installProgress" class="text-xs text-neutral-500 mt-2 hidden"></p>
+        </div>
+
+        <!-- Model management (shown when engine is running) -->
+        <div id="modelSection" class="hidden">
+          <div class="flex items-center justify-between mb-2">
+            <span class="text-sm text-neutral-600 dark:text-neutral-400">Models</span>
+            <button id="pullModelBtn" class="px-4 py-2 rounded-lg bg-neutral-900 dark:bg-neutral-100 text-sm font-medium text-white dark:text-neutral-900 hover:bg-neutral-800 dark:hover:bg-neutral-200 transition-all shadow-sm flex items-center gap-2">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M8 12h8M12 8v8"/></svg> Install model
+            </button>
+          </div>
+
+          <!-- Model pull UI -->
+          <div id="pullUI" class="hidden mb-3 bg-white/50 dark:bg-neutral-800/50 border border-neutral-200/40 dark:border-neutral-700/40 rounded-2xl p-4 shadow-[0_2px_10px_rgb(0,0,0,0.02)] dark:shadow-[0_2px_10px_rgb(0,0,0,0.2)] backdrop-blur-md">
+            <label class="text-xs font-medium text-neutral-400 uppercase tracking-wider mb-1.5 block">Model name</label>
+            <div class="flex gap-2 mb-2">
+              <input id="pullModelInput" type="text" value="gemma3:4b"
+                class="flex-1 bg-white/60 dark:bg-neutral-800/60 border border-neutral-200/50 dark:border-neutral-700/50 rounded-xl px-3 py-1.5 text-sm text-neutral-700 dark:text-neutral-300 focus:bg-white/90 dark:focus:bg-neutral-800/90 focus:outline-none transition-all shadow-sm" />
+              <button id="startPullBtn" class="px-4 py-2 rounded-lg bg-neutral-900 dark:bg-neutral-100 text-sm font-medium text-white dark:text-neutral-900 hover:bg-neutral-800 dark:hover:bg-neutral-200 transition-all shadow-sm">Pull</button>
+              <button id="cancelPullBtn" class="text-sm text-neutral-400 hover:text-neutral-600 px-2">✕</button>
+            </div>
+            <p class="text-[10px] text-neutral-400 mb-2">Recommended: gemma3:4b (~3GB), gemma3:1b (~1GB)</p>
+            <div id="pullProgress" class="hidden">
+              <div class="w-full bg-neutral-100 dark:bg-neutral-800 rounded-full h-2 shadow-inner mb-1">
+                <div id="pullProgressBar" class="progress-bar bg-gradient-to-r from-neutral-600 to-neutral-900 h-2 rounded-full" style="width: 0%"></div>
+              </div>
+              <p id="pullProgressText" class="text-xs text-neutral-500"></p>
+            </div>
+          </div>
+
+          <!-- Installed models list -->
+          <div id="modelList" class="space-y-1"></div>
+        </div>
+      </section>
+
+      <!-- Vertex AI (Regional Cloud) -->
+      <section class="bg-white/50 dark:bg-neutral-800/50 border border-neutral-200/40 dark:border-neutral-700/40 rounded-2xl p-5 shadow-[0_2px_10px_rgb(0,0,0,0.02)] dark:shadow-[0_2px_10px_rgb(0,0,0,0.2)] backdrop-blur-md">
+        <div class="flex items-center gap-2 mb-3">
+          <div class="p-2 bg-white dark:bg-neutral-800 rounded-xl border border-neutral-100 dark:border-neutral-800 shadow-sm text-amber-600"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z"/></svg></div>
+          <div>
+            <h3 class="text-sm font-semibold text-neutral-900 dark:text-neutral-100">Private Cloud</h3>
+            <p class="text-xs text-neutral-500 dark:text-neutral-400">Data stays in your chosen region via Google Cloud</p>
+          </div>
+        </div>
+
+        <div class="space-y-3">
+          <div>
+            <label class="text-xs font-medium text-neutral-400 uppercase tracking-wider mb-1.5 block">Region</label>
+            <select id="vertexRegion" class="w-full bg-white/60 dark:bg-neutral-800/60 border border-neutral-200/50 dark:border-neutral-700/50 rounded-xl px-3 py-2.5 text-sm text-neutral-700 dark:text-neutral-300 focus:bg-white/90 dark:focus:bg-neutral-800/90 focus:outline-none transition-all shadow-sm">
+              <option value="">Select a region...</option>
+            </select>
+          </div>
+          <div>
+            <label class="text-xs font-medium text-neutral-400 uppercase tracking-wider mb-1.5 block">Model</label>
+            <select id="vertexModel" class="w-full bg-white/60 dark:bg-neutral-800/60 border border-neutral-200/50 dark:border-neutral-700/50 rounded-xl px-3 py-2.5 text-sm text-neutral-700 dark:text-neutral-300 focus:bg-white/90 dark:focus:bg-neutral-800/90 focus:outline-none transition-all shadow-sm">
+              <option value="">Select a model...</option>
+            </select>
+          </div>
+          <button id="activateVertexBtn" class="w-full px-4 py-2.5 rounded-lg bg-neutral-900 dark:bg-neutral-100 text-sm font-medium text-white dark:text-neutral-900 hover:bg-neutral-800 dark:hover:bg-neutral-200 transition-all shadow-sm disabled:opacity-40 disabled:cursor-not-allowed disabled:transform-none" disabled>
+            Activate Private Cloud
+          </button>
+          <div id="vertexStatus" class="hidden text-xs text-emerald-600 text-center"></div>
+        </div>
+      </section>
+
+      <!-- Cloud Models (AI Gateway) -->
+      <section class="bg-white/50 dark:bg-neutral-800/50 border border-neutral-200/40 dark:border-neutral-700/40 rounded-2xl p-5 shadow-[0_2px_10px_rgb(0,0,0,0.02)] dark:shadow-[0_2px_10px_rgb(0,0,0,0.2)] backdrop-blur-md">
+        <div class="flex items-center gap-2 mb-3">
+          <div class="p-2 bg-white dark:bg-neutral-800 rounded-xl border border-neutral-100 dark:border-neutral-800 shadow-sm text-red-600"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="2" width="20" height="8" rx="2"/><rect x="2" y="14" width="20" height="8" rx="2"/><path d="M6 6h.01M6 18h.01"/></svg></div>
+          <div>
+            <h3 class="text-sm font-semibold text-neutral-900 dark:text-neutral-100">Public Cloud</h3>
+            <p class="text-xs text-neutral-500 dark:text-neutral-400">Access GPT, Claude, Gemini, Grok — no data privacy guarantee</p>
+          </div>
+        </div>
+
+        <div class="space-y-3">
+          <div>
+            <label class="text-xs font-medium text-neutral-400 uppercase tracking-wider mb-1.5 block">Model</label>
+            <select id="gatewayModel" class="w-full bg-white/60 dark:bg-neutral-800/60 border border-neutral-200/50 dark:border-neutral-700/50 rounded-xl px-3 py-2.5 text-sm text-neutral-700 dark:text-neutral-300 focus:bg-white/90 dark:focus:bg-neutral-800/90 focus:outline-none transition-all shadow-sm">
+              <option value="">Select a model...</option>
+            </select>
+          </div>
+          <button id="activateGatewayBtn" class="w-full px-4 py-2.5 rounded-lg bg-neutral-900 dark:bg-neutral-100 text-sm font-medium text-white dark:text-neutral-900 hover:bg-neutral-800 dark:hover:bg-neutral-200 transition-all shadow-sm disabled:opacity-40 disabled:cursor-not-allowed disabled:transform-none" disabled>
+            Activate Public Cloud
+          </button>
+          <div id="gatewayStatus" class="hidden text-xs text-violet-600 text-center"></div>
+          <p class="text-[10px] text-neutral-400">Data may be processed outside your region by third-party providers.</p>
+        </div>
+      </section>
+    `;
+
+    this._bindModelsTab(content);
+  },
+
+  async _bindModelsTab(content) {
+    const engineStatusBadge = content.querySelector('#engineStatusBadge');
+    const installSection = content.querySelector('#installSection');
+    const installEngineBtn = content.querySelector('#installEngineBtn');
+    const installProgress = content.querySelector('#installProgress');
+    const modelSection = content.querySelector('#modelSection');
+    const pullModelBtn = content.querySelector('#pullModelBtn');
+    const pullUI = content.querySelector('#pullUI');
+    const pullModelInput = content.querySelector('#pullModelInput');
+    const startPullBtn = content.querySelector('#startPullBtn');
+    const cancelPullBtn = content.querySelector('#cancelPullBtn');
+    const pullProgress = content.querySelector('#pullProgress');
+    const pullProgressBar = content.querySelector('#pullProgressBar');
+    const pullProgressText = content.querySelector('#pullProgressText');
+    const modelList = content.querySelector('#modelList');
+
+    // ── Model Recommendation Wizard ──────────────────────────────
+    this._bindWizard(content);
+
+    // ── Advanced Options ─────────────────────────────────────────
+    this._bindAdvancedOptions(content);
+
+    // ── Vertex AI (Regional Cloud) setup ─────────────────────────
+    const vertexRegion = content.querySelector('#vertexRegion');
+    const vertexModel = content.querySelector('#vertexModel');
+    const activateVertexBtn = content.querySelector('#activateVertexBtn');
+    const vertexStatus = content.querySelector('#vertexStatus');
 
     // Populate regions
     window.VERTEX_REGIONS.forEach(r => {
@@ -335,7 +508,7 @@ const SettingsPage = {
     if (existingVertex) {
       vertexStatus.textContent = `Active: ${existingVertex.name}`;
       vertexStatus.classList.remove('hidden');
-      activateVertexBtn.textContent = 'Update Regional Cloud';
+      activateVertexBtn.textContent = 'Update Private Cloud';
     }
 
     activateVertexBtn.addEventListener('click', async () => {
@@ -343,20 +516,17 @@ const SettingsPage = {
       const modelId = vertexModel.value;
       if (!region || !modelId) return;
 
-      // Save preferences
       await window.api.settings.set('vertex.region', region);
       await window.api.settings.set('vertex.model', modelId);
 
       // Remove old vertex providers
       window.ProviderManager.providers = window.ProviderManager.providers.filter(p => p.type !== 'vertex');
 
-      // Add new vertex provider
       const modelInfo = window.VERTEX_MODELS.find(m => m.id === modelId);
       const regionInfo = window.VERTEX_REGIONS.find(r => r.id === region);
       const provider = new window.VertexProvider(modelId, modelInfo.name, regionInfo.name);
       window.ProviderManager.providers.push(provider);
 
-      // Set as active if no active provider
       if (!window.ProviderManager.activeProvider) {
         window.ProviderManager.activeProvider = provider;
         await window.api.settings.set('activeModel', provider.name);
@@ -366,13 +536,13 @@ const SettingsPage = {
 
       vertexStatus.textContent = `Active: ${provider.name}`;
       vertexStatus.classList.remove('hidden');
-      activateVertexBtn.textContent = 'Update Regional Cloud';
+      activateVertexBtn.textContent = 'Update Private Cloud';
     });
 
-    // Gateway (Cloud Models) setup
-    const gatewayModel = container.querySelector('#gatewayModel');
-    const activateGatewayBtn = container.querySelector('#activateGatewayBtn');
-    const gatewayStatus = container.querySelector('#gatewayStatus');
+    // ── Gateway (Cloud Models) setup ─────────────────────────────
+    const gatewayModel = content.querySelector('#gatewayModel');
+    const activateGatewayBtn = content.querySelector('#activateGatewayBtn');
+    const gatewayStatus = content.querySelector('#gatewayStatus');
 
     // Populate models
     window.GATEWAY_MODELS.forEach(m => {
@@ -396,7 +566,7 @@ const SettingsPage = {
     if (existingGateway) {
       gatewayStatus.textContent = `Active: ${existingGateway.name}`;
       gatewayStatus.classList.remove('hidden');
-      activateGatewayBtn.textContent = 'Update Cloud Model';
+      activateGatewayBtn.textContent = 'Update Public Cloud';
     }
 
     activateGatewayBtn.addEventListener('click', async () => {
@@ -421,10 +591,10 @@ const SettingsPage = {
 
       gatewayStatus.textContent = `Active: ${provider.name}`;
       gatewayStatus.classList.remove('hidden');
-      activateGatewayBtn.textContent = 'Update Cloud Model';
+      activateGatewayBtn.textContent = 'Update Public Cloud';
     });
 
-    // Check engine status
+    // ── Engine status + model pull ───────────────────────────────
     const updateStatus = async () => {
       const status = await window.ProviderManager.getOllamaStatus();
       if (status.running) {
@@ -443,7 +613,7 @@ const SettingsPage = {
 
     await updateStatus();
 
-    // Poll status while on settings page
+    // Poll status while on models tab
     this._pollInterval = setInterval(updateStatus, 5000);
 
     // Install engine
@@ -457,7 +627,6 @@ const SettingsPage = {
         const result = await window.api.ollama.install();
         if (result.success) {
           installProgress.textContent = 'Installed. Starting engine...';
-          // Wait a moment for Ollama to start
           await new Promise(r => setTimeout(r, 3000));
           await updateStatus();
           await window.ProviderManager.refreshLocal();
@@ -496,7 +665,6 @@ const SettingsPage = {
 
       try {
         await window.api.ollama.pull(modelName);
-        // Progress updates come via IPC events — handled below
       } catch (err) {
         pullProgressText.textContent = `Error: ${err.message}`;
         startPullBtn.disabled = false;
@@ -528,7 +696,6 @@ const SettingsPage = {
         await updateStatus();
         window.AppRouter?.updateModelDropdown();
 
-        // Reset UI after a moment
         setTimeout(() => {
           pullUI.classList.add('hidden');
           pullProgress.classList.add('hidden');
@@ -541,9 +708,144 @@ const SettingsPage = {
         startPullBtn.textContent = 'Pull';
       }
     });
+  },
 
-    // Plugins
-    this._loadPlugins(container);
+  // ─── Plugins Tab ──────────────────────────────────────────────────────────
+  _renderPluginsTab(content) {
+    content.innerHTML = `
+      <section class="bg-white/50 dark:bg-neutral-800/50 border border-neutral-200/40 dark:border-neutral-700/40 rounded-2xl p-5 shadow-[0_2px_10px_rgb(0,0,0,0.02)] dark:shadow-[0_2px_10px_rgb(0,0,0,0.2)] backdrop-blur-md">
+        <div class="flex items-center justify-between mb-3">
+          <div class="flex items-center gap-2">
+            <div class="p-2 bg-white dark:bg-neutral-800 rounded-xl border border-neutral-100 dark:border-neutral-800 shadow-sm text-neutral-700 dark:text-neutral-300"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10z"/><path d="M9 8v3M15 8v3M8 11h8v2a4 4 0 0 1-8 0v-2z"/></svg></div>
+            <div>
+              <h3 class="text-sm font-semibold text-neutral-900 dark:text-neutral-100">Plugins</h3>
+              <p class="text-xs text-neutral-500 dark:text-neutral-400">Extend functionality with add-ons</p>
+            </div>
+          </div>
+          <button id="installPluginBtn" class="px-4 py-2 rounded-lg bg-neutral-900 dark:bg-neutral-100 text-sm font-medium text-white dark:text-neutral-900 hover:bg-neutral-800 dark:hover:bg-neutral-200 transition-all shadow-sm flex items-center gap-2"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M8 12h8M12 8v8"/></svg> Install</button>
+        </div>
+        <div id="pluginsList" class="space-y-2">
+          <p class="text-xs text-neutral-400">Loading...</p>
+        </div>
+        <p id="pluginsDir" class="text-[10px] text-neutral-400 mt-3"></p>
+      </section>
+    `;
+
+    this._loadPlugins(content);
+  },
+
+  // ─── Shared Helpers ────────────────────────────────────────────────────────
+
+  async _bindAdvancedOptions(container) {
+    const toggle = container.querySelector('#advancedToggle');
+    const panel = container.querySelector('#advancedPanel');
+    const chevron = container.querySelector('#advancedChevron');
+    const webSearchToggle = container.querySelector('#webSearchToggle');
+    const webSearchDot = container.querySelector('#webSearchDot');
+    const contextWindowSelect = container.querySelector('#contextWindowSelect');
+    const ollamaHostInput = container.querySelector('#ollamaHostInput');
+    const testConnectionBtn = container.querySelector('#testConnectionBtn');
+    const connectionStatus = container.querySelector('#connectionStatus');
+    const modelLocationPath = container.querySelector('#modelLocationPath');
+    const openModelLocationBtn = container.querySelector('#openModelLocationBtn');
+    const saveAdvancedBtn = container.querySelector('#saveAdvancedBtn');
+    const advancedSaveStatus = container.querySelector('#advancedSaveStatus');
+
+    // Toggle panel
+    toggle.addEventListener('click', () => {
+      panel.classList.toggle('hidden');
+      chevron.style.transform = panel.classList.contains('hidden') ? '' : 'rotate(180deg)';
+    });
+
+    // Load saved settings
+    const savedWebSearch = await window.api.settings.get('local.webSearchEnabled');
+    const savedContextWindow = await window.api.settings.get('local.contextWindow');
+    const savedOllamaHost = await window.api.settings.get('local.ollamaHost');
+
+    // Web Search toggle state
+    let webSearchEnabled = savedWebSearch || false;
+    const updateWebSearchUI = () => {
+      if (webSearchEnabled) {
+        webSearchToggle.classList.remove('bg-neutral-200', 'dark:bg-neutral-700');
+        webSearchToggle.classList.add('bg-neutral-900', 'dark:bg-neutral-100');
+        webSearchToggle.setAttribute('aria-checked', 'true');
+        webSearchDot.style.transform = 'translateX(20px)';
+      } else {
+        webSearchToggle.classList.remove('bg-neutral-900', 'dark:bg-neutral-100');
+        webSearchToggle.classList.add('bg-neutral-200', 'dark:bg-neutral-700');
+        webSearchToggle.setAttribute('aria-checked', 'false');
+        webSearchDot.style.transform = 'translateX(0)';
+      }
+    };
+    updateWebSearchUI();
+
+    webSearchToggle.addEventListener('click', () => {
+      webSearchEnabled = !webSearchEnabled;
+      updateWebSearchUI();
+    });
+
+    // Context window
+    if (savedContextWindow) {
+      contextWindowSelect.value = String(savedContextWindow);
+    } else {
+      contextWindowSelect.value = '4096';
+    }
+
+    // Ollama host
+    ollamaHostInput.value = savedOllamaHost || 'http://localhost:11434';
+
+    // Test connection
+    testConnectionBtn.addEventListener('click', async () => {
+      const host = ollamaHostInput.value.trim() || 'http://localhost:11434';
+      testConnectionBtn.disabled = true;
+      testConnectionBtn.textContent = '...';
+      connectionStatus.classList.remove('hidden');
+      connectionStatus.textContent = 'Testing connection...';
+      connectionStatus.className = 'text-[10px] mt-1.5 text-neutral-500';
+
+      try {
+        const result = await window.api.ollama.testConnection(host);
+        if (result.success) {
+          connectionStatus.textContent = `Connected — ${result.models || 0} model(s) available`;
+          connectionStatus.className = 'text-[10px] mt-1.5 text-emerald-600';
+        } else {
+          connectionStatus.textContent = `Failed: ${result.error}`;
+          connectionStatus.className = 'text-[10px] mt-1.5 text-rose-600';
+        }
+      } catch (err) {
+        connectionStatus.textContent = `Error: ${err.message}`;
+        connectionStatus.className = 'text-[10px] mt-1.5 text-rose-600';
+      }
+
+      testConnectionBtn.disabled = false;
+      testConnectionBtn.textContent = 'Test';
+    });
+
+    // Model storage location
+    try {
+      const location = await window.api.ollama.getModelLocation();
+      modelLocationPath.textContent = location || '~/.ollama/models';
+      modelLocationPath.title = location || '~/.ollama/models';
+    } catch {
+      modelLocationPath.textContent = '~/.ollama/models';
+    }
+
+    openModelLocationBtn.addEventListener('click', async () => {
+      await window.api.ollama.openModelLocation();
+    });
+
+    // Save all advanced settings
+    saveAdvancedBtn.addEventListener('click', async () => {
+      const host = ollamaHostInput.value.trim() || 'http://localhost:11434';
+      const ctxWindow = parseInt(contextWindowSelect.value);
+
+      await window.api.settings.set('local.webSearchEnabled', webSearchEnabled);
+      await window.api.settings.set('local.contextWindow', ctxWindow);
+      await window.api.settings.set('local.ollamaHost', host);
+
+      advancedSaveStatus.classList.remove('hidden');
+      setTimeout(() => advancedSaveStatus.classList.add('hidden'), 2000);
+    });
   },
 
   _bindWizard(container) {
@@ -681,7 +983,6 @@ const SettingsPage = {
         btn.addEventListener('click', async () => {
           const modelId = btn.dataset.model;
 
-          // Check if Ollama is running first
           const status = await window.api.ollama.status();
           if (!status.running) {
             btn.textContent = 'Start Ollama first';
@@ -689,11 +990,9 @@ const SettingsPage = {
             return;
           }
 
-          // Disable all install buttons while pulling
           resultsDiv.querySelectorAll('.wizard-install-btn').forEach(b => b.disabled = true);
           btn.textContent = 'Downloading...';
 
-          // Set the model name in the pull input and show the pull progress UI
           const pullInput = container.querySelector('#pullModelInput');
           const pullUI = container.querySelector('#pullUI');
           const pullProgress = container.querySelector('#pullProgress');
@@ -701,17 +1000,13 @@ const SettingsPage = {
           if (pullUI) pullUI.classList.remove('hidden');
           if (pullProgress) pullProgress.classList.remove('hidden');
 
-          // Actually trigger the pull via IPC
           try {
             await window.api.ollama.pull(modelId);
-            // Progress and completion are handled by the existing onPullProgress/onPullDone listeners in _bind
           } catch (err) {
             btn.textContent = 'Error — retry';
             resultsDiv.querySelectorAll('.wizard-install-btn').forEach(b => b.disabled = false);
           }
 
-          // The onPullDone listener will update the UI when complete.
-          // We also mark this button as done via a one-time listener.
           const checkDone = setInterval(async () => {
             const hasModel = await window.api.ollama.hasModel(modelId);
             if (hasModel) {
