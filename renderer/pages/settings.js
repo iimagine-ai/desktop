@@ -20,6 +20,10 @@ const SettingsPage = {
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10z"/><path d="M9 8v3M15 8v3M8 11h8v2a4 4 0 0 1-8 0v-2z"/></svg>
             Plugins
           </button>
+          <button data-settings-tab="memory" id="memoryTabBtn" class="settings-tab-btn w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-sm font-medium transition-all text-left hidden">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a7 7 0 0 1 7 7c0 2.38-1.19 4.47-3 5.74V17a2 2 0 0 1-2 2h-4a2 2 0 0 1-2-2v-2.26C6.19 13.47 5 11.38 5 9a7 7 0 0 1 7-7z"/><path d="M10 21h4"/></svg>
+            Memory
+          </button>
         </div>
 
         <!-- Settings content -->
@@ -28,7 +32,19 @@ const SettingsPage = {
     `;
 
     this._bindTabs(container);
+    this._checkMemoryTabVisibility(container);
     this._showTab('profile', container);
+  },
+
+  async _checkMemoryTabVisibility(container) {
+    try {
+      const plugins = await window.api.plugins.list();
+      const cortexLite = plugins.find(p => p.id === 'cortex-lite' && p.enabled);
+      const memoryBtn = container.querySelector('#memoryTabBtn');
+      if (cortexLite && memoryBtn) {
+        memoryBtn.classList.remove('hidden');
+      }
+    } catch {}
   },
 
   _bindTabs(container) {
@@ -66,6 +82,7 @@ const SettingsPage = {
     if (tab === 'profile') this._renderProfile(content);
     else if (tab === 'models') this._renderModelsTab(content);
     else if (tab === 'plugins') this._renderPluginsTab(content);
+    else if (tab === 'memory') this._renderMemoryTab(content);
   },
 
   // ─── Profile Tab ──────────────────────────────────────────────────────────
@@ -423,11 +440,31 @@ const SettingsPage = {
           <div class="p-2 bg-white dark:bg-neutral-800 rounded-xl border border-neutral-100 dark:border-neutral-800 shadow-sm text-red-600"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="2" width="20" height="8" rx="2"/><rect x="2" y="14" width="20" height="8" rx="2"/><path d="M6 6h.01M6 18h.01"/></svg></div>
           <div>
             <h3 class="text-sm font-semibold text-neutral-900 dark:text-neutral-100">Public Cloud</h3>
-            <p class="text-xs text-neutral-500 dark:text-neutral-400">Access GPT, Claude, Gemini, Grok — no data privacy guarantee</p>
+            <p class="text-xs text-neutral-500 dark:text-neutral-400">Access GPT, Claude, Gemini, Grok — bring your own API key</p>
           </div>
         </div>
 
         <div class="space-y-3">
+          <div>
+            <label class="text-xs font-medium text-neutral-400 uppercase tracking-wider mb-1.5 block">OpenAI API Key</label>
+            <input id="openaiApiKey" type="password" placeholder="sk-..." class="w-full bg-white/60 dark:bg-neutral-800/60 border border-neutral-200/50 dark:border-neutral-700/50 rounded-xl px-3 py-2.5 text-sm text-neutral-700 dark:text-neutral-300 placeholder-neutral-400 focus:bg-white/90 dark:focus:bg-neutral-800/90 focus:outline-none transition-all shadow-sm" />
+            <p class="text-[10px] text-neutral-400 mt-1">Get your key from <span class="text-neutral-600 dark:text-neutral-300">platform.openai.com/api-keys</span></p>
+          </div>
+          <div>
+            <label class="text-xs font-medium text-neutral-400 uppercase tracking-wider mb-1.5 block">Anthropic API Key</label>
+            <input id="anthropicApiKey" type="password" placeholder="sk-ant-..." class="w-full bg-white/60 dark:bg-neutral-800/60 border border-neutral-200/50 dark:border-neutral-700/50 rounded-xl px-3 py-2.5 text-sm text-neutral-700 dark:text-neutral-300 placeholder-neutral-400 focus:bg-white/90 dark:focus:bg-neutral-800/90 focus:outline-none transition-all shadow-sm" />
+            <p class="text-[10px] text-neutral-400 mt-1">Get your key from <span class="text-neutral-600 dark:text-neutral-300">console.anthropic.com/settings/keys</span></p>
+          </div>
+          <div>
+            <label class="text-xs font-medium text-neutral-400 uppercase tracking-wider mb-1.5 block">Google Gemini API Key</label>
+            <input id="geminiApiKey" type="password" placeholder="AIza..." class="w-full bg-white/60 dark:bg-neutral-800/60 border border-neutral-200/50 dark:border-neutral-700/50 rounded-xl px-3 py-2.5 text-sm text-neutral-700 dark:text-neutral-300 placeholder-neutral-400 focus:bg-white/90 dark:focus:bg-neutral-800/90 focus:outline-none transition-all shadow-sm" />
+            <p class="text-[10px] text-neutral-400 mt-1">Get your key from <span class="text-neutral-600 dark:text-neutral-300">aistudio.google.com/apikey</span></p>
+          </div>
+          <div>
+            <label class="text-xs font-medium text-neutral-400 uppercase tracking-wider mb-1.5 block">OpenRouter API Key</label>
+            <input id="openrouterApiKey" type="password" placeholder="sk-or-..." class="w-full bg-white/60 dark:bg-neutral-800/60 border border-neutral-200/50 dark:border-neutral-700/50 rounded-xl px-3 py-2.5 text-sm text-neutral-700 dark:text-neutral-300 placeholder-neutral-400 focus:bg-white/90 dark:focus:bg-neutral-800/90 focus:outline-none transition-all shadow-sm" />
+            <p class="text-[10px] text-neutral-400 mt-1">Get your key from <span class="text-neutral-600 dark:text-neutral-300">openrouter.ai/keys</span></p>
+          </div>
           <div>
             <label class="text-xs font-medium text-neutral-400 uppercase tracking-wider mb-1.5 block">Model</label>
             <select id="gatewayModel" class="w-full bg-white/60 dark:bg-neutral-800/60 border border-neutral-200/50 dark:border-neutral-700/50 rounded-xl px-3 py-2.5 text-sm text-neutral-700 dark:text-neutral-300 focus:bg-white/90 dark:focus:bg-neutral-800/90 focus:outline-none transition-all shadow-sm">
@@ -438,7 +475,7 @@ const SettingsPage = {
             Activate Public Cloud
           </button>
           <div id="gatewayStatus" class="hidden text-xs text-violet-600 text-center"></div>
-          <p class="text-[10px] text-neutral-400">Data may be processed outside your region by third-party providers.</p>
+          <p class="text-[10px] text-neutral-400">Your API key is stored locally. Data is sent directly to the provider.</p>
         </div>
       </section>
     `;
@@ -540,9 +577,23 @@ const SettingsPage = {
     });
 
     // ── Gateway (Cloud Models) setup ─────────────────────────────
+    const openaiApiKey = content.querySelector('#openaiApiKey');
+    const anthropicApiKey = content.querySelector('#anthropicApiKey');
+    const geminiApiKey = content.querySelector('#geminiApiKey');
+    const openrouterApiKey = content.querySelector('#openrouterApiKey');
     const gatewayModel = content.querySelector('#gatewayModel');
     const activateGatewayBtn = content.querySelector('#activateGatewayBtn');
     const gatewayStatus = content.querySelector('#gatewayStatus');
+
+    // Restore saved API keys
+    const savedApiKey = await window.api.settings.get('openai.apiKey');
+    if (savedApiKey) openaiApiKey.value = savedApiKey;
+    const savedAnthropicKey = await window.api.settings.get('anthropic.apiKey');
+    if (savedAnthropicKey) anthropicApiKey.value = savedAnthropicKey;
+    const savedGeminiKey = await window.api.settings.get('gemini.apiKey');
+    if (savedGeminiKey) geminiApiKey.value = savedGeminiKey;
+    const savedOpenrouterKey = await window.api.settings.get('openrouter.apiKey');
+    if (savedOpenrouterKey) openrouterApiKey.value = savedOpenrouterKey;
 
     // Populate models
     window.GATEWAY_MODELS.forEach(m => {
@@ -552,14 +603,36 @@ const SettingsPage = {
       gatewayModel.appendChild(opt);
     });
 
-    // Restore saved selection
+    // Restore saved selection (clear if model no longer exists in list)
     const savedGatewayModel = await window.api.settings.get('gateway.model');
-    if (savedGatewayModel) gatewayModel.value = savedGatewayModel;
+    if (savedGatewayModel) {
+      const exists = window.GATEWAY_MODELS.some(m => m.id === savedGatewayModel);
+      if (exists) {
+        gatewayModel.value = savedGatewayModel;
+      } else {
+        // Old model ID no longer valid — clear it
+        await window.api.settings.set('gateway.model', '');
+      }
+    }
 
-    gatewayModel.addEventListener('change', () => {
-      activateGatewayBtn.disabled = !gatewayModel.value;
-    });
-    activateGatewayBtn.disabled = !gatewayModel.value;
+    // Enable button when model is selected AND the vendor's API key is filled
+    const getVendorKeyInput = (vendor) => {
+      const map = { openai: openaiApiKey, anthropic: anthropicApiKey, google: geminiApiKey, openrouter: openrouterApiKey };
+      return map[vendor];
+    };
+    const updateGatewayBtnState = () => {
+      if (!gatewayModel.value) { activateGatewayBtn.disabled = true; return; }
+      const modelInfo = window.GATEWAY_MODELS.find(m => m.id === gatewayModel.value);
+      if (!modelInfo) { activateGatewayBtn.disabled = true; return; }
+      const keyInput = getVendorKeyInput(modelInfo.vendor);
+      activateGatewayBtn.disabled = !keyInput || !keyInput.value.trim();
+    };
+    gatewayModel.addEventListener('change', updateGatewayBtnState);
+    openaiApiKey.addEventListener('input', updateGatewayBtnState);
+    anthropicApiKey.addEventListener('input', updateGatewayBtnState);
+    geminiApiKey.addEventListener('input', updateGatewayBtnState);
+    openrouterApiKey.addEventListener('input', updateGatewayBtnState);
+    updateGatewayBtnState();
 
     // Check if already active
     const existingGateway = window.ProviderManager.providers.find(p => p.type === 'gateway');
@@ -572,20 +645,29 @@ const SettingsPage = {
     activateGatewayBtn.addEventListener('click', async () => {
       const modelId = gatewayModel.value;
       if (!modelId) return;
+      const modelInfo = window.GATEWAY_MODELS.find(m => m.id === modelId);
+      if (!modelInfo) return;
+      const keyInput = getVendorKeyInput(modelInfo.vendor);
+      const apiKey = keyInput?.value.trim();
+      if (!apiKey) return;
 
       await window.api.settings.set('gateway.model', modelId);
+      await window.api.settings.set('gateway.vendor', modelInfo.vendor);
+      // Save all provided API keys
+      if (openaiApiKey.value.trim()) await window.api.settings.set('openai.apiKey', openaiApiKey.value.trim());
+      if (anthropicApiKey.value.trim()) await window.api.settings.set('anthropic.apiKey', anthropicApiKey.value.trim());
+      if (geminiApiKey.value.trim()) await window.api.settings.set('gemini.apiKey', geminiApiKey.value.trim());
+      if (openrouterApiKey.value.trim()) await window.api.settings.set('openrouter.apiKey', openrouterApiKey.value.trim());
 
       // Remove old gateway providers
       window.ProviderManager.providers = window.ProviderManager.providers.filter(p => p.type !== 'gateway');
 
-      const modelInfo = window.GATEWAY_MODELS.find(m => m.id === modelId);
       const provider = new window.GatewayProvider(modelId, modelInfo.name);
       window.ProviderManager.providers.push(provider);
 
-      if (!window.ProviderManager.activeProvider) {
-        window.ProviderManager.activeProvider = provider;
-        await window.api.settings.set('activeModel', provider.name);
-      }
+      // Set as active provider
+      window.ProviderManager.activeProvider = provider;
+      await window.api.settings.set('activeModel', provider.name);
 
       window.AppRouter?.updateModelDropdown();
 
@@ -707,6 +789,156 @@ const SettingsPage = {
         startPullBtn.disabled = false;
         startPullBtn.textContent = 'Pull';
       }
+    });
+  },
+
+  // ─── Memory Tab (Cortex Lite) ──────────────────────────────────────────────
+  async _renderMemoryTab(content) {
+    // Load current settings
+    const tokenBudget = await window.api.settings.get('cortex-lite.tokenBudget') || 1500;
+    const embeddingModel = await window.api.settings.get('cortex-lite.embeddingModel') || 'nomic-embed-text';
+    const extractionEnabled = await window.api.settings.get('cortex-lite.extractionEnabled') !== false;
+    const summarizeAfter = await window.api.settings.get('cortex-lite.summarizeAfterMessages') || 10;
+    const maxFacts = await window.api.settings.get('cortex-lite.maxFactsInContext') || 5;
+    const maxEntities = await window.api.settings.get('cortex-lite.maxEntitiesInContext') || 8;
+
+    content.innerHTML = `
+      <section class="bg-white/50 dark:bg-neutral-800/50 border border-neutral-200/40 dark:border-neutral-700/40 rounded-2xl p-5 shadow-[0_2px_10px_rgb(0,0,0,0.02)] dark:shadow-[0_2px_10px_rgb(0,0,0,0.2)] backdrop-blur-md">
+        <div class="flex items-center gap-2 mb-4">
+          <div class="p-2 bg-white dark:bg-neutral-800 rounded-xl border border-neutral-100 dark:border-neutral-800 shadow-sm text-purple-600">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a7 7 0 0 1 7 7c0 2.38-1.19 4.47-3 5.74V17a2 2 0 0 1-2 2h-4a2 2 0 0 1-2-2v-2.26C6.19 13.47 5 11.38 5 9a7 7 0 0 1 7-7z"/><path d="M10 21h4"/></svg>
+          </div>
+          <div>
+            <h3 class="text-sm font-semibold text-neutral-900 dark:text-neutral-100">Memory Settings</h3>
+            <p class="text-xs text-neutral-500 dark:text-neutral-400">Cortex Lite — advanced memory configuration</p>
+          </div>
+        </div>
+
+        <div class="mb-4 px-3 py-2.5 rounded-xl bg-amber-50 dark:bg-amber-900/20 border border-amber-200/50 dark:border-amber-700/30">
+          <p class="text-xs text-amber-700 dark:text-amber-300">⚠️ Advanced users only. These settings control how memory extraction and retrieval work. Incorrect values may degrade response quality or increase latency.</p>
+        </div>
+
+        <div class="space-y-5">
+          <!-- Extraction Toggle -->
+          <div class="flex items-center justify-between">
+            <div>
+              <label class="text-sm font-medium text-neutral-700 dark:text-neutral-300">Memory Extraction</label>
+              <p class="text-[10px] text-neutral-400 mt-0.5">Learn from conversations and store entities/facts</p>
+            </div>
+            <button id="memExtractionToggle" class="relative w-10 h-5 rounded-full transition-colors ${extractionEnabled ? 'bg-purple-500' : 'bg-neutral-200 dark:bg-neutral-700'}" role="switch" aria-checked="${extractionEnabled}">
+              <span class="absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform ${extractionEnabled ? 'translate-x-5' : ''}"></span>
+            </button>
+          </div>
+
+          <!-- Token Budget -->
+          <div>
+            <label class="text-xs font-medium text-neutral-500 uppercase tracking-wider mb-1.5 block">Context Token Budget</label>
+            <p class="text-[10px] text-neutral-400 mb-2">How many tokens of memory context to inject before each message. Higher = more context but uses more of the model's window.</p>
+            <input id="memTokenBudget" type="range" min="500" max="3000" step="100" value="${tokenBudget}"
+              class="w-full accent-purple-500" />
+            <div class="flex justify-between text-[10px] text-neutral-400 mt-1">
+              <span>500 (minimal)</span>
+              <span id="memTokenBudgetValue" class="font-medium text-neutral-600 dark:text-neutral-300">${tokenBudget} tokens</span>
+              <span>3000 (maximum)</span>
+            </div>
+          </div>
+
+          <!-- Max Facts in Context -->
+          <div>
+            <label class="text-xs font-medium text-neutral-500 uppercase tracking-wider mb-1.5 block">Max Facts in Context</label>
+            <p class="text-[10px] text-neutral-400 mb-2">Maximum number of remembered facts to include per message.</p>
+            <input id="memMaxFacts" type="number" min="1" max="20" value="${maxFacts}"
+              class="w-20 bg-white/60 dark:bg-neutral-800/60 border border-neutral-200/50 dark:border-neutral-700/50 rounded-xl px-3 py-2 text-sm text-neutral-700 dark:text-neutral-300 focus:outline-none shadow-sm" />
+          </div>
+
+          <!-- Max Entities in Context -->
+          <div>
+            <label class="text-xs font-medium text-neutral-500 uppercase tracking-wider mb-1.5 block">Max Entities in Context</label>
+            <p class="text-[10px] text-neutral-400 mb-2">Maximum number of KG entities to include per message.</p>
+            <input id="memMaxEntities" type="number" min="1" max="30" value="${maxEntities}"
+              class="w-20 bg-white/60 dark:bg-neutral-800/60 border border-neutral-200/50 dark:border-neutral-700/50 rounded-xl px-3 py-2 text-sm text-neutral-700 dark:text-neutral-300 focus:outline-none shadow-sm" />
+          </div>
+
+          <!-- Summarize After N Messages -->
+          <div>
+            <label class="text-xs font-medium text-neutral-500 uppercase tracking-wider mb-1.5 block">Summarize After</label>
+            <p class="text-[10px] text-neutral-400 mb-2">Number of messages before generating a conversation summary.</p>
+            <div class="flex items-center gap-2">
+              <input id="memSummarizeAfter" type="number" min="5" max="50" value="${summarizeAfter}"
+                class="w-20 bg-white/60 dark:bg-neutral-800/60 border border-neutral-200/50 dark:border-neutral-700/50 rounded-xl px-3 py-2 text-sm text-neutral-700 dark:text-neutral-300 focus:outline-none shadow-sm" />
+              <span class="text-xs text-neutral-400">messages</span>
+            </div>
+          </div>
+
+          <!-- Embedding Model -->
+          <div>
+            <label class="text-xs font-medium text-neutral-500 uppercase tracking-wider mb-1.5 block">Embedding Model</label>
+            <p class="text-[10px] text-neutral-400 mb-2">Local Ollama model used for vector search. Must be pulled separately.</p>
+            <input id="memEmbeddingModel" type="text" value="${embeddingModel}" placeholder="nomic-embed-text"
+              class="w-full bg-white/60 dark:bg-neutral-800/60 border border-neutral-200/50 dark:border-neutral-700/50 rounded-xl px-3 py-2 text-sm text-neutral-700 dark:text-neutral-300 placeholder-neutral-400 focus:outline-none shadow-sm font-mono" />
+          </div>
+
+          <!-- Save Button -->
+          <div class="pt-2 border-t border-neutral-200/40 dark:border-neutral-700/40">
+            <button id="memSaveBtn" class="w-full px-4 py-2.5 rounded-lg bg-neutral-900 dark:bg-neutral-100 text-sm font-medium text-white dark:text-neutral-900 hover:bg-neutral-800 dark:hover:bg-neutral-200 transition-all shadow-sm">
+              Save Memory Settings
+            </button>
+            <p id="memSaveStatus" class="text-xs text-emerald-600 text-center mt-2 hidden">Settings saved — restart app to apply</p>
+          </div>
+
+          <!-- Danger Zone -->
+          <div class="pt-4 border-t border-neutral-200/40 dark:border-neutral-700/40">
+            <p class="text-xs font-medium text-red-500 uppercase tracking-wider mb-2">Danger Zone</p>
+            <button id="memClearBtn" class="px-4 py-2 rounded-lg bg-red-900/80 hover:bg-red-800 text-sm font-medium text-red-100 transition-all shadow-sm">
+              Clear All Memory
+            </button>
+            <p class="text-[10px] text-neutral-400 mt-1">Permanently deletes all stored entities, facts, relationships, and summaries.</p>
+          </div>
+        </div>
+      </section>
+    `;
+
+    this._bindMemoryTab(content);
+  },
+
+  _bindMemoryTab(content) {
+    // Token budget slider
+    const slider = content.querySelector('#memTokenBudget');
+    const sliderValue = content.querySelector('#memTokenBudgetValue');
+    slider.addEventListener('input', () => {
+      sliderValue.textContent = `${slider.value} tokens`;
+    });
+
+    // Extraction toggle
+    const toggle = content.querySelector('#memExtractionToggle');
+    toggle.addEventListener('click', () => {
+      const isOn = toggle.getAttribute('aria-checked') === 'true';
+      const newState = !isOn;
+      toggle.setAttribute('aria-checked', String(newState));
+      toggle.className = `relative w-10 h-5 rounded-full transition-colors ${newState ? 'bg-purple-500' : 'bg-neutral-200 dark:bg-neutral-700'}`;
+      toggle.querySelector('span').className = `absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform ${newState ? 'translate-x-5' : ''}`;
+    });
+
+    // Save button
+    content.querySelector('#memSaveBtn').addEventListener('click', async () => {
+      const extractionOn = content.querySelector('#memExtractionToggle').getAttribute('aria-checked') === 'true';
+      await window.api.settings.set('cortex-lite.tokenBudget', parseInt(slider.value));
+      await window.api.settings.set('cortex-lite.extractionEnabled', extractionOn);
+      await window.api.settings.set('cortex-lite.maxFactsInContext', parseInt(content.querySelector('#memMaxFacts').value));
+      await window.api.settings.set('cortex-lite.maxEntitiesInContext', parseInt(content.querySelector('#memMaxEntities').value));
+      await window.api.settings.set('cortex-lite.summarizeAfterMessages', parseInt(content.querySelector('#memSummarizeAfter').value));
+      await window.api.settings.set('cortex-lite.embeddingModel', content.querySelector('#memEmbeddingModel').value.trim());
+
+      const status = content.querySelector('#memSaveStatus');
+      status.classList.remove('hidden');
+      setTimeout(() => status.classList.add('hidden'), 3000);
+    });
+
+    // Clear memory button
+    content.querySelector('#memClearBtn').addEventListener('click', async () => {
+      if (!confirm('Are you sure you want to clear all memory? This cannot be undone.')) return;
+      await window.api.settings.set('cortex-lite.clearRequested', true);
+      alert('Memory will be cleared on next restart.');
     });
   },
 

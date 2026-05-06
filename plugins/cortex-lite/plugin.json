@@ -1,0 +1,14 @@
+{
+  "id": "cortex-lite",
+  "name": "Cortex Lite",
+  "version": "1.0.0",
+  "description": "Advanced memory — remembers entities, preferences, and facts across conversations",
+  "author": "IIMAGINE",
+  "main": "index.js",
+  "hooks": {
+    "chatPreprocess": true,
+    "chatPostprocess": true,
+    "sidebar": { "label": "Memory", "icon": "🧠" },
+    "settings": true
+  }
+}
