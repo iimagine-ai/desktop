@@ -541,11 +541,132 @@ function setupIPC() {
     }
   });
 
-  // AI Gateway — streaming chat via server proxy (no privacy)
+  // AI Gateway — streaming chat via server proxy OR direct provider call
   ipcMain.handle('gateway:chat', async (event, { messages, model }) => {
+    const vendor = store.get('gateway.vendor') || 'openai';
+    const PROVIDER_CONFIG = {
+      openai: { url: 'https://api.openai.com/v1/chat/completions', keyStore: 'openai.apiKey', authHeader: 'Bearer' },
+      anthropic: { url: 'https://api.anthropic.com/v1/messages', keyStore: 'anthropic.apiKey', isAnthropic: true },
+      google: { url: 'https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent', keyStore: 'gemini.apiKey', isGemini: true },
+      openrouter: { url: 'https://openrouter.ai/api/v1/chat/completions', keyStore: 'openrouter.apiKey', authHeader: 'Bearer' },
+    };
+    const config = PROVIDER_CONFIG[vendor];
+    const apiKey = config ? store.get(config.keyStore) : null;
+    const activeModel = model || store.get('gateway.model') || 'gpt-5.4-mini';
+
+    if (apiKey && config) {
+      try {
+        if (config.isAnthropic) {
+          // Anthropic streaming
+          const systemMsg = messages.find(m => m.role === 'system');
+          const nonSystemMsgs = messages.filter(m => m.role !== 'system');
+          const body = { model: activeModel, messages: nonSystemMsgs, max_tokens: 4096, stream: true };
+          if (systemMsg) body.system = systemMsg.content;
+
+          const res = await fetch(config.url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'x-api-key': apiKey, 'anthropic-version': '2023-06-01' },
+            body: JSON.stringify(body),
+          });
+          if (!res.ok) {
+            const err = await res.json().catch(() => ({ error: { message: `HTTP ${res.status}` } }));
+            return { success: false, error: err.error?.message || `Anthropic error ${res.status}` };
+          }
+          const reader = res.body.getReader();
+          const decoder = new TextDecoder();
+          while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            const chunk = decoder.decode(value);
+            const lines = chunk.split('\n').filter(l => l.startsWith('data: '));
+            for (const line of lines) {
+              const data = line.slice(6).trim();
+              if (data === '[DONE]') { mainWindow?.webContents.send('gateway:stream-done'); }
+              else {
+                try {
+                  const parsed = JSON.parse(data);
+                  if (parsed.type === 'content_block_delta' && parsed.delta?.text) {
+                    mainWindow?.webContents.send('gateway:stream-chunk', { content: parsed.delta.text });
+                  }
+                } catch {}
+              }
+            }
+          }
+          mainWindow?.webContents.send('gateway:stream-done');
+          return { success: true };
+
+        } else if (config.isGemini) {
+          // Gemini non-streaming (Gemini streaming uses different format, use non-stream for simplicity)
+          const url = config.url.replace('{model}', activeModel) + `?key=${apiKey}`;
+          const contents = messages.filter(m => m.role !== 'system').map(m => ({
+            role: m.role === 'assistant' ? 'model' : 'user',
+            parts: [{ text: m.content }],
+          }));
+          const systemMsg = messages.find(m => m.role === 'system');
+          if (systemMsg) contents.unshift({ role: 'user', parts: [{ text: systemMsg.content }] });
+
+          const res = await fetch(url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ contents }),
+          });
+          if (!res.ok) {
+            const err = await res.json().catch(() => ({ error: { message: `HTTP ${res.status}` } }));
+            return { success: false, error: err.error?.message || `Gemini error ${res.status}` };
+          }
+          const data = await res.json();
+          const content = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
+          if (content) mainWindow?.webContents.send('gateway:stream-chunk', { content });
+          mainWindow?.webContents.send('gateway:stream-done');
+          return { success: true };
+
+        } else {
+          // OpenAI-compatible (openai, openrouter) — streaming
+          const headers = { 'Content-Type': 'application/json', 'Authorization': `${config.authHeader} ${apiKey}` };
+          if (vendor === 'openrouter') {
+            headers['HTTP-Referer'] = 'https://iimagine.ai';
+            headers['X-Title'] = 'IIMAGINE Desktop';
+          }
+          const res = await fetch(config.url, {
+            method: 'POST',
+            headers,
+            body: JSON.stringify({ model: activeModel, messages, stream: true, max_completion_tokens: 4096, temperature: 0.7 }),
+          });
+          if (!res.ok) {
+            const err = await res.json().catch(() => ({ error: { message: `HTTP ${res.status}` } }));
+            return { success: false, error: err.error?.message || `${vendor} error ${res.status}` };
+          }
+          const reader = res.body.getReader();
+          const decoder = new TextDecoder();
+          while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            const chunk = decoder.decode(value);
+            const lines = chunk.split('\n').filter(l => l.startsWith('data: '));
+            for (const line of lines) {
+              const data = line.slice(6).trim();
+              if (data === '[DONE]') { mainWindow?.webContents.send('gateway:stream-done'); }
+              else {
+                try {
+                  const parsed = JSON.parse(data);
+                  const content = parsed.choices?.[0]?.delta?.content || '';
+                  if (content) mainWindow?.webContents.send('gateway:stream-chunk', { content });
+                } catch {}
+              }
+            }
+          }
+          mainWindow?.webContents.send('gateway:stream-done');
+          return { success: true };
+        }
+      } catch (err) {
+        return { success: false, error: err.message };
+      }
+    }
+
+    // Fallback: use server proxy (requires auth)
     const token = store.get('auth.token');
     const serverUrl = store.get('auth.serverUrl') || activeWebAppUrl;
-    if (!token) return { success: false, error: 'Not authenticated' };
+    if (!token) return { success: false, error: 'No API key configured. Add your OpenAI key in Settings → Public Cloud.' };
 
     try {
       const res = await fetch(`${serverUrl}/api/desktop/gateway-chat`, {
@@ -1138,6 +1259,176 @@ Remember: Answer based on the document content above. Do not make up information
   ipcMain.handle('plugins:getCommands', () => pluginManager.getCommands());
   ipcMain.handle('plugins:getMentions', () => pluginManager.getMentions());
 
+  // Agent — non-streaming LLM calls for planning and task execution
+  // Uses the same provider the user has active (respects their model selection)
+  async function agentChat(messages) {
+    const gatewayModel = store.get('gateway.model'); // e.g. "gpt-5-mini"
+    const vendor = store.get('gateway.vendor') || 'openai'; // e.g. "anthropic"
+
+    const PROVIDER_CONFIG = {
+      openai: { url: 'https://api.openai.com/v1/chat/completions', keyStore: 'openai.apiKey', authHeader: 'Bearer' },
+      anthropic: { url: 'https://api.anthropic.com/v1/messages', keyStore: 'anthropic.apiKey', isAnthropic: true },
+      google: { url: 'https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent', keyStore: 'gemini.apiKey', isGemini: true },
+      openrouter: { url: 'https://openrouter.ai/api/v1/chat/completions', keyStore: 'openrouter.apiKey', authHeader: 'Bearer' },
+    };
+
+    const config = PROVIDER_CONFIG[vendor];
+    const apiKey = config ? store.get(config.keyStore) : null;
+
+    if (gatewayModel && apiKey && config) {
+      console.log('[Agent] Calling', vendor, 'directly with model:', gatewayModel);
+      try {
+        let res, content;
+
+        if (config.isAnthropic) {
+          // Extract system message from messages array
+          const systemMsg = messages.find(m => m.role === 'system');
+          const nonSystemMsgs = messages.filter(m => m.role !== 'system');
+          const body = { model: gatewayModel, messages: nonSystemMsgs, max_tokens: 4096, temperature: 0.7 };
+          if (systemMsg) body.system = systemMsg.content;
+
+          res = await fetch(config.url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'x-api-key': apiKey, 'anthropic-version': '2023-06-01' },
+            body: JSON.stringify(body),
+            signal: AbortSignal.timeout(60000),
+          });
+          if (!res.ok) {
+            const errBody = await res.text().catch(() => '');
+            console.log('[Agent] Anthropic returned status:', res.status, errBody.substring(0, 200));
+            if (res.status === 401) return '__ERROR__:Invalid Anthropic API key. Check Settings → Public Cloud.';
+          } else {
+            const data = await res.json();
+            content = data.content?.[0]?.text || '';
+          }
+        } else if (config.isGemini) {
+          const url = config.url.replace('{model}', gatewayModel) + `?key=${apiKey}`;
+          // Convert messages to Gemini format
+          const contents = messages.filter(m => m.role !== 'system').map(m => ({
+            role: m.role === 'assistant' ? 'model' : 'user',
+            parts: [{ text: m.content }],
+          }));
+          // Prepend system as a user message if present
+          const systemMsg = messages.find(m => m.role === 'system');
+          if (systemMsg) contents.unshift({ role: 'user', parts: [{ text: systemMsg.content }] });
+
+          res = await fetch(url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ contents }),
+            signal: AbortSignal.timeout(60000),
+          });
+          if (!res.ok) {
+            const errBody = await res.text().catch(() => '');
+            console.log('[Agent] Gemini returned status:', res.status, errBody.substring(0, 200));
+            if (res.status === 400 || res.status === 403) return '__ERROR__:Invalid Gemini API key. Check Settings → Public Cloud.';
+          } else {
+            const data = await res.json();
+            content = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
+          }
+        } else {
+          // OpenAI-compatible (openai, openrouter)
+          const headers = { 'Content-Type': 'application/json', 'Authorization': `${config.authHeader} ${apiKey}` };
+          if (vendor === 'openrouter') {
+            headers['HTTP-Referer'] = 'https://iimagine.ai';
+            headers['X-Title'] = 'IIMAGINE Desktop';
+          }
+          res = await fetch(config.url, {
+            method: 'POST',
+            headers,
+            body: JSON.stringify({ model: gatewayModel, messages, max_completion_tokens: 4096, temperature: 0.7 }),
+            signal: AbortSignal.timeout(60000),
+          });
+          if (!res.ok) {
+            const errBody = await res.text().catch(() => '');
+            console.log(`[Agent] ${vendor} returned status:`, res.status, errBody.substring(0, 200));
+            if (res.status === 401) return `__ERROR__:Invalid ${vendor} API key. Check Settings → Public Cloud.`;
+          } else {
+            const data = await res.json();
+            content = data.choices?.[0]?.message?.content || '';
+          }
+        }
+
+        if (content) {
+          console.log('[Agent] Response length:', content.length);
+          return content;
+        }
+      } catch (err) {
+        console.log('[Agent] Fetch failed:', err.message);
+      }
+    }
+
+    // Fallback: use Ollama directly (local models)
+    const ollamaHost = store.get('local.ollamaHost') || OLLAMA_URL;
+    const activeModel = store.get('activeModel');
+    let model = null;
+    try {
+      const tagsRes = await fetch(`${ollamaHost}/api/tags`);
+      if (tagsRes.ok) {
+        const tagsData = await tagsRes.json();
+        const allModels = tagsData.models || [];
+        const EMBED_ONLY = ['nomic-embed-text', 'all-minilm', 'mxbai-embed-large', 'snowflake-arctic-embed', 'bge-'];
+        const chatModels = allModels.filter(m => !EMBED_ONLY.some(e => m.name.startsWith(e)));
+        if (activeModel) {
+          const match = chatModels.find(m => m.name === activeModel);
+          if (match) model = match.name;
+        }
+        if (!model && chatModels.length > 0) model = chatModels[0].name;
+      }
+    } catch {
+      console.log('[Agent] Ollama not reachable');
+      return null;
+    }
+
+    if (!model) {
+      console.log('[Agent] No model available');
+      return null;
+    }
+
+    console.log('[Agent] Using Ollama model:', model);
+    const numCtx = store.get('local.contextWindow') || 4096;
+    try {
+      const res = await fetch(`${ollamaHost}/api/chat`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ model, messages, stream: false, options: { num_ctx: numCtx } }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        return data.message?.content || null;
+      }
+    } catch {}
+    return null;
+  }
+
+  ipcMain.handle('agent:plan', async (event, messages) => {
+    try {
+      const content = await agentChat(messages);
+      if (content?.startsWith('__ERROR__:')) {
+        return { content: null, error: content.slice(10) };
+      }
+      if (content) return { content };
+      return { content: null, error: 'No model available' };
+    } catch (err) {
+      console.error('[Agent:plan] Error:', err.message);
+      return { content: null, error: err.message };
+    }
+  });
+
+  ipcMain.handle('agent:execute', async (event, messages) => {
+    try {
+      const content = await agentChat(messages);
+      if (content?.startsWith('__ERROR__:')) {
+        return { content: null, error: content.slice(10) };
+      }
+      if (content) return { content };
+      return { content: null, error: 'No model available' };
+    } catch (err) {
+      console.error('[Agent:execute] Error:', err.message);
+      return { content: null, error: err.message };
+    }
+  });
+
   ipcMain.handle('plugins:install', async (event) => {
     const { dialog } = require('electron');
     const result = await dialog.showOpenDialog(mainWindow, {
@@ -1267,8 +1558,9 @@ app.whenReady().then(async () => {
     for (const folder of fs.readdirSync(samplePluginsDir, { withFileTypes: true })) {
       if (!folder.isDirectory()) continue;
       const dest = path.join(userPluginsDir, folder.name);
+      // Always sync bundled plugins (overwrite on every launch to ensure updates propagate)
+      fs.cpSync(path.join(samplePluginsDir, folder.name), dest, { recursive: true });
       if (!fs.existsSync(dest)) {
-        fs.cpSync(path.join(samplePluginsDir, folder.name), dest, { recursive: true });
         console.log(`[Plugin] Installed sample plugin: ${folder.name}`);
       }
     }
