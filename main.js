@@ -20,9 +20,8 @@ const WEB_APP_URL_LOCAL = 'http://localhost:3000';
 const WEB_APP_URL_PROD = 'https://app.iimagine.ai';
 let activeWebAppUrl = WEB_APP_URL_LOCAL;
 
-// Auth mode: when false, app works without sign-in (open source mode)
-// Set to true to require IIMAGINE account (needed for cloud features / paid plugins)
-const AUTH_REQUIRED = store.get('auth.required', false);
+// Auth mode: disabled — app works without sign-in (open source mode)
+const AUTH_REQUIRED = false;
 
 const OLLAMA_URL = 'http://localhost:11434';
 const PROTOCOL = 'iimagine-desktop';
