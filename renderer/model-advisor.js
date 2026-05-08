@@ -116,7 +116,8 @@ const RAM_OPTIONS = [
   { value: 24, label: '24 GB' },
   { value: 32, label: '32 GB' },
   { value: 48, label: '48 GB' },
-  { value: 64, label: '64 GB or more' },
+  { value: 64, label: '64 GB' },
+  { value: 128, label: '128 GB or more' },
 ];
 
 const GPU_OPTIONS = [
@@ -126,7 +127,8 @@ const GPU_OPTIONS = [
   { value: 'apple-m-pro', label: 'Apple M Pro / Max / Ultra' },
   { value: 'nvidia-low', label: 'NVIDIA (4-6GB VRAM)' },
   { value: 'nvidia-mid', label: 'NVIDIA (8-12GB VRAM)' },
-  { value: 'nvidia-high', label: 'NVIDIA (16GB+ VRAM)' },
+  { value: 'nvidia-high', label: 'NVIDIA (16GB VRAM)' },
+  { value: 'nvidia-ultra', label: 'NVIDIA (24GB+ VRAM)' },
   { value: 'amd', label: 'AMD GPU' },
   { value: 'unknown', label: 'Not sure' },
 ];
@@ -210,6 +212,7 @@ function getPerformanceEstimate(model, ramGB, gpu) {
   if (gpu === 'apple-m3' || gpu === 'apple-m-pro') tokensPerSec *= 2.0;
   else if (gpu === 'apple-m1') tokensPerSec *= 1.5;
   else if (gpu === 'nvidia-high') tokensPerSec *= 2.5;
+  else if (gpu === 'nvidia-ultra') tokensPerSec *= 3.0;
   else if (gpu === 'nvidia-mid') tokensPerSec *= 1.8;
   else if (gpu === 'nvidia-low') tokensPerSec *= 1.3;
 

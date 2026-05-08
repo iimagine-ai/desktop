@@ -93,7 +93,7 @@ function showAuth() {
   $('#dashboard').classList.add('hidden');
 }
 
-function showDashboard() {
+async function showDashboard() {
   $('#authScreen').classList.add('hidden');
   $('#dashboard').classList.remove('hidden');
 
@@ -101,7 +101,8 @@ function showDashboard() {
   const isGuest = user?.isGuest;
 
   // Update sidebar user area
-  $('#sidebarUser').textContent = isGuest ? 'Local User' : (user?.email || '');
+  const savedDisplayName = await window.api.settings.get('profile.displayName');
+  $('#sidebarUser').textContent = savedDisplayName || (isGuest ? 'Local User' : (user?.email || ''));
 
   // Hide sign-out button for guest users, show sign-in option instead
   const logoutBtn = $('#logoutBtn');
@@ -199,13 +200,10 @@ $('#logoutBtn').addEventListener('click', async () => {
 // ── Theme Toggle ─────────────────────────────────────────────────
 function updateThemeButton() {
   const icon = $('#themeIcon');
-  const label = $('#themeLabel');
   if (window.ThemeManager.current === 'dark') {
     icon.innerHTML = '<circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>';
-    label.textContent = 'Light mode';
   } else {
     icon.innerHTML = '<path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>';
-    label.textContent = 'Dark mode';
   }
 }
 
@@ -260,10 +258,25 @@ async function init() {
   await window.ProviderManager.refreshLocal();
   AppRouter.updateModelDropdown();
 
+  // Re-check provider status on chat page after models load
+  if (window.ProviderManager.activeProvider) {
+    const noProviderMsg = document.querySelector('#noProviderMsg');
+    const sendBtn = document.querySelector('#sendBtn');
+    if (noProviderMsg) noProviderMsg.classList.add('hidden');
+    if (sendBtn) sendBtn.disabled = false;
+  }
+
   // Poll Ollama status every 30s
   setInterval(async () => {
     await window.ProviderManager.refreshLocal();
     AppRouter.updateModelDropdown();
+
+    if (window.ProviderManager.activeProvider) {
+      const noProviderMsg = document.querySelector('#noProviderMsg');
+      const sendBtn = document.querySelector('#sendBtn');
+      if (noProviderMsg) noProviderMsg.classList.add('hidden');
+      if (sendBtn && !sendBtn.closest('.hidden')) sendBtn.disabled = false;
+    }
   }, 30000);
 }
 

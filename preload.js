@@ -1,5 +1,5 @@
 // Preload script — exposes safe APIs to the renderer process
-const { contextBridge, ipcRenderer } = require('electron');
+const { contextBridge, ipcRenderer, webUtils } = require('electron');
 
 contextBridge.exposeInMainWorld('api', {
   // Auth
@@ -20,7 +20,10 @@ contextBridge.exposeInMainWorld('api', {
     status: () => ipcRenderer.invoke('ollama:status'),
     install: () => ipcRenderer.invoke('ollama:install'),
     pull: (modelName) => ipcRenderer.invoke('ollama:pull', modelName),
+    cancelPull: () => ipcRenderer.invoke('ollama:cancelPull'),
     hasModel: (modelName) => ipcRenderer.invoke('ollama:hasModel', modelName),
+    delete: (modelName) => ipcRenderer.invoke('ollama:delete', modelName),
+    unload: (modelName) => ipcRenderer.invoke('ollama:unload', modelName),
     chat: (model, messages) => ipcRenderer.invoke('ollama:chat', { model, messages }),
     chatStream: (model, messages) => ipcRenderer.invoke('ollama:chatStream', { model, messages }),
     embedBatch: (model, texts) => ipcRenderer.invoke('ollama:embedBatch', { model, texts }),
@@ -63,6 +66,7 @@ contextBridge.exposeInMainWorld('api', {
     getConversation: (id) => ipcRenderer.invoke('storage:getConversation', id),
     updateConversationTitle: (id, title) => ipcRenderer.invoke('storage:updateConversationTitle', id, title),
     updateConversationCollection: (id, collectionId) => ipcRenderer.invoke('storage:updateConversationCollection', id, collectionId),
+    updateConversationKBSelections: (id, selections) => ipcRenderer.invoke('storage:updateConversationKBSelections', id, selections),
     deleteConversation: (id) => ipcRenderer.invoke('storage:deleteConversation', id),
     // Messages
     addMessage: (data) => ipcRenderer.invoke('storage:addMessage', data),
@@ -95,6 +99,11 @@ contextBridge.exposeInMainWorld('api', {
     onChunk: (cb) => ipcRenderer.on('chat:rag-chunk', (_, data) => cb(data)),
     onDone: (cb) => ipcRenderer.on('chat:rag-done', () => cb()),
   },
+  // Chat — stop/abort active stream
+  chat: {
+    stop: () => ipcRenderer.invoke('chat:stop'),
+    onStreamStopped: (cb) => ipcRenderer.on('chat:stream-stopped', () => cb()),
+  },
 
   // Knowledge Base — local vector-enabled KB
   kb: {
@@ -118,6 +127,9 @@ contextBridge.exposeInMainWorld('api', {
     isVecLoaded: () => ipcRenderer.invoke('kb:isVecLoaded'),
     // File dialog
     openFileDialog: () => ipcRenderer.invoke('kb:openFileDialog'),
+    readDroppedFiles: (filePaths) => ipcRenderer.invoke('kb:readDroppedFiles', filePaths),
+    // Get file path from dropped File object (Electron 33+ requires webUtils)
+    getFilePath: (file) => webUtils.getPathForFile(file),
     // Embed progress events
     onEmbedProgress: (cb) => ipcRenderer.on('kb:embed-progress', (_, data) => cb(data)),
     // Auto-embed events
@@ -159,5 +171,10 @@ contextBridge.exposeInMainWorld('api', {
     chatPostprocess: (data) => ipcRenderer.invoke('plugins:chatPostprocess', data),
     getCommands: () => ipcRenderer.invoke('plugins:getCommands'),
     getMentions: () => ipcRenderer.invoke('plugins:getMentions'),
+  },
+
+  agent: {
+    plan: (messages) => ipcRenderer.invoke('agent:plan', messages),
+    execute: (messages) => ipcRenderer.invoke('agent:execute', messages),
   },
 });

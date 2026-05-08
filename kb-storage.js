@@ -198,9 +198,14 @@ function getDocument(id) {
   return db.prepare('SELECT * FROM kb_documents WHERE id = ?').get(id) || null;
 }
 
-function updateDocument(id, { title, content }) {
+function updateDocument(id, { title, content, description }) {
   const doc = db.prepare('SELECT collection_id FROM kb_documents WHERE id = ?').get(id);
   if (!doc) return null;
+
+  // Update description if provided
+  if (description !== undefined) {
+    db.prepare('UPDATE kb_documents SET description = ? WHERE id = ?').run(description || '', id);
+  }
 
   const charCount = content.length;
 
@@ -418,6 +423,70 @@ function searchSimilar(queryEmbedding, collectionId, topK = 5) {
   }
 }
 
+/**
+ * Search across multiple collections and/or specific documents
+ * @param {Float32Array} queryEmbedding - The query vector
+ * @param {Array} selections - [{ collectionId, documentId? }]
+ * @param {number} topK - Number of results per source
+ * @returns {Array} Combined and sorted results
+ */
+function searchMultiple(queryEmbedding, selections, topK = 5) {
+  if (!vecLoaded || !selections || selections.length === 0) return [];
+
+  const queryBuf = Buffer.from(queryEmbedding.buffer);
+  const allResults = [];
+
+  for (const sel of selections) {
+    try {
+      let query;
+      let params;
+
+      if (sel.documentId) {
+        // Search within a specific document
+        query = `
+          SELECT e.chunk_id, e.distance, c.content, c.document_id, d.title as doc_title
+          FROM kb_embeddings e
+          JOIN kb_chunks c ON e.chunk_id = c.id
+          JOIN kb_documents d ON c.document_id = d.id
+          WHERE e.embedding MATCH ? AND k = ?
+            AND c.document_id = ?
+          ORDER BY e.distance
+        `;
+        params = [queryBuf, topK, sel.documentId];
+      } else {
+        // Search whole collection
+        query = `
+          SELECT e.chunk_id, e.distance, c.content, c.document_id, d.title as doc_title
+          FROM kb_embeddings e
+          JOIN kb_chunks c ON e.chunk_id = c.id
+          JOIN kb_documents d ON c.document_id = d.id
+          WHERE e.embedding MATCH ? AND k = ?
+            AND c.collection_id = ?
+          ORDER BY e.distance
+        `;
+        params = [queryBuf, topK, sel.collectionId];
+      }
+
+      const results = db.prepare(query).all(...params);
+      allResults.push(...results);
+    } catch (err) {
+      console.error('[KB] Vector search error for selection:', sel, err.message);
+    }
+  }
+
+  // Deduplicate by chunk_id and sort by distance, take top K
+  const seen = new Set();
+  const unique = [];
+  for (const r of allResults.sort((a, b) => (a.distance || 0) - (b.distance || 0))) {
+    if (!seen.has(r.chunk_id)) {
+      seen.add(r.chunk_id);
+      unique.push(r);
+    }
+  }
+
+  return unique.slice(0, topK);
+}
+
 // ── Stats ───────────────────────────────────────────────────────
 
 function getKBStats() {
@@ -459,6 +528,7 @@ module.exports = {
   storeEmbeddings,
   getUnembeddedChunks,
   searchSimilar,
+  searchMultiple,
   // Stats
   getKBStats,
 };

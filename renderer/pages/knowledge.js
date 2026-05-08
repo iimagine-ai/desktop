@@ -88,7 +88,6 @@ const KnowledgePage = {
                   ${c.description ? `<p class="text-xs text-neutral-500 mt-1">${this._esc(c.description)}</p>` : ''}
                 </div>
                 <div class="flex items-center gap-5 ml-4 shrink-0">
-                  <button class="kb-edit-coll text-neutral-300 hover:text-neutral-600 dark:hover:text-neutral-200" data-id="${c.id}" title="Edit"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></button>
                   <button class="kb-del-coll text-neutral-300 hover:text-rose-600" data-id="${c.id}" title="Delete"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg></button>
                 </div>
               </div>
@@ -126,18 +125,9 @@ const KnowledgePage = {
     // Click collection to open
     document.querySelectorAll('.kb-coll-item').forEach(item => {
       item.addEventListener('click', (e) => {
-        if (e.target.closest('.kb-del-coll') || e.target.closest('.kb-edit-coll')) return;
+        if (e.target.closest('.kb-del-coll')) return;
         this.docPage = 0;
         this._showDocuments(item.dataset.id);
-      });
-    });
-
-    // Edit collection (opens it)
-    document.querySelectorAll('.kb-edit-coll').forEach(btn => {
-      btn.addEventListener('click', (e) => {
-        e.stopPropagation();
-        this.docPage = 0;
-        this._showDocuments(btn.dataset.id);
       });
     });
 
@@ -145,7 +135,7 @@ const KnowledgePage = {
     document.querySelectorAll('.kb-del-coll').forEach(btn => {
       btn.addEventListener('click', async (e) => {
         e.stopPropagation();
-        if (confirm('Delete this collection and all its documents?')) {
+        if (confirm('Are you sure you want to delete this collection?\n\nThis will permanently delete the collection AND all documents inside it. This cannot be undone.')) {
           await window.api.kb.deleteCollection(btn.dataset.id);
           this._showCollections();
         }
@@ -203,6 +193,18 @@ const KnowledgePage = {
           </button>
         </div>
 
+        <!-- Drag & Drop Zone -->
+        <div id="kbDropZone" class="relative border-2 border-dashed border-neutral-200/60 dark:border-neutral-700/60 rounded-2xl p-4 text-center transition-all hover:border-neutral-300 dark:hover:border-neutral-600 cursor-pointer">
+          <div id="kbDropZoneContent" class="flex flex-col items-center gap-1.5">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="text-neutral-300 dark:text-neutral-600"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+            <p class="text-xs text-neutral-400 dark:text-neutral-500">Drag files here to upload</p>
+            <p class="text-[10px] text-neutral-300 dark:text-neutral-600">.pdf .docx .txt .csv .md</p>
+          </div>
+          <div id="kbDropZoneActive" class="hidden absolute inset-0 rounded-2xl bg-neutral-900/5 dark:bg-neutral-100/5 border-2 border-dashed border-neutral-900 dark:border-neutral-100 flex items-center justify-center pointer-events-none">
+            <p class="text-sm font-medium text-neutral-900 dark:text-neutral-100">Drop to upload</p>
+          </div>
+        </div>
+
         <input id="kbDocSearch" type="text" placeholder="Search documents..." value="${this._escAttr(this.docSearch)}"
           class="w-full bg-white/60 dark:bg-neutral-800/60 border border-neutral-200/50 dark:border-neutral-700/50 rounded-xl px-3 py-2 text-sm text-neutral-700 dark:text-neutral-300 placeholder-neutral-400 dark:placeholder-neutral-500 focus:bg-white/90 dark:focus:bg-neutral-800/90 focus:outline-none transition-all shadow-sm" />
 
@@ -226,10 +228,10 @@ const KnowledgePage = {
             class="w-full resize-none bg-white/60 dark:bg-neutral-800/60 border border-neutral-200/50 dark:border-neutral-700/50 rounded-xl px-3 py-2.5 text-sm text-neutral-700 dark:text-neutral-300 placeholder-neutral-400 dark:placeholder-neutral-500 focus:bg-white/90 dark:focus:bg-neutral-800/90 focus:outline-none transition-all shadow-sm"></textarea>
           <div class="flex items-center gap-2">
             <button id="kbAddFileBtn" class="px-3 py-2 rounded-lg bg-white/60 dark:bg-neutral-800/60 border border-neutral-200/50 dark:border-neutral-700/50 text-xs font-medium text-neutral-600 dark:text-neutral-400 hover:bg-white/90 dark:hover:bg-neutral-700/90 transition-all shadow-sm flex items-center gap-1.5">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="m21.44 11.05-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg> or upload a file
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="m21.44 11.05-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg> Upload file
             </button>
             <span id="kbAddFilename" class="text-xs text-neutral-400 dark:text-neutral-500 truncate"></span>
-            <span class="text-xs text-neutral-400 dark:text-neutral-500 ml-auto">.pdf .docx .txt .csv .md</span>
+            <span class="text-xs text-neutral-300 dark:text-neutral-600 ml-auto">.pdf .docx .txt .csv .md</span>
           </div>
           <div class="flex gap-2">
             <button id="kbSaveAddBtn" class="px-4 py-2.5 rounded-lg bg-neutral-900 dark:bg-neutral-100 text-sm font-medium text-white dark:text-neutral-900 hover:bg-neutral-800 dark:hover:bg-neutral-200 transition-all shadow-sm">Save</button>
@@ -254,10 +256,9 @@ const KnowledgePage = {
                     <h4 class="text-sm font-medium text-neutral-900 dark:text-neutral-100 truncate">${this._esc(d.title)}</h4>
                   </div>
                   <p class="text-xs text-neutral-400 mt-1">${this._formatDate(d.updated_at || d.created_at)}</p>
-                  ${d.description ? `<p class="text-xs text-neutral-400 mt-0.5 truncate">${this._esc(this._truncate(d.description, 80))}</p>` : ''}
+                  <p class="text-xs mt-0.5 truncate ${d.description ? 'text-neutral-500' : 'text-neutral-400 italic'}">${d.description ? this._esc(this._truncate(d.description, 80)) : 'No description'}</p>
                 </div>
                 <div class="flex items-center gap-5 ml-4 shrink-0">
-                  <button class="kb-edit-doc text-neutral-300 hover:text-neutral-600 dark:hover:text-neutral-200" data-id="${d.id}" title="Edit"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></button>
                   <button class="kb-del-doc text-neutral-300 hover:text-rose-600" data-id="${d.id}" title="Delete"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg></button>
                 </div>
               </div>
@@ -354,7 +355,7 @@ const KnowledgePage = {
     });
 
     // Unified Add Data form
-    let uploadedSourceType = null; // tracks if content came from a file upload
+    let uploadedSourceType = null;
     let uploadedFilename = null;
 
     document.querySelector('#kbAddDataBtn')?.addEventListener('click', () => {
@@ -372,7 +373,7 @@ const KnowledgePage = {
       document.querySelector('#kbAddFilename').textContent = '';
     });
 
-    // "or upload a file" button — opens file picker, fills textarea
+    // Upload file button inside Add Data form — extracts content into textarea
     document.querySelector('#kbAddFileBtn')?.addEventListener('click', async () => {
       const result = await window.api.kb.openFileDialog();
       if (result.canceled || !result.files.length) return;
@@ -381,7 +382,7 @@ const KnowledgePage = {
       const content = file.content || '';
 
       if (!content.trim()) {
-        alert(`Could not extract text from ${file.filename}`);
+        alert('Could not extract text from ' + file.filename);
         return;
       }
 
@@ -397,7 +398,7 @@ const KnowledgePage = {
       }
     });
 
-    // Save
+    // Save from Add Data form
     document.querySelector('#kbSaveAddBtn')?.addEventListener('click', async () => {
       const title = document.querySelector('#kbAddTitle').value.trim();
       const content = document.querySelector('#kbAddContent').value.trim();
@@ -420,16 +421,8 @@ const KnowledgePage = {
     // Click doc to edit
     document.querySelectorAll('.kb-doc-item').forEach(item => {
       item.addEventListener('click', (e) => {
-        if (e.target.closest('.kb-del-doc') || e.target.closest('.kb-edit-doc')) return;
+        if (e.target.closest('.kb-del-doc')) return;
         this._showEditor(item.dataset.id);
-      });
-    });
-
-    // Edit doc button
-    document.querySelectorAll('.kb-edit-doc').forEach(btn => {
-      btn.addEventListener('click', (e) => {
-        e.stopPropagation();
-        this._showEditor(btn.dataset.id);
       });
     });
 
@@ -443,6 +436,128 @@ const KnowledgePage = {
         }
       });
     });
+
+    // ── Drag & Drop ──────────────────────────────────────────────
+    const dropZone = document.querySelector('#kbDropZone');
+    const dropActive = document.querySelector('#kbDropZoneActive');
+    const dropContent = document.querySelector('#kbDropZoneContent');
+    let dragCounter = 0;
+
+    if (dropZone) {
+      // Click the drop zone to open file picker too
+      dropZone.addEventListener('click', async () => {
+        console.log('[KB] Drop zone clicked, opening file dialog...');
+        const result = await window.api.kb.openFileDialog();
+        console.log('[KB] File dialog result:', result.canceled, 'files:', result.files?.length);
+        if (result.canceled || !result.files.length) return;
+        await this._processDroppedFiles(result.files, collectionId);
+      });
+
+      dropZone.addEventListener('dragenter', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        dragCounter++;
+        if (dropActive) dropActive.classList.remove('hidden');
+        if (dropContent) dropContent.classList.add('hidden');
+      });
+
+      dropZone.addEventListener('dragleave', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        dragCounter--;
+        if (dragCounter <= 0) {
+          dragCounter = 0;
+          if (dropActive) dropActive.classList.add('hidden');
+          if (dropContent) dropContent.classList.remove('hidden');
+        }
+      });
+
+      dropZone.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+      });
+
+      dropZone.addEventListener('drop', async (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        dragCounter = 0;
+        if (dropActive) dropActive.classList.add('hidden');
+        if (dropContent) dropContent.classList.remove('hidden');
+
+        const files = e.dataTransfer?.files;
+        if (!files || files.length === 0) return;
+
+        // Show processing indicator
+        if (dropContent) {
+          dropContent.innerHTML = `
+            <div class="w-4 h-4 rounded-full border-2 border-neutral-400 border-t-neutral-900 dark:border-neutral-500 dark:border-t-neutral-100 animate-spin"></div>
+            <p class="text-xs text-neutral-500">Processing ${files.length} file${files.length > 1 ? 's' : ''}...</p>
+          `;
+        }
+
+        // Get file paths using Electron's webUtils API (required for Electron 33+ with contextIsolation)
+        const filePaths = [];
+        for (let i = 0; i < files.length; i++) {
+          try {
+            const path = window.api.kb.getFilePath(files[i]);
+            if (path) filePaths.push(path);
+          } catch (err) {
+            console.warn('[KB] getFilePath failed:', err.message);
+          }
+        }
+
+        if (filePaths.length > 0) {
+          const result = await window.api.kb.readDroppedFiles(filePaths);
+          if (result?.files?.length > 0) {
+            await this._processDroppedFiles(result.files, collectionId);
+            return;
+          }
+        }
+
+        // If we get here, nothing was processed
+        this._resetDropZone(dropContent);
+      });
+    }
+  },
+
+  /**
+   * Process files (from drag-drop or file picker) and add them to the collection
+   */
+  async _processDroppedFiles(files, collectionId) {
+    let added = 0;
+    for (let i = 0; i < files.length; i++) {
+      const file = files[i];
+      if (!file.content || !file.content.trim()) {
+        console.warn('[KB] Skipping file with no content:', file.filename);
+        continue;
+      }
+      const id = `doc_${Date.now()}_${i}_${Math.random().toString(36).slice(2, 8)}`;
+      const title = file.filename ? file.filename.replace(/\.[^.]+$/, '') : `Document ${Date.now()}`;
+      console.log('[KB] Adding document:', title, 'content length:', file.content.length);
+      await window.api.kb.addDocument({
+        id,
+        collectionId,
+        title,
+        sourceType: file.type || 'file',
+        content: file.content,
+        originalFilename: file.filename || undefined,
+      });
+      added++;
+    }
+    console.log('[KB] Added', added, 'documents to collection', collectionId);
+    if (added > 0) {
+      this._showDocuments(collectionId);
+    }
+  },
+
+  _resetDropZone(dropContent) {
+    if (dropContent) {
+      dropContent.innerHTML = `
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="text-neutral-300 dark:text-neutral-600"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+        <p class="text-xs text-neutral-400 dark:text-neutral-500">Drag files here to upload</p>
+        <p class="text-[10px] text-neutral-300 dark:text-neutral-600">.pdf .docx .txt .csv .md</p>
+      `;
+    }
   },
 
   // ── Document Editor ─────────────────────────────────────────
@@ -463,6 +578,9 @@ const KnowledgePage = {
 
         <input id="kbEditorTitle" type="text" value="${this._escAttr(doc.title)}"
           class="w-full bg-white/60 dark:bg-neutral-800/60 border border-neutral-200/50 dark:border-neutral-700/50 rounded-xl px-3 py-2.5 text-sm font-medium text-neutral-700 dark:text-neutral-300 focus:bg-white/90 dark:focus:bg-neutral-800/90 focus:outline-none transition-all shadow-sm" />
+
+        <input id="kbEditorDesc" type="text" value="${this._escAttr(doc.description || '')}" placeholder="Description (optional)"
+          class="w-full bg-white/60 dark:bg-neutral-800/60 border border-neutral-200/50 dark:border-neutral-700/50 rounded-xl px-3 py-2.5 text-sm text-neutral-700 dark:text-neutral-300 placeholder-neutral-400 dark:placeholder-neutral-500 focus:bg-white/90 dark:focus:bg-neutral-800/90 focus:outline-none transition-all shadow-sm" />
 
         <textarea id="kbEditorContent" class="w-full flex-1 min-h-[300px] resize-none bg-white/60 dark:bg-neutral-800/60 border border-neutral-200/50 dark:border-neutral-700/50 rounded-xl px-3 py-2.5 text-sm text-neutral-700 dark:text-neutral-300 font-mono focus:bg-white/90 dark:focus:bg-neutral-800/90 focus:outline-none transition-all shadow-sm">${this._esc(doc.content)}</textarea>
 
@@ -498,11 +616,12 @@ const KnowledgePage = {
     document.querySelector('#kbEditorSave')?.addEventListener('click', async () => {
       const title = document.querySelector('#kbEditorTitle').value.trim();
       const content = textarea.value;
+      const description = document.querySelector('#kbEditorDesc').value.trim();
       if (!title) return;
       const btn = document.querySelector('#kbEditorSave');
       btn.disabled = true;
       btn.textContent = 'Saving...';
-      await window.api.kb.updateDocument(docId, { title, content });
+      await window.api.kb.updateDocument(docId, { title, content, description });
       this._showDocuments(doc.collection_id);
     });
   },

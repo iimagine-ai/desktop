@@ -18,7 +18,8 @@
 //     "sidebar": { "label": "My Page", "icon": "🔧" },
 //     "settings": true,
 //     "chatPreprocess": true,
-//     "chatPostprocess": true
+//     "chatPostprocess": true,
+//     "mention": { "name": "my-plugin", "description": "What this plugin does when mentioned" }
 //   }
 // }
 //
@@ -182,9 +183,45 @@ class PluginManager {
       .map(p => ({ id: p.manifest.id, manifest: p.manifest, instance: p.instance }));
   }
 
+  // Get all plugins that can be @-mentioned
+  getMentions() {
+    const mentions = [
+      // Built-in @agent mention — always available
+      { pluginId: '__agent__', name: 'agent', description: 'Break task into steps and execute sequentially' },
+    ];
+    for (const [id, plugin] of this.plugins) {
+      if (!plugin.enabled || !plugin.instance) continue;
+      if (plugin.manifest.hooks?.mention) {
+        mentions.push({
+          pluginId: id,
+          name: plugin.manifest.hooks.mention.name || id,
+          description: plugin.manifest.hooks.mention.description || plugin.manifest.description || '',
+        });
+      }
+    }
+    return mentions;
+  }
+
   // Run chat preprocess hooks (modify messages before sending to LLM)
   async runChatPreprocess(data) {
-    let result = data;
+    let result = { ...data };
+
+    // If specific mentions are provided, only run those plugins
+    if (data.mentions && data.mentions.length > 0) {
+      for (const mention of data.mentions) {
+        const plugin = this.plugins.get(mention.pluginId);
+        if (plugin?.enabled && plugin?.instance?.onChatPreprocess) {
+          try {
+            result = await plugin.instance.onChatPreprocess(result);
+          } catch (err) {
+            console.warn(`[Plugin] ${mention.pluginId} mention preprocess error:`, err.message);
+          }
+        }
+      }
+      return result;
+    }
+
+    // Otherwise run all plugins with chatPreprocess hook (existing behavior)
     for (const p of this.getWithHook('chatPreprocess')) {
       try {
         if (typeof p.instance.onChatPreprocess === 'function') {
@@ -200,6 +237,23 @@ class PluginManager {
   // Run chat postprocess hooks (modify response after LLM)
   async runChatPostprocess(data) {
     let result = data;
+
+    // If specific mentions are provided, only run those plugins
+    if (data.mentions && data.mentions.length > 0) {
+      for (const mention of data.mentions) {
+        const plugin = this.plugins.get(mention.pluginId);
+        if (plugin?.enabled && plugin?.instance?.onChatPostprocess) {
+          try {
+            result = await plugin.instance.onChatPostprocess(result);
+          } catch (err) {
+            console.warn(`[Plugin] ${mention.pluginId} mention postprocess error:`, err.message);
+          }
+        }
+      }
+      return result;
+    }
+
+    // Otherwise run all plugins with chatPostprocess hook
     for (const p of this.getWithHook('chatPostprocess')) {
       try {
         if (typeof p.instance.onChatPostprocess === 'function') {
@@ -210,6 +264,25 @@ class PluginManager {
       }
     }
     return result;
+  }
+
+  // Get all registered slash commands from plugins
+  getCommands() {
+    const commands = [];
+    for (const [id, plugin] of this.plugins) {
+      if (!plugin.enabled || !plugin.instance) continue;
+      if (typeof plugin.instance.getCommands === 'function') {
+        try {
+          const cmds = plugin.instance.getCommands();
+          if (Array.isArray(cmds)) {
+            commands.push(...cmds.map(c => ({ ...c, pluginId: id })));
+          }
+        } catch (err) {
+          console.warn(`[Plugin] ${id} getCommands error:`, err.message);
+        }
+      }
+    }
+    return commands;
   }
 
   // Get sidebar items from plugins

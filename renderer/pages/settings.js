@@ -376,26 +376,17 @@ const SettingsPage = {
         <div id="modelSection" class="hidden">
           <div class="flex items-center justify-between mb-2">
             <span class="text-sm text-neutral-600 dark:text-neutral-400">Models</span>
-            <button id="pullModelBtn" class="px-4 py-2 rounded-lg bg-neutral-900 dark:bg-neutral-100 text-sm font-medium text-white dark:text-neutral-900 hover:bg-neutral-800 dark:hover:bg-neutral-200 transition-all shadow-sm flex items-center gap-2">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M8 12h8M12 8v8"/></svg> Install model
-            </button>
+            <span class="text-[10px] text-neutral-400">Use "Find the right model" below to download</span>
           </div>
 
-          <!-- Model pull UI -->
-          <div id="pullUI" class="hidden mb-3 bg-white/50 dark:bg-neutral-800/50 border border-neutral-200/40 dark:border-neutral-700/40 rounded-2xl p-4 shadow-[0_2px_10px_rgb(0,0,0,0.02)] dark:shadow-[0_2px_10px_rgb(0,0,0,0.2)] backdrop-blur-md">
-            <label class="text-xs font-medium text-neutral-400 uppercase tracking-wider mb-1.5 block">Model name</label>
-            <div class="flex gap-2 mb-2">
-              <input id="pullModelInput" type="text" value="gemma3:4b"
-                class="flex-1 bg-white/60 dark:bg-neutral-800/60 border border-neutral-200/50 dark:border-neutral-700/50 rounded-xl px-3 py-1.5 text-sm text-neutral-700 dark:text-neutral-300 focus:bg-white/90 dark:focus:bg-neutral-800/90 focus:outline-none transition-all shadow-sm" />
-              <button id="startPullBtn" class="px-4 py-2 rounded-lg bg-neutral-900 dark:bg-neutral-100 text-sm font-medium text-white dark:text-neutral-900 hover:bg-neutral-800 dark:hover:bg-neutral-200 transition-all shadow-sm">Pull</button>
-              <button id="cancelPullBtn" class="text-sm text-neutral-400 hover:text-neutral-600 px-2">✕</button>
+          <!-- Download progress (shown during model pull) -->
+          <div id="pullProgress" class="hidden mb-3 bg-white/50 dark:bg-neutral-800/50 border border-neutral-200/40 dark:border-neutral-700/40 rounded-2xl p-4 shadow-[0_2px_10px_rgb(0,0,0,0.02)] dark:shadow-[0_2px_10px_rgb(0,0,0,0.2)] backdrop-blur-md">
+            <div class="w-full bg-neutral-100 dark:bg-neutral-800 rounded-full h-2 shadow-inner mb-2">
+              <div id="pullProgressBar" class="progress-bar bg-gradient-to-r from-neutral-600 to-neutral-900 h-2 rounded-full transition-all" style="width: 0%"></div>
             </div>
-            <p class="text-[10px] text-neutral-400 mb-2">Recommended: gemma3:4b (~3GB), gemma3:1b (~1GB)</p>
-            <div id="pullProgress" class="hidden">
-              <div class="w-full bg-neutral-100 dark:bg-neutral-800 rounded-full h-2 shadow-inner mb-1">
-                <div id="pullProgressBar" class="progress-bar bg-gradient-to-r from-neutral-600 to-neutral-900 h-2 rounded-full" style="width: 0%"></div>
-              </div>
+            <div class="flex items-center justify-between">
               <p id="pullProgressText" class="text-xs text-neutral-500"></p>
+              <button id="cancelPullBtn" class="text-xs text-rose-500 hover:text-rose-700 font-medium">Cancel</button>
             </div>
           </div>
 
@@ -489,10 +480,6 @@ const SettingsPage = {
     const installEngineBtn = content.querySelector('#installEngineBtn');
     const installProgress = content.querySelector('#installProgress');
     const modelSection = content.querySelector('#modelSection');
-    const pullModelBtn = content.querySelector('#pullModelBtn');
-    const pullUI = content.querySelector('#pullUI');
-    const pullModelInput = content.querySelector('#pullModelInput');
-    const startPullBtn = content.querySelector('#startPullBtn');
     const cancelPullBtn = content.querySelector('#cancelPullBtn');
     const pullProgress = content.querySelector('#pullProgress');
     const pullProgressBar = content.querySelector('#pullProgressBar');
@@ -724,34 +711,9 @@ const SettingsPage = {
       }
     });
 
-    // Pull model UI toggle
-    pullModelBtn.addEventListener('click', () => {
-      pullUI.classList.toggle('hidden');
-      if (!pullUI.classList.contains('hidden')) pullModelInput.focus();
-    });
-
-    cancelPullBtn.addEventListener('click', () => {
-      pullUI.classList.add('hidden');
-    });
-
-    // Start pull
-    startPullBtn.addEventListener('click', async () => {
-      const modelName = pullModelInput.value.trim();
-      if (!modelName) return;
-
-      startPullBtn.disabled = true;
-      startPullBtn.textContent = 'Pulling...';
-      pullProgress.classList.remove('hidden');
-      pullProgressBar.style.width = '0%';
-      pullProgressText.textContent = 'Starting download...';
-
-      try {
-        await window.api.ollama.pull(modelName);
-      } catch (err) {
-        pullProgressText.textContent = `Error: ${err.message}`;
-        startPullBtn.disabled = false;
-        startPullBtn.textContent = 'Pull';
-      }
+    // Cancel download button
+    cancelPullBtn.addEventListener('click', async () => {
+      await window.api.ollama.cancelPull();
     });
 
     // Pull progress listener
@@ -779,15 +741,13 @@ const SettingsPage = {
         window.AppRouter?.updateModelDropdown();
 
         setTimeout(() => {
-          pullUI.classList.add('hidden');
           pullProgress.classList.add('hidden');
-          startPullBtn.disabled = false;
-          startPullBtn.textContent = 'Pull';
         }, 1500);
       } else {
-        pullProgressText.textContent = `Error: ${data.error}`;
-        startPullBtn.disabled = false;
-        startPullBtn.textContent = 'Pull';
+        pullProgressText.textContent = data.error === 'Download cancelled' ? 'Download cancelled.' : `Error: ${data.error}`;
+        setTimeout(() => {
+          pullProgress.classList.add('hidden');
+        }, 2000);
       }
     });
   },
@@ -1140,10 +1100,16 @@ const SettingsPage = {
     gpuSelect.addEventListener('change', updateRecommendBtn);
 
     // Generate recommendation
-    recommendBtn.addEventListener('click', () => {
+    recommendBtn.addEventListener('click', async () => {
       const ramGB = parseInt(ramSelect.value);
       const gpu = gpuSelect.value;
       const useCases = [...selectedCases];
+
+      // Get currently installed models
+      const status = await window.api.ollama.status();
+      const installedModels = status.running ? (status.models || []) : [];
+      const installedNames = installedModels.map(m => m.name);
+      const installedTotalGB = installedModels.reduce((sum, m) => sum + (m.size || 0), 0) / 1e9;
 
       const result = window.ModelAdvisor.getRecommendations(ramGB, gpu, useCases);
       resultsDiv.classList.remove('hidden');
@@ -1159,7 +1125,27 @@ const SettingsPage = {
       const primaryPerf = window.ModelAdvisor.getPerformanceEstimate(result.primary, ramGB, gpu);
       const altPerf = result.alternative ? window.ModelAdvisor.getPerformanceEstimate(result.alternative, ramGB, gpu) : null;
 
-      let html = `<div class="p-4 rounded-xl bg-emerald-50/80 border border-emerald-100">
+      // Check if models are already installed
+      const primaryInstalled = installedNames.some(n => n === result.primary.id || n.startsWith(result.primary.id + ':'));
+      const altInstalled = result.alternative ? installedNames.some(n => n === result.alternative.id || n.startsWith(result.alternative.id + ':')) : false;
+      const embeddingInstalled = result.embedding ? installedNames.some(n => n === result.embedding.id || n.startsWith(result.embedding.id + ':')) : false;
+
+      // Disk space warning: if new model + existing > reasonable threshold
+      const newModelGB = result.primary.sizeGB || 0;
+      const wouldUseGB = installedTotalGB + newModelGB;
+      const diskWarning = (!primaryInstalled && wouldUseGB > 20) ?
+        `<p class="text-[10px] text-amber-600 mt-2">You currently have ${installedTotalGB.toFixed(1)} GB of models installed. Consider deleting unused models in the list above to free space.</p>` : '';
+
+      // Installed models summary
+      const installedSummary = installedModels.length > 0 ?
+        `<div class="p-3 rounded-xl bg-neutral-50/80 dark:bg-neutral-800/50 border border-neutral-200/40 dark:border-neutral-700/40 mb-3">
+          <p class="text-[10px] font-medium text-neutral-500 uppercase tracking-wider mb-1">Currently installed (${installedTotalGB.toFixed(1)} GB total)</p>
+          <p class="text-xs text-neutral-600 dark:text-neutral-400">${installedNames.join(', ')}</p>
+        </div>` : '';
+
+      let html = installedSummary;
+
+      html += `<div class="p-4 rounded-xl bg-emerald-50/80 border border-emerald-100">
         <p class="text-xs font-medium text-emerald-700 uppercase tracking-wider mb-2">Recommended</p>
         <div class="flex items-start justify-between gap-3">
           <div class="flex-1 min-w-0">
@@ -1170,10 +1156,12 @@ const SettingsPage = {
               <span class="${primaryPerf.speedColor} font-medium">${primaryPerf.speedLabel} (~${primaryPerf.tokensPerSec} tok/s)</span>
             </div>
             <p class="text-[10px] text-neutral-400 mt-1">~${primaryPerf.wordsPerMin.toLocaleString()} words/min output</p>
+            ${diskWarning}
           </div>
-          <button class="wizard-install-btn px-3 py-1.5 rounded-lg bg-neutral-900 text-xs font-medium text-white hover:bg-neutral-800 transition-all shadow-sm flex-shrink-0" data-model="${result.primary.id}">
-            Install
-          </button>
+          ${primaryInstalled
+            ? '<span class="px-3 py-1.5 rounded-lg bg-emerald-100 text-xs font-medium text-emerald-700 flex-shrink-0">Installed ✓</span>'
+            : `<button class="wizard-install-btn px-3 py-1.5 rounded-lg bg-neutral-900 text-xs font-medium text-white hover:bg-neutral-800 transition-all shadow-sm flex-shrink-0" data-model="${result.primary.id}">Install</button>`
+          }
         </div>
       </div>`;
 
@@ -1189,9 +1177,10 @@ const SettingsPage = {
                 <span class="${altPerf.speedColor} font-medium">${altPerf.speedLabel} (~${altPerf.tokensPerSec} tok/s)</span>
               </div>
             </div>
-            <button class="wizard-install-btn px-3 py-1.5 rounded-lg bg-white border border-neutral-200 text-xs font-medium text-neutral-700 hover:bg-neutral-50 transition-all shadow-sm flex-shrink-0" data-model="${result.alternative.id}">
-              Install
-            </button>
+            ${altInstalled
+              ? '<span class="px-3 py-1.5 rounded-lg bg-emerald-100 text-xs font-medium text-emerald-700 flex-shrink-0">Installed ✓</span>'
+              : `<button class="wizard-install-btn px-3 py-1.5 rounded-lg bg-white border border-neutral-200 text-xs font-medium text-neutral-700 hover:bg-neutral-50 transition-all shadow-sm flex-shrink-0" data-model="${result.alternative.id}">Install</button>`
+            }
           </div>
         </div>`;
       }
@@ -1202,9 +1191,10 @@ const SettingsPage = {
             <p class="text-xs font-medium text-neutral-700">Also recommended: ${result.embedding.name}</p>
             <p class="text-[10px] text-neutral-500">${result.embedding.description} (${result.embedding.sizeGB} GB)</p>
           </div>
-          <button class="wizard-install-btn px-3 py-1.5 rounded-lg bg-white border border-neutral-200 text-xs font-medium text-neutral-700 hover:bg-neutral-50 transition-all shadow-sm flex-shrink-0" data-model="${result.embedding.id}">
-            Install
-          </button>
+          ${embeddingInstalled
+            ? '<span class="px-3 py-1.5 rounded-lg bg-emerald-100 text-xs font-medium text-emerald-700 flex-shrink-0">Installed ✓</span>'
+            : `<button class="wizard-install-btn px-3 py-1.5 rounded-lg bg-white border border-neutral-200 text-xs font-medium text-neutral-700 hover:bg-neutral-50 transition-all shadow-sm flex-shrink-0" data-model="${result.embedding.id}">Install</button>`
+          }
         </div>`;
       }
 
@@ -1223,33 +1213,70 @@ const SettingsPage = {
           }
 
           resultsDiv.querySelectorAll('.wizard-install-btn').forEach(b => b.disabled = true);
-          btn.textContent = 'Downloading...';
 
-          const pullInput = container.querySelector('#pullModelInput');
-          const pullUI = container.querySelector('#pullUI');
+          // Replace the Install button with a progress bar inside the same card
+          const cardDiv = btn.closest('.flex.items-start');
+          btn.outerHTML = `
+            <div class="flex-shrink-0 w-48" id="wizardCardProgress">
+              <div class="w-full bg-neutral-200 dark:bg-neutral-700 rounded-full h-3 shadow-inner mb-1.5">
+                <div id="wizardProgressBar" class="bg-blue-500 h-3 rounded-full transition-all" style="width: 0%"></div>
+              </div>
+              <p id="wizardProgressText" class="text-[11px] text-neutral-500 mb-1">Starting download...</p>
+              <button id="wizardCancelBtn" class="px-3 py-1 rounded-md bg-rose-100 dark:bg-rose-900/30 text-rose-600 dark:text-rose-400 text-xs font-medium hover:bg-rose-200 dark:hover:bg-rose-900/50 transition-colors w-full">Cancel Download</button>
+            </div>
+          `;
+
+          // Bind cancel — this truly aborts the fetch stream, not just pauses
+          const cancelBtn = resultsDiv.querySelector('#wizardCancelBtn');
+          cancelBtn.addEventListener('click', async () => {
+            cancelBtn.textContent = 'Cancelling...';
+            cancelBtn.disabled = true;
+            await window.api.ollama.cancelPull();
+            // AbortController.abort() kills the fetch stream immediately
+            // The pullModel function catches AbortError and sends pull-done with error
+          });
+
+          // Show progress bar in the model section too (for visibility when scrolled)
           const pullProgress = container.querySelector('#pullProgress');
-          if (pullInput) pullInput.value = modelId;
-          if (pullUI) pullUI.classList.remove('hidden');
           if (pullProgress) pullProgress.classList.remove('hidden');
+
+          // Listen for progress updates
+          window.api.ollama.onPullProgress((data) => {
+            const bar = resultsDiv.querySelector('#wizardProgressBar');
+            const text = resultsDiv.querySelector('#wizardProgressText');
+            if (bar && text && data.total && data.completed) {
+              const pct = Math.round((data.completed / data.total) * 100);
+              bar.style.width = pct + '%';
+              const downloadedMB = (data.completed / 1e6).toFixed(0);
+              const totalMB = (data.total / 1e6).toFixed(0);
+              text.textContent = `${downloadedMB} / ${totalMB} MB (${pct}%)`;
+            } else if (text) {
+              text.textContent = data.status || 'Processing...';
+            }
+          });
+
+          // Listen for pull done (success or cancel)
+          window.api.ollama.onPullDone(async (data) => {
+            const progressEl = resultsDiv.querySelector('#wizardCardProgress');
+            if (data.success) {
+              if (progressEl) progressEl.innerHTML = '<span class="px-3 py-1.5 rounded-lg bg-emerald-100 text-xs font-medium text-emerald-700">Installed ✓</span>';
+              resultsDiv.querySelectorAll('.wizard-install-btn').forEach(b => b.disabled = false);
+              await window.ProviderManager.refreshLocal();
+              window.AppRouter?.updateModelDropdown();
+            } else {
+              if (progressEl) progressEl.innerHTML = `<span class="text-xs text-neutral-400">${data.error === 'Download cancelled' ? 'Download cancelled' : 'Error — try again'}</span>`;
+              resultsDiv.querySelectorAll('.wizard-install-btn').forEach(b => b.disabled = false);
+            }
+            if (pullProgress) pullProgress.classList.add('hidden');
+          });
 
           try {
             await window.api.ollama.pull(modelId);
           } catch (err) {
-            btn.textContent = 'Error — retry';
+            const progressEl = resultsDiv.querySelector('#wizardCardProgress');
+            if (progressEl) progressEl.innerHTML = '<span class="text-xs text-rose-500">Error — try again</span>';
             resultsDiv.querySelectorAll('.wizard-install-btn').forEach(b => b.disabled = false);
           }
-
-          const checkDone = setInterval(async () => {
-            const hasModel = await window.api.ollama.hasModel(modelId);
-            if (hasModel) {
-              clearInterval(checkDone);
-              btn.textContent = 'Installed';
-              btn.classList.add('opacity-50');
-              resultsDiv.querySelectorAll('.wizard-install-btn').forEach(b => {
-                if (b !== btn) b.disabled = false;
-              });
-            }
-          }, 2000);
         });
       });
     });
@@ -1318,24 +1345,80 @@ const SettingsPage = {
 
   _renderModels(container, models) {
     if (!models.length) {
-      container.innerHTML = '<p class="text-xs text-neutral-400 italic">No models installed. Click "Install model" above.</p>';
+      container.innerHTML = '<p class="text-xs text-neutral-400 italic">No models installed. Use "Find the right model for you" below to download one.</p>';
       return;
     }
 
     container.innerHTML = models.map(m => {
       const sizeGB = (m.size / 1e9).toFixed(1);
       const isActive = window.ProviderManager.activeProvider?.name === m.name;
+      const isHidden = window.ProviderManager.isModelHidden(m.name);
       return `
-        <div class="flex items-center justify-between py-1.5 px-2 rounded-2xl ${isActive ? 'bg-white/50 dark:bg-neutral-800/50 border border-neutral-200/40 dark:border-neutral-700/40 backdrop-blur-md' : ''}">
+        <div class="flex items-center justify-between py-1.5 px-2 rounded-2xl ${isActive ? 'bg-white/50 dark:bg-neutral-800/50 border border-neutral-200/40 dark:border-neutral-700/40 backdrop-blur-md' : ''} ${isHidden ? 'opacity-50' : ''}">
           <div class="flex items-center gap-2">
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="text-emerald-500"><rect x="4" y="4" width="16" height="16" rx="2"/><path d="M9 1v3M15 1v3M9 20v3M15 20v3M1 9h3M1 15h3M20 9h3M20 15h3"/></svg>
-            <span class="text-sm text-neutral-900 dark:text-neutral-100">${m.name}</span>
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="${isHidden ? 'text-neutral-300' : 'text-emerald-500'}"><rect x="4" y="4" width="16" height="16" rx="2"/><path d="M9 1v3M15 1v3M9 20v3M15 20v3M1 9h3M1 15h3M20 9h3M20 15h3"/></svg>
+            <span class="text-sm ${isHidden ? 'text-neutral-400 line-through' : 'text-neutral-900 dark:text-neutral-100'}">${m.name}</span>
             <span class="text-xs text-neutral-400">${sizeGB}GB</span>
           </div>
-          ${isActive ? '<span class="text-xs text-emerald-600 font-medium">Active</span>' : ''}
+          <div class="flex items-center gap-2">
+            ${isActive ? '<span class="text-xs text-emerald-600 font-medium">Active</span>' : ''}
+            <button class="model-toggle-btn text-neutral-300 hover:text-neutral-600 dark:hover:text-neutral-300 transition-colors" data-model="${m.name}" title="${isHidden ? 'Activate — load into memory' : 'Deactivate — unload from memory'}">
+              ${isHidden
+                ? '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>'
+                : '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>'
+              }
+            </button>
+            <button class="model-delete-btn text-neutral-300 hover:text-rose-500 transition-colors" data-model="${m.name}" title="Delete model">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+            </button>
+          </div>
         </div>
       `;
     }).join('');
+
+    // Bind toggle visibility buttons
+    container.querySelectorAll('.model-toggle-btn').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const modelName = btn.dataset.model;
+        const wasHidden = window.ProviderManager.isModelHidden(modelName);
+        await window.ProviderManager.toggleModelVisibility(modelName);
+
+        // If we just disabled (hid) the model, unload it from memory to free resources
+        if (!wasHidden) {
+          btn.title = 'Unloading from memory...';
+          await window.api.ollama.unload(modelName);
+        }
+
+        window.AppRouter?.updateModelDropdown();
+        const status = await window.api.ollama.status();
+        this._renderModels(container, status.models || []);
+      });
+    });
+
+    // Bind delete buttons
+    container.querySelectorAll('.model-delete-btn').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const modelName = btn.dataset.model;
+        if (!confirm(`Delete "${modelName}"?\n\nThis will permanently remove the model from your computer and free up disk space. You will need to re-download it if you want to use it again.\n\nTip: Use the eye icon to hide a model from the dropdown without deleting it.`)) return;
+
+        btn.innerHTML = '<span class="text-xs">...</span>';
+        btn.disabled = true;
+
+        const result = await window.api.ollama.delete(modelName);
+        if (result.success) {
+          await window.ProviderManager.refreshLocal();
+          window.AppRouter?.updateModelDropdown();
+          const status = await window.api.ollama.status();
+          this._renderModels(container, status.models || []);
+        } else {
+          btn.innerHTML = '<span class="text-xs text-rose-500">Error</span>';
+          setTimeout(() => {
+            btn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>';
+            btn.disabled = false;
+          }, 2000);
+        }
+      });
+    });
   },
 
   destroy() {

@@ -65,9 +65,6 @@ const AssistantsPage = {
                   </div>
                 </div>
                 <div class="flex items-center gap-5 ml-4 shrink-0">
-                  <button class="asst-edit text-neutral-300 hover:text-neutral-600 dark:hover:text-neutral-200" data-id="${a.id}" title="Edit">
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
-                  </button>
                   <button class="asst-del text-neutral-300 hover:text-rose-600" data-id="${a.id}" title="Delete">
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
                   </button>
@@ -103,13 +100,9 @@ const AssistantsPage = {
 
     document.querySelectorAll('.asst-item').forEach(item => {
       item.addEventListener('click', (e) => {
-        if (e.target.closest('.asst-edit') || e.target.closest('.asst-del')) return;
-        this._showChat(item.dataset.id);
+        if (e.target.closest('.asst-del')) return;
+        this._showEdit(item.dataset.id);
       });
-    });
-
-    document.querySelectorAll('.asst-edit').forEach(btn => {
-      btn.addEventListener('click', (e) => { e.stopPropagation(); this._showEdit(btn.dataset.id); });
     });
 
     document.querySelectorAll('.asst-del').forEach(btn => {
@@ -128,7 +121,6 @@ const AssistantsPage = {
     this.currentView = 'edit';
     const el = document.querySelector('#asstContent');
     const assistant = assistantId ? await window.api.assistants.get(assistantId) : null;
-    const collections = await window.api.kb.getCollections();
     const isNew = !assistant;
 
     el.innerHTML = `
@@ -157,10 +149,8 @@ const AssistantsPage = {
           </div>
           <div>
             <label class="text-xs font-medium text-neutral-400 uppercase tracking-wider mb-1.5 block">Knowledge Base (optional)</label>
-            <select id="asstCollection" class="w-full bg-white/60 dark:bg-neutral-800/60 border border-neutral-200/50 dark:border-neutral-700/50 rounded-xl px-3 py-2.5 text-sm text-neutral-700 dark:text-neutral-300 focus:bg-white/90 dark:focus:bg-neutral-800/90 focus:outline-none transition-all shadow-sm">
-              <option value="">None — general knowledge only</option>
-              ${collections.map(c => `<option value="${c.id}" ${assistant?.collection_id === c.id ? 'selected' : ''}>${this._esc(c.name)} (${c.doc_count} docs)</option>`).join('')}
-            </select>
+            <div id="asstKBSelectorContainer"></div>
+            <p class="text-[10px] text-neutral-400 mt-1">Select collections or specific files to give this assistant access to.</p>
           </div>
         </div>
 
@@ -170,6 +160,33 @@ const AssistantsPage = {
         </div>
       </div>
     `;
+
+    // Initialize KB multi-select for assistant
+    const asstKBContainer = document.querySelector('#asstKBSelectorContainer');
+    let asstKBSelections = [];
+    // Restore existing selections: support new kb_selections JSON or legacy collection_id
+    if (assistant?.kb_selections) {
+      try { asstKBSelections = JSON.parse(assistant.kb_selections); } catch {}
+    } else if (assistant?.collection_id) {
+      asstKBSelections = [{ collectionId: assistant.collection_id }];
+    }
+
+    // Create a separate KBSelector instance for assistants
+    const AsstKBSelector = Object.create(window.KBSelector);
+    AsstKBSelector._isOpen = false;
+    AsstKBSelector._collections = [];
+    AsstKBSelector._expandedCollections = new Set();
+    AsstKBSelector._selections = [];
+    AsstKBSelector._onChange = null;
+    AsstKBSelector._containerEl = null;
+
+    AsstKBSelector.render(asstKBContainer, (selections) => {
+      asstKBSelections = selections;
+    });
+    if (asstKBSelections.length > 0) {
+      // Wait for collections to load then set selections
+      setTimeout(() => AsstKBSelector.setSelections(asstKBSelections), 200);
+    }
 
     document.querySelector('#asstEditBack')?.addEventListener('click', () => this._showList());
     document.querySelector('#asstCancelBtn')?.addEventListener('click', () => this._showList());
@@ -181,7 +198,8 @@ const AssistantsPage = {
         title,
         description: document.querySelector('#asstDesc').value.trim(),
         systemPrompt: document.querySelector('#asstPrompt').value,
-        collectionId: document.querySelector('#asstCollection').value || null,
+        collectionId: asstKBSelections.length > 0 ? asstKBSelections[0].collectionId : null,
+        kbSelections: asstKBSelections.length > 0 ? JSON.stringify(asstKBSelections) : null,
         modelPreference: null,
       };
       if (isNew) {

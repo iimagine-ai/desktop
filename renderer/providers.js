@@ -44,6 +44,7 @@ const ProviderManager = {
 
   // Refresh local providers from Ollama model list
   async refreshLocal() {
+    await this.loadHiddenModels();
     const status = await window.api.ollama.status();
     // Remove old local providers
     this.providers = this.providers.filter(p => p.type !== 'local');
@@ -98,7 +99,27 @@ const ProviderManager = {
   },
 
   getReady() {
-    return this.providers.filter(p => p.status === 'ready');
+    const hidden = this._hiddenModels || [];
+    return this.providers.filter(p => p.status === 'ready' && !hidden.includes(p.name));
+  },
+
+  async loadHiddenModels() {
+    this._hiddenModels = await window.api.settings.get('hiddenModels') || [];
+  },
+
+  async toggleModelVisibility(modelName) {
+    if (!this._hiddenModels) this._hiddenModels = [];
+    const idx = this._hiddenModels.indexOf(modelName);
+    if (idx >= 0) {
+      this._hiddenModels.splice(idx, 1);
+    } else {
+      this._hiddenModels.push(modelName);
+    }
+    await window.api.settings.set('hiddenModels', this._hiddenModels);
+  },
+
+  isModelHidden(modelName) {
+    return (this._hiddenModels || []).includes(modelName);
   },
 
   getOllamaStatus() {
@@ -152,13 +173,25 @@ window.VERTEX_REGIONS = VERTEX_REGIONS;
 // ── AI Gateway Models (Cloud, no privacy) ───────────────────────
 
 const GATEWAY_MODELS = [
-  { id: 'gpt-5-mini', name: 'GPT-5 Mini', vendor: 'OpenAI' },
-  { id: 'gpt-5.4', name: 'GPT-5.4', vendor: 'OpenAI' },
-  { id: 'claude-sonnet-4', name: 'Claude Sonnet 4', vendor: 'Anthropic' },
-  { id: 'claude-haiku-4', name: 'Claude Haiku 4', vendor: 'Anthropic' },
-  { id: 'gemini-2.5-flash', name: 'Gemini 2.5 Flash', vendor: 'Google' },
-  { id: 'gemini-2.5-pro', name: 'Gemini 2.5 Pro', vendor: 'Google' },
-  { id: 'grok-4-fast', name: 'Grok 4 Fast', vendor: 'xAI' },
+  // OpenAI
+  { id: 'gpt-5.4-mini', name: 'GPT-5.4 Mini', vendor: 'openai' },
+  { id: 'gpt-5.4-nano', name: 'GPT-5.4 Nano', vendor: 'openai' },
+  { id: 'gpt-5.4', name: 'GPT-5.4', vendor: 'openai' },
+  { id: 'gpt-5.5', name: 'GPT-5.5', vendor: 'openai' },
+  { id: 'gpt-5-mini', name: 'GPT-5 Mini', vendor: 'openai' },
+  { id: 'o4-mini', name: 'o4-mini (reasoning)', vendor: 'openai' },
+  { id: 'gpt-4.1-mini', name: 'GPT-4.1 Mini', vendor: 'openai' },
+  { id: 'gpt-4.1', name: 'GPT-4.1', vendor: 'openai' },
+  // Anthropic
+  { id: 'claude-sonnet-4-20250514', name: 'Claude Sonnet 4', vendor: 'anthropic' },
+  { id: 'claude-haiku-4-20250514', name: 'Claude Haiku 4', vendor: 'anthropic' },
+  { id: 'claude-opus-4-20250514', name: 'Claude Opus 4', vendor: 'anthropic' },
+  // Google Gemini
+  { id: 'gemini-2.5-flash', name: 'Gemini 2.5 Flash', vendor: 'google' },
+  { id: 'gemini-2.5-pro', name: 'Gemini 2.5 Pro', vendor: 'google' },
+  { id: 'gemini-2.0-flash', name: 'Gemini 2.0 Flash', vendor: 'google' },
+  // OpenRouter
+  { id: 'openrouter/auto', name: 'OpenRouter Auto', vendor: 'openrouter' },
 ];
 
 class GatewayProvider {

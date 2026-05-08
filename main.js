@@ -11,6 +11,7 @@ const storage = require('./storage');
 const kbStorage = require('./kb-storage');
 const assistantStorage = require('./assistant-storage');
 const pluginManager = require('./plugin-manager');
+const streamAbort = require('./stream-abort');
 
 const store = new Store();
 
@@ -185,13 +186,17 @@ async function installOllama() {
   });
 }
 
+let activePullController = null;
+
 async function pullModel(modelName) {
   try {
     const ollamaHost = store.get('local.ollamaHost') || OLLAMA_URL;
+    activePullController = new AbortController();
     const res = await fetch(`${ollamaHost}/api/pull`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ name: modelName, stream: true }),
+      signal: activePullController.signal,
     });
 
     if (!res.ok) {
@@ -223,8 +228,14 @@ async function pullModel(modelName) {
     }
 
     mainWindow?.webContents.send('ollama:pull-done', { success: true });
+    activePullController = null;
     return { success: true };
   } catch (err) {
+    activePullController = null;
+    if (err.name === 'AbortError') {
+      mainWindow?.webContents.send('ollama:pull-done', { success: false, error: 'Download cancelled' });
+      return { success: false, error: 'Download cancelled' };
+    }
     mainWindow?.webContents.send('ollama:pull-done', { success: false, error: err.message });
     return { success: false, error: err.message };
   }
@@ -240,6 +251,7 @@ function createWindow() {
     titleBarStyle: 'hiddenInset',
     trafficLightPosition: { x: 12, y: 12 },
     backgroundColor: '#ffffff',
+    icon: path.join(__dirname, 'assets', 'icon.png'),
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
@@ -543,6 +555,8 @@ function setupIPC() {
 
   // AI Gateway — streaming chat via server proxy OR direct provider call
   ipcMain.handle('gateway:chat', async (event, { messages, model }) => {
+    const controller = new AbortController();
+    streamAbort.setActiveStreamController(controller);
     const vendor = store.get('gateway.vendor') || 'openai';
     const PROVIDER_CONFIG = {
       openai: { url: 'https://api.openai.com/v1/chat/completions', keyStore: 'openai.apiKey', authHeader: 'Bearer' },
@@ -567,6 +581,7 @@ function setupIPC() {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', 'x-api-key': apiKey, 'anthropic-version': '2023-06-01' },
             body: JSON.stringify(body),
+            signal: controller.signal,
           });
           if (!res.ok) {
             const err = await res.json().catch(() => ({ error: { message: `HTTP ${res.status}` } }));
@@ -609,6 +624,7 @@ function setupIPC() {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ contents }),
+            signal: controller.signal,
           });
           if (!res.ok) {
             const err = await res.json().catch(() => ({ error: { message: `HTTP ${res.status}` } }));
@@ -631,6 +647,7 @@ function setupIPC() {
             method: 'POST',
             headers,
             body: JSON.stringify({ model: activeModel, messages, stream: true, max_completion_tokens: 4096, temperature: 0.7 }),
+            signal: controller.signal,
           });
           if (!res.ok) {
             const err = await res.json().catch(() => ({ error: { message: `HTTP ${res.status}` } }));
@@ -713,12 +730,27 @@ function setupIPC() {
 
       return { success: true };
     } catch (err) {
+      if (err.name === 'AbortError') {
+        mainWindow?.webContents.send('gateway:stream-done');
+        return { success: false, error: 'Stream aborted by user' };
+      }
       return { success: false, error: err.message };
+    } finally {
+      streamAbort.clearActiveStreamController();
     }
   });
 
   // Ollama — pull model (streaming progress via events)
   ipcMain.handle('ollama:pull', async (event, modelName) => await pullModel(modelName));
+
+  ipcMain.handle('ollama:cancelPull', () => {
+    if (activePullController) {
+      activePullController.abort();
+      activePullController = null;
+      return { success: true };
+    }
+    return { success: false };
+  });
 
   // Ollama — check if a specific model is available
   ipcMain.handle('ollama:hasModel', async (event, modelName) => {
@@ -730,6 +762,40 @@ function setupIPC() {
       return (data.models || []).some(m => m.name === modelName || m.name.startsWith(modelName + ':'));
     } catch {
       return false;
+    }
+  });
+
+  // Ollama — delete a model
+  ipcMain.handle('ollama:delete', async (event, modelName) => {
+    try {
+      const ollamaHost = store.get('local.ollamaHost') || OLLAMA_URL;
+      const res = await fetch(`${ollamaHost}/api/delete`, {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: modelName }),
+      });
+      if (!res.ok) return { success: false, error: `HTTP ${res.status}` };
+      return { success: true };
+    } catch (err) {
+      return { success: false, error: err.message };
+    }
+  });
+
+  // Ollama — unload a model from memory (frees RAM/VRAM)
+  ipcMain.handle('ollama:unload', async (event, modelName) => {
+    try {
+      const ollamaHost = store.get('local.ollamaHost') || OLLAMA_URL;
+      const res = await fetch(`${ollamaHost}/api/generate`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ model: modelName, keep_alive: 0 }),
+      });
+      if (!res.ok) return { success: false, error: `HTTP ${res.status}` };
+      // Consume the response body to complete the request
+      await res.text();
+      return { success: true };
+    } catch (err) {
+      return { success: false, error: err.message };
     }
   });
 
@@ -824,10 +890,14 @@ function setupIPC() {
     try {
       const ollamaHost = store.get('local.ollamaHost') || OLLAMA_URL;
       const numCtx = store.get('local.contextWindow') || 4096;
+      const controller = new AbortController();
+      streamAbort.setActiveStreamController(controller);
+
       const res = await fetch(`${ollamaHost}/api/chat`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ model, messages, stream: true, options: { num_ctx: numCtx } }),
+        signal: controller.signal,
       });
       if (!res.ok) throw new Error(`Ollama error: ${res.status}`);
 
@@ -854,13 +924,26 @@ function setupIPC() {
       mainWindow?.webContents.send('ollama:stream-done');
       return { success: true };
     } catch (err) {
+      if (err.name === 'AbortError') {
+        mainWindow?.webContents.send('ollama:stream-done');
+        return { success: false, error: 'Stream aborted by user' };
+      }
       return { success: false, error: err.message };
+    } finally {
+      streamAbort.clearActiveStreamController();
     }
   });
 
   // Settings
   ipcMain.handle('settings:get', (event, key) => store.get(key));
   ipcMain.handle('settings:set', (event, key, value) => { store.set(key, value); return true; });
+  // Chat — stop/abort active stream
+  ipcMain.handle('chat:stop', () => {
+    const aborted = streamAbort.abortActiveStream();
+    mainWindow?.webContents.send('chat:stream-stopped');
+    return { success: aborted };
+  });
+
 
   // Storage — Conversations
   ipcMain.handle('storage:createConversation', (event, data) => storage.createConversation(data));
@@ -868,6 +951,7 @@ function setupIPC() {
   ipcMain.handle('storage:getConversation', (event, id) => storage.getConversation(id));
   ipcMain.handle('storage:updateConversationTitle', (event, id, title) => storage.updateConversationTitle(id, title));
   ipcMain.handle('storage:updateConversationCollection', (event, id, collectionId) => storage.updateConversationCollection(id, collectionId));
+  ipcMain.handle('storage:updateConversationKBSelections', (event, id, selections) => storage.updateConversationKBSelections(id, selections));
   ipcMain.handle('storage:deleteConversation', (event, id) => storage.deleteConversation(id));
 
   // Storage — Messages
@@ -962,15 +1046,19 @@ function setupIPC() {
   ipcMain.handle('asst:create', (event, data) => assistantStorage.createAssistant(data));
 
   // Chat RAG — KB-augmented chat for the general chat page
-  ipcMain.handle('chat:ragSend', async (event, { conversationId, userMessage, collectionId, chatHistory }) => {
+  ipcMain.handle('chat:ragSend', async (event, { conversationId, userMessage, collectionId, kbSelections, chatHistory }) => {
     try {
-      console.log('[ChatRAG] Starting KB chat, collection:', collectionId);
+      console.log('[ChatRAG] Starting KB chat, selections:', JSON.stringify(kbSelections || [{ collectionId }]));
       const ollamaHost = store.get('local.ollamaHost') || OLLAMA_URL;
       const numCtx = store.get('local.contextWindow') || 4096;
 
-      // RAG: retrieve relevant KB chunks
+      // RAG: retrieve relevant KB chunks from all selected sources
       let contextChunks = [];
-      if (collectionId && kbStorage.isVecLoaded()) {
+      const selections = kbSelections && kbSelections.length > 0
+        ? kbSelections
+        : (collectionId ? [{ collectionId }] : []);
+
+      if (selections.length > 0 && kbStorage.isVecLoaded()) {
         try {
           console.log('[ChatRAG] Embedding query for KB search...');
           const embedRes = await fetch(`${ollamaHost}/api/embed`, {
@@ -982,11 +1070,11 @@ function setupIPC() {
             const embedData = await embedRes.json();
             const queryVec = embedData.embeddings?.[0];
             if (queryVec) {
-              console.log('[ChatRAG] Searching KB, vector dims:', queryVec.length);
-              const results = kbStorage.searchSimilar(new Float32Array(queryVec), collectionId, 5);
+              console.log('[ChatRAG] Searching KB, vector dims:', queryVec.length, 'across', selections.length, 'source(s)');
+              // Search across all selected collections/documents
+              const results = kbStorage.searchMultiple(new Float32Array(queryVec), selections, 5);
               contextChunks = results.map(r => ({ content: r.content, docTitle: r.doc_title, distance: r.distance }));
               console.log('[ChatRAG] Found', contextChunks.length, 'relevant chunks');
-              // Log chunk previews for debugging
               contextChunks.forEach((c, i) => {
                 console.log(`[ChatRAG] Chunk ${i}: "${c.docTitle}" (distance: ${c.distance?.toFixed(4)}) — ${c.content.substring(0, 100)}...`);
               });
@@ -1116,7 +1204,15 @@ Remember: Answer based on the document content above. Do not make up information
 
       // RAG: retrieve relevant KB chunks if collection is linked
       let contextChunks = [];
-      if (assistant.collection_id && kbStorage.isVecLoaded()) {
+      // Support new kb_selections JSON or legacy collection_id
+      let selections = [];
+      if (assistant.kb_selections) {
+        try { selections = JSON.parse(assistant.kb_selections); } catch {}
+      } else if (assistant.collection_id) {
+        selections = [{ collectionId: assistant.collection_id }];
+      }
+
+      if (selections.length > 0 && kbStorage.isVecLoaded()) {
         try {
           console.log('[RAG] Embedding query for KB search...');
           const embedRes = await fetch(`${ollamaHost}/api/embed`, {
@@ -1128,8 +1224,8 @@ Remember: Answer based on the document content above. Do not make up information
             const embedData = await embedRes.json();
             const queryVec = embedData.embeddings?.[0];
             if (queryVec) {
-              console.log('[RAG] Searching KB, vector dims:', queryVec.length);
-              const results = kbStorage.searchSimilar(new Float32Array(queryVec), assistant.collection_id, 5);
+              console.log('[RAG] Searching KB, vector dims:', queryVec.length, 'across', selections.length, 'source(s)');
+              const results = kbStorage.searchMultiple(new Float32Array(queryVec), selections, 5);
               contextChunks = results.map(r => ({ content: r.content, docTitle: r.doc_title, distance: r.distance }));
               console.log('[RAG] Found', contextChunks.length, 'relevant chunks');
             }
@@ -1487,6 +1583,62 @@ Remember: Answer based on the document content above. Do not make up information
       }
     }
     return { canceled: false, files };
+  });
+
+  // Read files from drag-and-drop (receives file paths from renderer)
+  ipcMain.handle('kb:readDroppedFiles', async (event, filePaths) => {
+    if (!filePaths || !filePaths.length) return { files: [] };
+    console.log('[KB] readDroppedFiles called with', filePaths.length, 'paths:', filePaths);
+
+    const files = [];
+    const SUPPORTED_EXTS = ['.txt', '.md', '.csv', '.pdf', '.docx'];
+
+    for (const filePath of filePaths) {
+      try {
+        const ext = path.extname(filePath).toLowerCase();
+        if (!SUPPORTED_EXTS.includes(ext)) {
+          console.log('[KB] Skipping unsupported file:', filePath);
+          continue;
+        }
+
+        const filename = path.basename(filePath);
+        const buffer = fs.readFileSync(filePath);
+
+        if (ext === '.txt' || ext === '.md') {
+          files.push({ filename, content: buffer.toString('utf-8'), type: ext.slice(1) });
+        } else if (ext === '.csv') {
+          try {
+            const content = parseCsvToReadableText(buffer.toString('utf-8'));
+            files.push({ filename, content, type: 'csv' });
+          } catch (err) {
+            console.error('[KB] CSV parse error:', err.message);
+            files.push({ filename, content: buffer.toString('utf-8'), type: 'csv' });
+          }
+        } else if (ext === '.pdf') {
+          try {
+            const pdfParse = require('pdf-parse');
+            const pdfData = await pdfParse(buffer);
+            files.push({ filename, content: pdfData.text || '', type: 'pdf' });
+          } catch (err) {
+            console.error('[KB] PDF parse error:', err.message);
+            files.push({ filename, content: '[PDF parsing failed]', type: 'pdf' });
+          }
+        } else if (ext === '.docx') {
+          try {
+            const mammoth = require('mammoth');
+            const result = await mammoth.extractRawText({ buffer });
+            files.push({ filename, content: result.value || '', type: 'docx' });
+          } catch (err) {
+            console.error('[KB] DOCX parse error:', err.message);
+            files.push({ filename, content: '[DOCX parsing failed]', type: 'docx' });
+          }
+        }
+      } catch (err) {
+        console.error('[KB] Error reading dropped file:', filePath, err.message);
+      }
+    }
+
+    return { files };
   });
 
   // AI Gateway — video generation

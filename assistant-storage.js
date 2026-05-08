@@ -47,15 +47,22 @@ function createTables() {
     CREATE INDEX IF NOT EXISTS idx_asst_msg_conv
       ON assistant_messages(conversation_id, created_at);
   `);
+
+  // Migration: add kb_selections JSON column for multi-select KB
+  try {
+    db.prepare("SELECT kb_selections FROM assistants LIMIT 1").get();
+  } catch {
+    try { db.exec("ALTER TABLE assistants ADD COLUMN kb_selections TEXT DEFAULT NULL"); } catch {}
+  }
 }
 
 // ── Assistants CRUD ─────────────────────────────────────────────
 
-function createAssistant({ id, title, description, systemPrompt, collectionId, modelPreference }) {
+function createAssistant({ id, title, description, systemPrompt, collectionId, kbSelections, modelPreference }) {
   db.prepare(`
-    INSERT INTO assistants (id, title, description, system_prompt, collection_id, model_preference)
-    VALUES (?, ?, ?, ?, ?, ?)
-  `).run(id, title, description || '', systemPrompt || '', collectionId || null, modelPreference || null);
+    INSERT INTO assistants (id, title, description, system_prompt, collection_id, kb_selections, model_preference)
+    VALUES (?, ?, ?, ?, ?, ?, ?)
+  `).run(id, title, description || '', systemPrompt || '', collectionId || null, kbSelections || null, modelPreference || null);
   return getAssistant(id);
 }
 
@@ -79,12 +86,12 @@ function getAssistant(id) {
   `).get(id) || null;
 }
 
-function updateAssistant(id, { title, description, systemPrompt, collectionId, modelPreference }) {
+function updateAssistant(id, { title, description, systemPrompt, collectionId, kbSelections, modelPreference }) {
   db.prepare(`
     UPDATE assistants
-    SET title = ?, description = ?, system_prompt = ?, collection_id = ?, model_preference = ?, updated_at = datetime('now')
+    SET title = ?, description = ?, system_prompt = ?, collection_id = ?, kb_selections = ?, model_preference = ?, updated_at = datetime('now')
     WHERE id = ?
-  `).run(title, description || '', systemPrompt || '', collectionId || null, modelPreference || null, id);
+  `).run(title, description || '', systemPrompt || '', collectionId || null, kbSelections || null, modelPreference || null, id);
   return getAssistant(id);
 }
 

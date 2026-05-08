@@ -21,9 +21,23 @@
     .dark body { background-color: #0f0f0f; color: #e5e5e5; }
 
     /* Dark mode chat area background */
-    .dark [style*="rgba(255,255,255,0.25)"] { background: rgba(30,30,30,0.5) !important; }
-    .dark [style*="rgba(255,255,255,0.75)"] { background: rgba(38,38,38,0.85) !important; border-color: rgba(55,55,55,0.9) !important; color: #d4d4d4 !important; }
-    .dark [style*="rgba(255,255,255,0.9)"] { border-color: rgba(55,55,55,0.9) !important; }
+
+    /* Chat bubble styles — respond to theme changes automatically */
+    .assistant-bubble {
+      background: rgba(255,255,255,1);
+      border: 1px solid rgba(0,0,0,0.08);
+    }
+    .dark .assistant-bubble {
+      background: rgba(38,38,38,0.85);
+      border: 1px solid rgba(55,55,55,0.9);
+      color: #d4d4d4;
+    }
+    .conv-item-active {
+      background: rgba(255,255,255,0.95);
+    }
+    .dark .conv-item-active {
+      background: rgba(38,38,38,0.75);
+    }
 
     /* Electron titlebar drag */
     .titlebar-drag { -webkit-app-region: drag; }
@@ -162,14 +176,6 @@
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="group-hover:scale-110 transition-transform"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/><path d="M8 10h.01M12 10h.01M16 10h.01"/></svg>
             <span class="text-sm font-medium">Chat</span>
           </button>
-          <button data-page="images" class="nav-btn w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-neutral-500 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-neutral-100 hover:bg-white/40 dark:hover:bg-neutral-800/40 transition-all group">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="group-hover:scale-110 transition-transform"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="m21 15-5-5L5 21"/></svg>
-            <span class="text-sm font-medium">Images</span>
-          </button>
-          <button data-page="videos" class="nav-btn w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-neutral-500 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-neutral-100 hover:bg-white/40 dark:hover:bg-neutral-800/40 transition-all group">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="group-hover:scale-110 transition-transform"><path d="m22 8-6 4 6 4V8Z"/><rect x="1" y="5" width="15" height="14" rx="2"/></svg>
-            <span class="text-sm font-medium">Videos</span>
-          </button>
           <button data-page="knowledge" class="nav-btn w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-neutral-500 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-neutral-100 hover:bg-white/40 dark:hover:bg-neutral-800/40 transition-all group">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="group-hover:scale-110 transition-transform"><path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1 0-5H20"/></svg>
             <span class="text-sm font-medium">Knowledge</span>
@@ -178,20 +184,22 @@
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="group-hover:scale-110 transition-transform"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
             <span class="text-sm font-medium">Assistants</span>
           </button>
+          <button data-page="images" class="nav-btn w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-neutral-500 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-neutral-100 hover:bg-white/40 dark:hover:bg-neutral-800/40 transition-all group">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="group-hover:scale-110 transition-transform"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="m21 15-5-5L5 21"/></svg>
+            <span class="text-sm font-medium">Images</span>
+          </button>
+          <button data-page="videos" class="nav-btn w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-neutral-500 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-neutral-100 hover:bg-white/40 dark:hover:bg-neutral-800/40 transition-all group">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="group-hover:scale-110 transition-transform"><path d="m22 8-6 4 6 4V8Z"/><rect x="1" y="5" width="15" height="14" rx="2"/></svg>
+            <span class="text-sm font-medium">Video</span>
+          </button>
+          <button data-page="settings" class="nav-btn w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-neutral-500 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-neutral-100 hover:bg-white/40 dark:hover:bg-neutral-800/40 transition-all group">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="group-hover:scale-110 transition-transform"><circle cx="12" cy="12" r="3"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>
+            <span class="text-sm font-medium">Settings</span>
+          </button>
         </nav>
 
         <!-- User -->
         <div class="p-3 border-t border-neutral-200/40 dark:border-neutral-700/40">
-          <!-- Theme toggle -->
-          <button id="themeToggleBtn" class="w-full flex items-center gap-3 px-3 py-2 rounded-xl text-neutral-500 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-neutral-100 hover:bg-white/40 dark:hover:bg-neutral-800/40 transition-all mb-1">
-            <svg id="themeIcon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
-            <span id="themeLabel" class="text-xs font-medium">Dark mode</span>
-          </button>
-          <!-- Settings -->
-          <button data-page="settings" class="nav-btn w-full flex items-center gap-3 px-3 py-2 rounded-xl text-neutral-500 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-neutral-100 hover:bg-white/40 dark:hover:bg-neutral-800/40 transition-all mb-1">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>
-            <span class="text-xs font-medium">Settings</span>
-          </button>
           <div class="flex items-center gap-3 p-2 rounded-xl hover:bg-white/40 dark:hover:bg-neutral-800/40 transition-all">
             <div class="w-8 h-8 rounded-full bg-neutral-200 dark:bg-neutral-700 flex items-center justify-center text-neutral-500 dark:text-neutral-400 text-xs font-medium flex-shrink-0">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
@@ -207,7 +215,11 @@
       <!-- Main Content -->
       <main class="flex-1 flex flex-col h-full overflow-hidden min-w-0">
         <!-- Draggable header bar across full width -->
-        <div class="h-14 titlebar-drag flex-shrink-0"></div>
+        <div class="h-14 titlebar-drag flex-shrink-0 flex items-center justify-end pr-4">
+          <button id="themeToggleBtn" class="p-2 rounded-lg text-neutral-500 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-neutral-100 hover:bg-white/40 dark:hover:bg-neutral-800/40 transition-all" title="Toggle theme">
+            <svg id="themeIcon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+          </button>
+        </div>
         <!-- Pages rendered here by router -->
         <div id="mainContent" class="flex-1 flex flex-col overflow-hidden min-w-0"></div>
       </main>
@@ -217,12 +229,20 @@
   <script src="theme.js"></script>
   <script src="providers.js"></script>
   <script src="model-advisor.js"></script>
+  <script src="components/kb-selector.js"></script>
   <script src="pages/chat.js"></script>
   <script src="pages/images.js"></script>
   <script src="pages/videos.js"></script>
   <script src="pages/knowledge.js"></script>
   <script src="pages/assistants.js"></script>
   <script src="pages/settings.js"></script>
+  <script src="agent-runner.js"></script>
   <script src="app.js"></script>
+
+  <!-- Prevent Electron from navigating when files are dropped outside drop zones -->
+  <script>
+    document.addEventListener('dragover', (e) => { e.preventDefault(); });
+    document.addEventListener('drop', (e) => { e.preventDefault(); });
+  </script>
 </body>
 </html>

@@ -106,22 +106,29 @@ function createTables() {
   } catch {
     try { db.exec("ALTER TABLE conversations ADD COLUMN collection_id TEXT DEFAULT NULL"); } catch {}
   }
+
+  // Migration: add kb_selections JSON column for multi-select KB
+  try {
+    db.prepare("SELECT kb_selections FROM conversations LIMIT 1").get();
+  } catch {
+    try { db.exec("ALTER TABLE conversations ADD COLUMN kb_selections TEXT DEFAULT NULL"); } catch {}
+  }
 }
 
 // ── Conversations ───────────────────────────────────────────────
 
-function createConversation({ id, title, model, providerType, collectionId }) {
+function createConversation({ id, title, model, providerType, collectionId, kbSelections }) {
   const stmt = db.prepare(`
-    INSERT INTO conversations (id, title, model, provider_type, collection_id)
-    VALUES (?, ?, ?, ?, ?)
+    INSERT INTO conversations (id, title, model, provider_type, collection_id, kb_selections)
+    VALUES (?, ?, ?, ?, ?, ?)
   `);
-  stmt.run(id, title || 'New conversation', model || null, providerType || 'local', collectionId || null);
+  stmt.run(id, title || 'New conversation', model || null, providerType || 'local', collectionId || null, kbSelections || null);
   return { id, title, model, providerType, collectionId };
 }
 
 function getConversations(limit = 50) {
   const stmt = db.prepare(`
-    SELECT id, title, model, provider_type, collection_id, created_at, updated_at
+    SELECT id, title, model, provider_type, collection_id, kb_selections, created_at, updated_at
     FROM conversations
     ORDER BY updated_at DESC
     LIMIT ?
@@ -131,7 +138,7 @@ function getConversations(limit = 50) {
 
 function getConversation(id) {
   const stmt = db.prepare(`
-    SELECT id, title, model, provider_type, collection_id, created_at, updated_at
+    SELECT id, title, model, provider_type, collection_id, kb_selections, created_at, updated_at
     FROM conversations WHERE id = ?
   `);
   return stmt.get(id) || null;
@@ -151,6 +158,17 @@ function updateConversationCollection(id, collectionId) {
     WHERE id = ?
   `);
   return stmt.run(collectionId || null, id);
+}
+
+function updateConversationKBSelections(id, selections) {
+  const json = selections && selections.length > 0 ? JSON.stringify(selections) : null;
+  // Also update legacy collection_id for backward compat
+  const collectionId = selections && selections.length > 0 ? selections[0].collectionId : null;
+  const stmt = db.prepare(`
+    UPDATE conversations SET kb_selections = ?, collection_id = ?, updated_at = datetime('now')
+    WHERE id = ?
+  `);
+  return stmt.run(json, collectionId, id);
 }
 
 function deleteConversation(id) {
@@ -341,6 +359,7 @@ module.exports = {
   getConversation,
   updateConversationTitle,
   updateConversationCollection,
+  updateConversationKBSelections,
   deleteConversation,
   // Messages
   addMessage,
