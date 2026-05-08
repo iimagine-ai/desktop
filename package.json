@@ -41,6 +41,7 @@
       "kb-storage.js",
       "assistant-storage.js",
       "plugin-manager.js",
+      "stream-abort.js",
       "renderer/**/*",
       "plugins/**/*",
       "assets/**/*",
