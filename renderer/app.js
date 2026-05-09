@@ -237,23 +237,10 @@ document.addEventListener('click', (e) => {
 
 // ── Init ────────────────────────────────────────────────────────
 async function init() {
-  const authRequired = await window.api.auth.isRequired();
-
-  if (!authRequired) {
-    // Open source mode: skip auth, go straight to dashboard as guest
-    const user = await window.api.auth.getUser();
-    window.AppState.currentUser = user || { email: 'Local User', isGuest: true };
-    showDashboard();
-  } else {
-    // Auth-required mode: check for existing session
-    const user = await window.api.auth.getUser();
-    if (user) {
-      window.AppState.currentUser = user;
-      showDashboard();
-    } else {
-      showAuth();
-    }
-  }
+  // Auth disabled — always go straight to dashboard
+  const user = await window.api.auth.getUser();
+  window.AppState.currentUser = user || { email: 'Local User', isGuest: true };
+  showDashboard();
 
   await window.ProviderManager.refreshLocal();
   AppRouter.updateModelDropdown();
