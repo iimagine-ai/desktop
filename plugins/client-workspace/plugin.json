@@ -1,0 +1,15 @@
+{
+  "id": "client-workspace",
+  "name": "Client Workspace",
+  "version": "1.0.0",
+  "description": "Project management for professionals — create projects, save AI responses as documents, track timelines",
+  "author": "IIMAGINE",
+  "main": "index.js",
+  "hooks": {
+    "chatPreprocess": true,
+    "chatPostprocess": true,
+    "sidebar": { "label": "Projects", "icon": "<svg width=\"18\" height=\"18\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z\"/><path d=\"M12 11v6\"/><path d=\"M9 14h6\"/></svg>" },
+    "settings": true,
+    "commands": true
+  }
+}

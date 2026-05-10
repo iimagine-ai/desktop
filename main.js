@@ -10,8 +10,11 @@ const Store = require('electron-store');
 const storage = require('./storage');
 const kbStorage = require('./kb-storage');
 const assistantStorage = require('./assistant-storage');
+const personaStorage = require('./persona-storage');
 const pluginManager = require('./plugin-manager');
 const streamAbort = require('./stream-abort');
+const folderConnect = require('./folder-connect');
+const promptStorage = require('./prompt-storage');
 
 const store = new Store();
 
@@ -432,6 +435,33 @@ async function autoEmbedCollection(collectionId) {
   }
 }
 
+// ── DuckDuckGo HTML Parser (fallback web search) ────────────────
+function parseDuckDuckGoResults(html) {
+  const results = [];
+  // Match result blocks: <a class="result__a" href="...">title</a> and <a class="result__snippet">snippet</a>
+  const linkRegex = /<a[^>]*class="result__a"[^>]*href="([^"]*)"[^>]*>([\s\S]*?)<\/a>/gi;
+  const snippetRegex = /<a[^>]*class="result__snippet"[^>]*>([\s\S]*?)<\/a>/gi;
+
+  const links = [...html.matchAll(linkRegex)];
+  const snippets = [...html.matchAll(snippetRegex)];
+
+  for (let i = 0; i < Math.min(links.length, 8); i++) {
+    const url = links[i][1] || '';
+    const title = (links[i][2] || '').replace(/<[^>]*>/g, '').trim();
+    const snippet = snippets[i] ? snippets[i][1].replace(/<[^>]*>/g, '').trim() : '';
+
+    if (title && url) {
+      // DuckDuckGo wraps URLs in a redirect — extract the actual URL
+      let cleanUrl = url;
+      const uddg = url.match(/uddg=([^&]+)/);
+      if (uddg) cleanUrl = decodeURIComponent(uddg[1]);
+
+      results.push({ title, url: cleanUrl, snippet });
+    }
+  }
+  return results;
+}
+
 // ── IPC Handlers ────────────────────────────────────────────────
 function setupIPC() {
   // Auth
@@ -554,6 +584,18 @@ function setupIPC() {
 
   // AI Gateway — streaming chat via server proxy OR direct provider call
   ipcMain.handle('gateway:chat', async (event, { messages, model }) => {
+    // Inject active persona system prompt
+    const activePersonaGw = personaStorage.getActivePersona();
+    if (activePersonaGw && activePersonaGw.custom_instructions) {
+      const hasSystem = messages.some(m => m.role === 'system');
+      if (!hasSystem) {
+        messages.unshift({ role: 'system', content: activePersonaGw.custom_instructions });
+      } else {
+        const sysIdx = messages.findIndex(m => m.role === 'system');
+        messages[sysIdx].content = activePersonaGw.custom_instructions + '\n\n' + messages[sysIdx].content;
+      }
+    }
+
     const controller = new AbortController();
     streamAbort.setActiveStreamController(controller);
     const vendor = store.get('gateway.vendor') || 'openai';
@@ -884,24 +926,88 @@ function setupIPC() {
     }
   });
 
-  // Ollama — streaming chat
-  ipcMain.handle('ollama:chatStream', async (event, { model, messages }) => {
+  // Ollama — Advanced Settings (stored for use by chatStream and other Ollama calls)
+  // NOTE: These values should be injected into the 'ollama:chatStream' handler's options object
+  // when making requests to Ollama's /api/chat endpoint. The settings are:
+  //   numGpu → options.num_gpu, numThread → options.num_thread,
+  //   keepAlive → keep_alive (top-level param), numCtx → options.num_ctx
+  ipcMain.handle('ollama:getAdvancedSettings', () => {
+    return {
+      numGpu: store.get('ollama.numGpu', 'auto'),
+      numThread: store.get('ollama.numThread', 'auto'),
+      keepAlive: store.get('ollama.keepAlive', '5m'),
+      numCtx: store.get('ollama.numCtx', 'auto'),
+    };
+  });
+
+  ipcMain.handle('ollama:setAdvancedSettings', (event, settings) => {
+    if (settings.numGpu !== undefined) store.set('ollama.numGpu', settings.numGpu);
+    if (settings.numThread !== undefined) store.set('ollama.numThread', settings.numThread);
+    if (settings.keepAlive !== undefined) store.set('ollama.keepAlive', settings.keepAlive);
+    if (settings.numCtx !== undefined) store.set('ollama.numCtx', settings.numCtx);
+    return { success: true };
+  });
+
+  // Ollama — Runtime Monitoring (query running models via /api/ps)
+  ipcMain.handle('ollama:getRunningModels', async () => {
     try {
       const ollamaHost = store.get('local.ollamaHost') || OLLAMA_URL;
-      const numCtx = store.get('local.contextWindow') || 4096;
+      const res = await fetch(`${ollamaHost}/api/ps`);
+      if (!res.ok) return { models: [] };
+      const data = await res.json();
+      return { models: data.models || [] };
+    } catch {
+      return { models: [] };
+    }
+  });
+
+  // Ollama — streaming chat
+  ipcMain.handle('ollama:chatStream', async (event, { model, messages }) => {
+    const toolCalling = require('./tool-calling');
+    try {
+      // Inject active persona system prompt
+      const activePersona = personaStorage.getActivePersona();
+      if (activePersona && activePersona.custom_instructions) {
+        const hasSystem = messages.some(m => m.role === 'system');
+        if (!hasSystem) {
+          messages.unshift({ role: 'system', content: activePersona.custom_instructions });
+        } else {
+          const sysIdx = messages.findIndex(m => m.role === 'system');
+          messages[sysIdx].content = activePersona.custom_instructions + '\n\n' + messages[sysIdx].content;
+        }
+      }
+
+      const ollamaHost = store.get('local.ollamaHost') || OLLAMA_URL;
       const controller = new AbortController();
       streamAbort.setActiveStreamController(controller);
+
+      // Build options from advanced settings
+      const options = toolCalling.buildOllamaOptions();
+      const keepAlive = toolCalling.getKeepAlive();
+
+      // Determine which tools to offer
+      const webSearchEnabled = !!store.get('webSearch.enabled');
+      const kbStats = kbStorage.getKBStats();
+      const hasKBDocuments = kbStats.embeddingCount > 0;
+      const tools = toolCalling.getActiveTools({ webSearchEnabled, hasKBDocuments });
+
+      // Build request body
+      const body = { model, messages, stream: true, options };
+      if (keepAlive !== '5m') body.keep_alive = keepAlive;
+      if (tools.length > 0) body.tools = tools;
 
       const res = await fetch(`${ollamaHost}/api/chat`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ model, messages, stream: true, options: { num_ctx: numCtx } }),
+        body: JSON.stringify(body),
         signal: controller.signal,
       });
       if (!res.ok) throw new Error(`Ollama error: ${res.status}`);
 
       const reader = res.body.getReader();
       const decoder = new TextDecoder();
+      let fullResponse = '';
+      let toolCalls = [];
 
       while (true) {
         const { done, value } = await reader.read();
@@ -913,9 +1019,64 @@ function setupIPC() {
         for (const line of lines) {
           try {
             const parsed = JSON.parse(line);
-            mainWindow?.webContents.send('ollama:stream-chunk', parsed);
+
+            // Check if model is making a tool call
+            if (parsed.message?.tool_calls && parsed.message.tool_calls.length > 0) {
+              toolCalls = parsed.message.tool_calls;
+            } else {
+              mainWindow?.webContents.send('ollama:stream-chunk', parsed);
+              if (parsed.message?.content) fullResponse += parsed.message.content;
+            }
           } catch {
             // skip malformed
+          }
+        }
+      }
+
+      // If model made tool calls, execute them and continue the conversation
+      if (toolCalls.length > 0) {
+        mainWindow?.webContents.send('ollama:stream-chunk', {
+          message: { content: '\n\n🔍 *Searching...*\n\n' },
+        });
+
+        const context = { ollamaHost, kbStorage, store };
+        const updatedMessages = [...messages, { role: 'assistant', content: fullResponse, tool_calls: toolCalls }];
+
+        for (const tc of toolCalls) {
+          const fnName = tc.function?.name;
+          const fnArgs = tc.function?.arguments || {};
+          const result = await toolCalling.executeTool(fnName, fnArgs, context);
+
+          updatedMessages.push({
+            role: 'tool',
+            content: result,
+          });
+        }
+
+        // Make a follow-up request with tool results (no tools this time to avoid loops)
+        const followUpBody = { model, messages: updatedMessages, stream: true, options };
+        if (keepAlive !== '5m') followUpBody.keep_alive = keepAlive;
+
+        const followUpRes = await fetch(`${ollamaHost}/api/chat`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(followUpBody),
+          signal: controller.signal,
+        });
+
+        if (followUpRes.ok) {
+          const followReader = followUpRes.body.getReader();
+          while (true) {
+            const { done: d2, value: v2 } = await followReader.read();
+            if (d2) break;
+            const chunk2 = decoder.decode(v2);
+            const lines2 = chunk2.split('\n').filter(Boolean);
+            for (const line2 of lines2) {
+              try {
+                const parsed2 = JSON.parse(line2);
+                mainWindow?.webContents.send('ollama:stream-chunk', parsed2);
+              } catch {}
+            }
           }
         }
       }
@@ -1085,20 +1246,20 @@ function setupIPC() {
       }
 
       // Build system prompt with KB context
-      let systemContent = 'You are a knowledge base assistant. Your primary job is to answer questions based on the documents provided to you.';
+      let systemContent = 'You are a knowledge base assistant. Your primary job is to answer questions based on the documents provided to you and any remembered conversation context.';
       if (contextChunks.length > 0) {
         const kbContext = contextChunks.map(c =>
           `[Source: ${c.docTitle}]\n${c.content}`
         ).join('\n\n---\n\n');
-        systemContent = `You are a knowledge base assistant. You MUST answer questions based on the documents provided below. Base your answers on the document content. If the documents contain relevant information, use it directly and cite the source document. If the documents do not contain information relevant to the question, say "I couldn't find information about that in your knowledge base" and offer to help with what IS in the documents.
+        systemContent = `You are a knowledge base assistant. Answer questions using BOTH the documents below AND any memory context provided in other system messages. Memory context contains facts from earlier in this conversation that may not be in the documents.
+
+If the answer is in the memory context (e.g. amounts, dates, or facts the user mentioned earlier), use it. If the answer is in the documents, use it and cite the source. If neither source has the answer, say so.
 
 DOCUMENTS FROM KNOWLEDGE BASE:
 
 ${kbContext}
 
-END OF DOCUMENTS
-
-Remember: Answer based on the document content above. Do not make up information that is not in the documents.`;
+END OF DOCUMENTS`;
         console.log('[ChatRAG] System prompt length:', systemContent.length, 'chars');
       } else {
         console.log('[ChatRAG] WARNING: No context chunks found, responding without KB context');
@@ -1108,10 +1269,19 @@ Remember: Answer based on the document content above. Do not make up information
       // IMPORTANT: Limit chat history to avoid overwhelming small models.
       // The system prompt with KB context must remain dominant.
       const recentHistory = (chatHistory || []).slice(-6); // Last 3 exchanges max
-      const messages = [
+      let messages = [
         { role: 'system', content: systemContent },
         ...recentHistory,
       ];
+
+      // Run plugin preprocess hooks (Cortex Lite memory injection, Client Workspace context, etc.)
+      try {
+        const preprocessed = await pluginManager.runChatPreprocess({ messages, assistant: null });
+        messages = preprocessed.messages || messages;
+      } catch (err) {
+        console.warn('[ChatRAG] Plugin preprocess error:', err.message);
+      }
+
       console.log('[ChatRAG] Sending', messages.length, 'messages to model (trimmed from', (chatHistory || []).length, '). Roles:', messages.map(m => m.role).join(', '));
 
       // Determine which provider to use — reuse the active provider logic
@@ -1163,6 +1333,14 @@ Remember: Answer based on the document content above. Do not make up information
         }
         mainWindow?.webContents.send('chat:rag-done');
         console.log('[ChatRAG] Response complete, length:', fullResponse.length, 'chars');
+
+        // Run plugin postprocess hooks (Cortex Lite fact extraction, Client Workspace timeline, etc.)
+        try {
+          await pluginManager.runChatPostprocess({ response: fullResponse, assistant: null });
+        } catch (err) {
+          console.warn('[ChatRAG] Plugin postprocess error:', err.message);
+        }
+
         return { success: true, contextUsed: contextChunks.length };
       }
 
@@ -1341,6 +1519,25 @@ Remember: Answer based on the document content above. Do not make up information
   ipcMain.handle('plugins:list', () => pluginManager.getAll());
   ipcMain.handle('plugins:setEnabled', (event, id, enabled) => pluginManager.setEnabled(id, enabled));
   ipcMain.handle('plugins:getSidebarItems', () => pluginManager.getSidebarItems());
+  ipcMain.handle('plugins:renderPage', (event, pluginId) => {
+    const renderer = pluginManager.getPageRenderer(pluginId);
+    if (!renderer) return null;
+    return renderer();
+  });
+  ipcMain.handle('plugins:event', (event, eventName, data) => {
+    // Route plugin events to the appropriate plugin instance
+    // Events are namespaced: 'legal:complete-setup' → plugin 'legal-companion'
+    const prefix = eventName.split(':')[0];
+    const pluginMap = { 'legal': 'legal-companion', 'cortex-lite': 'cortex-lite', 'cw': 'client-workspace' };
+    const pluginId = pluginMap[prefix];
+    if (pluginId) {
+      const plugin = pluginManager.plugins.get(pluginId);
+      if (plugin?.instance?.onEvent) {
+        return plugin.instance.onEvent(eventName, data);
+      }
+    }
+    return null;
+  });
   ipcMain.handle('plugins:getDir', () => pluginManager.getPluginsDir());
   ipcMain.handle('plugins:uninstall', (event, id) => pluginManager.uninstall(id));
 
@@ -1679,6 +1876,119 @@ Remember: Answer based on the document content above. Do not make up information
       return { success: false, error: err.message };
     }
   });
+
+  // ── Folder Connect ──────────────────────────────────────────────
+  ipcMain.handle('folder:add', async () => {
+    const { dialog } = require('electron');
+    const result = await dialog.showOpenDialog(mainWindow, {
+      properties: ['openDirectory'],
+      title: 'Connect a Folder',
+    });
+    if (result.canceled || !result.filePaths.length) return { canceled: true };
+    const folderPath = result.filePaths[0];
+
+    // Check if already connected
+    const existing = folderConnect.getFolders().find(f => f.path === folderPath);
+    if (existing) return { error: 'Folder already connected' };
+
+    const folder = folderConnect.addFolder(folderPath);
+
+    // Index in background, then auto-embed
+    folderConnect.indexFolder(folder.id, (progress) => {
+      mainWindow?.webContents.send('folder:index-progress', progress);
+      if (progress.done) {
+        mainWindow?.webContents.send('folder:index-done', { folderId: folder.id });
+        // Trigger auto-embed for the new collection
+        autoEmbedCollection(folder.id);
+      }
+    });
+
+    // Start watching for changes
+    folderConnect.startWatching(folder.id, (progress) => {
+      mainWindow?.webContents.send('folder:index-progress', progress);
+    });
+
+    return folder;
+  });
+
+  ipcMain.handle('folder:list', () => folderConnect.getFolders());
+
+  ipcMain.handle('folder:remove', (event, id) => {
+    folderConnect.removeFolder(id);
+    return { success: true };
+  });
+
+  ipcMain.handle('folder:reindex', async (event, id) => {
+    const result = await folderConnect.indexFolder(id, (progress) => {
+      mainWindow?.webContents.send('folder:index-progress', progress);
+      if (progress.done) {
+        mainWindow?.webContents.send('folder:index-done', { folderId: id });
+        // Trigger auto-embed after re-indexing
+        autoEmbedCollection(id);
+      }
+    });
+    return result;
+  });
+
+  // ── Prompt Manager ──────────────────────────────────────────────
+  ipcMain.handle('prompts:create', (event, data) => promptStorage.createPrompt(data));
+  ipcMain.handle('prompts:list', () => promptStorage.getPrompts());
+  ipcMain.handle('prompts:update', (event, id, data) => promptStorage.updatePrompt(id, data));
+  ipcMain.handle('prompts:delete', (event, id) => promptStorage.deletePrompt(id));
+  ipcMain.handle('prompts:search', (event, query) => promptStorage.searchPrompts(query));
+
+  // ── Personas ────────────────────────────────────────────────────
+  ipcMain.handle('persona:create', (event, data) => personaStorage.createPersona(data));
+  ipcMain.handle('persona:list', () => personaStorage.getPersonas());
+  ipcMain.handle('persona:getActive', () => personaStorage.getActivePersona());
+  ipcMain.handle('persona:update', (event, id, data) => personaStorage.updatePersona(id, data));
+  ipcMain.handle('persona:delete', (event, id) => personaStorage.deletePersona(id));
+  ipcMain.handle('persona:activate', (event, id) => personaStorage.activatePersona(id));
+  ipcMain.handle('persona:deactivate', () => personaStorage.deactivateAll());
+
+  // ── Web Search ──────────────────────────────────────────────────
+  ipcMain.handle('websearch:search', async (event, query) => {
+    if (!query || !query.trim()) return [];
+
+    const token = store.get('auth.token');
+    const serverUrl = store.get('auth.serverUrl') || activeWebAppUrl;
+
+    // Try backend API first
+    try {
+      const headers = { 'Content-Type': 'application/json' };
+      if (token) headers['Authorization'] = `Bearer ${token}`;
+
+      const res = await fetch(`${serverUrl}/api/desktop/web-search`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ query: query.trim() }),
+        signal: AbortSignal.timeout(10000),
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        return data.results || [];
+      }
+    } catch (err) {
+      console.warn('[WebSearch] Backend unavailable:', err.message);
+    }
+
+    // Fallback: DuckDuckGo HTML scrape
+    try {
+      const encoded = encodeURIComponent(query.trim());
+      const res = await fetch(`https://html.duckduckgo.com/html/?q=${encoded}`, {
+        headers: { 'User-Agent': 'Mozilla/5.0 (compatible; IIMAGINE Desktop/1.0)' },
+        signal: AbortSignal.timeout(8000),
+      });
+
+      if (!res.ok) return [];
+      const html = await res.text();
+      return parseDuckDuckGoResults(html);
+    } catch (err) {
+      console.warn('[WebSearch] DuckDuckGo fallback failed:', err.message);
+      return [];
+    }
+  });
 }
 
 // ── macOS protocol handler ──────────────────────────────────────
@@ -1692,6 +2002,9 @@ app.whenReady().then(async () => {
   storage.init();
   kbStorage.init(storage.getDb());
   assistantStorage.init(storage.getDb());
+  personaStorage.init(storage.getDb());
+  folderConnect.init(storage.getDb(), kbStorage);
+  promptStorage.init(storage.getDb());
 
   // Initialize plugin system
   pluginManager.setContext({
