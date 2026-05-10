@@ -178,6 +178,25 @@ module.exports = {
     if (eventName === 'cw:get-time-entries') {
       return cwDb.getTimeEntries(data.projectId);
     }
+    if (eventName === 'cw:add-comm') {
+      const id = cwDb.addComm({
+        projectId: data.projectId,
+        source: data.source,
+        content: data.content,
+        commDate: data.commDate,
+        summary: data.summary,
+      });
+      return { success: true, id };
+    }
+    if (eventName === 'cw:get-comms') {
+      return cwDb.getComms(data.projectId, data.limit);
+    }
+    if (eventName === 'cw:delete-comm') {
+      return cwDb.deleteComm(data.id);
+    }
+    if (eventName === 'cw:open-comm') {
+      return cwDb.getComm(data.id);
+    }
     return null;
   },
 

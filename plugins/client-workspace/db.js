@@ -69,6 +69,22 @@ function createTables() {
 
     CREATE INDEX IF NOT EXISTS idx_cw_time_entries_project
       ON cw_time_entries(project_id);
+
+    CREATE TABLE IF NOT EXISTS cw_comms (
+      id TEXT PRIMARY KEY,
+      project_id TEXT NOT NULL,
+      source TEXT NOT NULL DEFAULT 'other',
+      content TEXT NOT NULL,
+      comm_date TEXT NOT NULL DEFAULT (date('now')),
+      summary TEXT,
+      created_at TEXT DEFAULT (datetime('now')),
+      FOREIGN KEY (project_id) REFERENCES cw_projects(id) ON DELETE CASCADE
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_cw_comms_project
+      ON cw_comms(project_id);
+    CREATE INDEX IF NOT EXISTS idx_cw_comms_date
+      ON cw_comms(project_id, comm_date DESC);
   `);
 
   console.log(`${LOG} Tables initialized`);
@@ -236,6 +252,38 @@ function getTimeEntries(projectId) {
   ).all(projectId);
 }
 
+// ── Communications ──────────────────────────────────────────────
+
+function addComm({ projectId, source, content, commDate, summary }) {
+  const id = crypto.randomUUID();
+  db.prepare(`
+    INSERT INTO cw_comms (id, project_id, source, content, comm_date, summary)
+    VALUES (?, ?, ?, ?, ?, ?)
+  `).run(id, projectId, source || 'other', content, commDate || new Date().toISOString().split('T')[0], summary || null);
+
+  db.prepare("UPDATE cw_projects SET updated_at = datetime('now') WHERE id = ?").run(projectId);
+  addTimelineEntry(projectId, 'comm_logged', `Communication logged (${source || 'other'})`);
+  return id;
+}
+
+function getComms(projectId, limit = 50) {
+  return db.prepare(
+    'SELECT * FROM cw_comms WHERE project_id = ? ORDER BY comm_date DESC, created_at DESC LIMIT ?'
+  ).all(projectId, limit);
+}
+
+function getComm(id) {
+  return db.prepare('SELECT * FROM cw_comms WHERE id = ?').get(id);
+}
+
+function deleteComm(id) {
+  const comm = getComm(id);
+  if (!comm) return false;
+  db.prepare('DELETE FROM cw_comms WHERE id = ?').run(id);
+  addTimelineEntry(comm.project_id, 'comm_deleted', 'Communication deleted');
+  return true;
+}
+
 // ── Stats ───────────────────────────────────────────────────────
 
 function getStats() {
@@ -244,7 +292,8 @@ function getStats() {
   const documents = db.prepare('SELECT COUNT(*) as count FROM cw_documents').get().count;
   const timelineEntries = db.prepare('SELECT COUNT(*) as count FROM cw_timeline').get().count;
   const timeEntries = db.prepare('SELECT COUNT(*) as count FROM cw_time_entries').get().count;
-  return { projects, activeProjects, documents, timelineEntries, timeEntries };
+  const comms = db.prepare('SELECT COUNT(*) as count FROM cw_comms').get().count;
+  return { projects, activeProjects, documents, timelineEntries, timeEntries, comms };
 }
 
 module.exports = {
@@ -269,6 +318,11 @@ module.exports = {
   // Time entries
   addTimeEntry,
   getTimeEntries,
+  // Communications
+  addComm,
+  getComms,
+  getComm,
+  deleteComm,
   // Stats
   getStats,
 };

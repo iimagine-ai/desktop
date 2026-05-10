@@ -14,8 +14,11 @@ function buildProjectContext(project) {
 
   const lines = [`[Active Project: ${project.name}]`];
 
+  if (project.client_name) {
+    lines.push(`Client: ${project.client_name}`);
+  }
+
   if (project.notes) {
-    // Truncate notes to avoid bloating context
     const truncated = project.notes.length > 500
       ? project.notes.slice(0, 500) + '...'
       : project.notes;
@@ -24,6 +27,7 @@ function buildProjectContext(project) {
 
   lines.push('You are assisting a professional working on this project.');
   lines.push('The user is the professional. Respond as a knowledgeable assistant.');
+  lines.push('Communications and documents for this project may be available via memory context or KB.');
 
   return lines.join('\n');
 }

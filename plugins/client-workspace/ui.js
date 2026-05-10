@@ -3,6 +3,7 @@
 // Full CRUD for documents: view, edit, delete, status toggle.
 
 const cwDb = require('./db');
+const { renderCommsSection, getCommsScript } = require('./comms-ui');
 
 /**
  * Render the project list view (no active project selected).
@@ -185,18 +186,28 @@ function renderProjectDetail(project) {
       ${project.notes ? `<p class="text-sm text-neutral-500 dark:text-neutral-400">${project.notes}</p>` : ''}
       ${project.client_name ? `<p class="text-xs text-neutral-400 dark:text-neutral-500">Client: ${project.client_name}${project.client_email ? ' (' + project.client_email + ')' : ''}</p>` : (project.client_email ? `<p class="text-xs text-neutral-400 dark:text-neutral-500">Client: ${project.client_email}</p>` : '')}
 
-      <!-- Documents -->
-      <div>
-        <h3 class="text-base font-semibold text-neutral-900 dark:text-neutral-100 mb-3">Documents</h3>
+      <!-- Tabs -->
+      <div class="flex gap-1 border-b border-neutral-200/40 dark:border-neutral-700/40">
+        <button onclick="window.cwSwitchTab('docs')" id="cw-tab-docs" class="cw-tab px-4 py-2 text-sm font-medium text-neutral-900 dark:text-neutral-100 border-b-2 border-neutral-900 dark:border-neutral-100">Documents</button>
+        <button onclick="window.cwSwitchTab('comms')" id="cw-tab-comms" class="cw-tab px-4 py-2 text-sm font-medium text-neutral-500 dark:text-neutral-400 border-b-2 border-transparent hover:text-neutral-700 dark:hover:text-neutral-300">Comms</button>
+        <button onclick="window.cwSwitchTab('timeline')" id="cw-tab-timeline" class="cw-tab px-4 py-2 text-sm font-medium text-neutral-500 dark:text-neutral-400 border-b-2 border-transparent hover:text-neutral-700 dark:hover:text-neutral-300">Timeline</button>
+      </div>
+
+      <!-- Documents Tab -->
+      <div id="cw-panel-docs" class="cw-panel">
         <div class="space-y-2">
           ${docRows || '<p class="text-sm text-neutral-500 dark:text-neutral-400">No documents yet. Save an AI response from chat to create one.</p>'}
         </div>
       </div>
 
-      <!-- Timeline -->
-      <div>
-        <h3 class="text-base font-semibold text-neutral-900 dark:text-neutral-100 mb-3">Timeline</h3>
-        <div class="max-h-48 overflow-auto rounded-xl border border-neutral-200/40 dark:border-neutral-700/40 p-3 bg-white/30 dark:bg-neutral-800/30">
+      <!-- Comms Tab -->
+      <div id="cw-panel-comms" class="cw-panel hidden">
+        ${renderCommsSection(project)}
+      </div>
+
+      <!-- Timeline Tab -->
+      <div id="cw-panel-timeline" class="cw-panel hidden">
+        <div class="max-h-64 overflow-auto rounded-xl border border-neutral-200/40 dark:border-neutral-700/40 p-3 bg-white/30 dark:bg-neutral-800/30">
           ${timelineRows || '<p class="text-sm text-neutral-500 dark:text-neutral-400">No activity yet.</p>'}
         </div>
       </div>
@@ -253,6 +264,20 @@ function renderProjectDetail(project) {
 
     <script>
       window._cwCurrentDocId = null;
+
+      window.cwSwitchTab = function(tab) {
+        document.querySelectorAll('.cw-panel').forEach(p => p.classList.add('hidden'));
+        document.querySelectorAll('.cw-tab').forEach(t => {
+          t.classList.remove('text-neutral-900', 'dark:text-neutral-100', 'border-neutral-900', 'dark:border-neutral-100');
+          t.classList.add('text-neutral-500', 'dark:text-neutral-400', 'border-transparent');
+        });
+        document.getElementById('cw-panel-' + tab).classList.remove('hidden');
+        const activeTab = document.getElementById('cw-tab-' + tab);
+        activeTab.classList.remove('text-neutral-500', 'dark:text-neutral-400', 'border-transparent');
+        activeTab.classList.add('text-neutral-900', 'dark:text-neutral-100', 'border-neutral-900', 'dark:border-neutral-100');
+      };
+
+      ${getCommsScript()}
 
       window.cwDeselectProject = async function() {
         await window.api.plugins.sendEvent('cw:deselect-project', {});
