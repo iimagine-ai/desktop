@@ -10,6 +10,7 @@ const KBSelector = {
   _onChange: null,
   _containerEl: null,
   _searchQuery: '',
+  _isRerendering: false, // Guard flag to prevent outside-click closing during re-render
 
   /**
    * Render the KB selector into the given container element
@@ -53,7 +54,7 @@ const KBSelector = {
 
     // Close on outside click
     document.addEventListener('click', (e) => {
-      if (this._isOpen && !container.querySelector('.kb-multi-select')?.contains(e.target)) {
+      if (this._isOpen && !this._isRerendering && !container.querySelector('.kb-multi-select')?.contains(e.target)) {
         this._closeDropdown();
       }
     });
@@ -120,6 +121,8 @@ const KBSelector = {
     const listEl = this._containerEl?.querySelector('#kbDropdownList');
     if (!listEl) return;
 
+    this._isRerendering = true;
+
     if (this._collections.length === 0) {
       listEl.innerHTML = `<div class="px-3 py-2 text-xs text-neutral-400">No collections yet</div>`;
       this._bindSearchInput();
@@ -173,6 +176,9 @@ const KBSelector = {
     this._bindDropdownEvents(listEl);
     this._setIndeterminateStates(listEl);
     this._bindSearchInput();
+
+    // Reset re-render guard after a tick to allow current event to finish
+    setTimeout(() => { this._isRerendering = false; }, 0);
   },
 
   _renderDocList(collectionId, docs) {
@@ -225,6 +231,7 @@ const KBSelector = {
         this._emitChange();
         this._renderDropdownList();
       });
+      cb.addEventListener('click', (e) => e.stopPropagation());
     });
 
     // Document checkboxes
@@ -241,6 +248,7 @@ const KBSelector = {
         this._emitChange();
         this._renderDropdownList();
       });
+      cb.addEventListener('click', (e) => e.stopPropagation());
     });
   },
 

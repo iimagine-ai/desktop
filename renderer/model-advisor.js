@@ -2,99 +2,138 @@
 // Pure client-side logic, no server calls needed
 
 const MODEL_DATABASE = [
-  // Tiny models (< 2GB RAM needed)
+  // --- Gemma 4 family (April 2026, Apache 2.0) ---
   {
-    id: 'gemma3:1b', name: 'Gemma 3 1B', family: 'gemma', params: '1B',
-    sizeGB: 1.0, minRAM: 4, idealRAM: 8, needsGPU: false,
-    speed: 'very-fast', quality: 'basic',
-    strengths: ['chat', 'writing'], weaknesses: ['coding', 'analysis'],
-    description: 'Fast and lightweight. Good for quick conversations and simple writing tasks.',
+    id: 'gemma4:e2b', name: 'Gemma 4 E2B', family: 'gemma4', params: '2B',
+    sizeGB: 7.2, minRAM: 8, idealRAM: 12, needsGPU: false,
+    speed: 'fast', quality: 'good', architecture: 'moe',
+    strengths: ['chat', 'writing'], weaknesses: [],
+    description: 'Google\'s latest edge model. MoE architecture delivers strong quality at low compute. Multimodal (text + images).',
   },
   {
-    id: 'phi4-mini', name: 'Phi 4 Mini', family: 'phi', params: '3.8B',
-    sizeGB: 2.5, minRAM: 6, idealRAM: 8, needsGPU: false,
-    speed: 'fast', quality: 'good',
-    strengths: ['coding', 'analysis'], weaknesses: [],
-    description: 'Microsoft\'s compact model. Punches above its weight for coding and reasoning.',
-  },
-  // Small models (4-6GB RAM needed)
-  {
-    id: 'gemma3:4b', name: 'Gemma 3 4B', family: 'gemma', params: '4B',
-    sizeGB: 3.0, minRAM: 8, idealRAM: 12, needsGPU: false,
-    speed: 'fast', quality: 'good',
-    strengths: ['chat', 'writing', 'analysis'], weaknesses: [],
-    description: 'Great balance of speed and quality. Recommended starting point for most users.',
+    id: 'gemma4:e4b', name: 'Gemma 4 E4B', family: 'gemma4', params: '4B',
+    sizeGB: 9.6, minRAM: 12, idealRAM: 16, needsGPU: false,
+    speed: 'fast', quality: 'very-good', architecture: 'moe',
+    strengths: ['chat', 'writing', 'coding', 'analysis'], weaknesses: [],
+    description: 'Best balance of quality and speed for 12-16GB machines. MoE with 128K context. Multimodal.',
   },
   {
-    id: 'llama3.2:3b', name: 'Llama 3.2 3B', family: 'llama', params: '3B',
-    sizeGB: 2.0, minRAM: 6, idealRAM: 8, needsGPU: false,
-    speed: 'fast', quality: 'good',
-    strengths: ['chat', 'writing'], weaknesses: ['coding'],
-    description: 'Meta\'s compact model. Strong conversational ability for its size.',
+    id: 'gemma4:26b', name: 'Gemma 4 26B MoE', family: 'gemma4', params: '26B',
+    sizeGB: 18, minRAM: 24, idealRAM: 32, needsGPU: false,
+    speed: 'moderate', quality: 'excellent', architecture: 'moe',
+    strengths: ['chat', 'writing', 'coding', 'analysis'], weaknesses: [],
+    description: 'MoE model — only activates ~3.8B params per token. 27B-class intelligence at 4B compute cost. 256K context.',
   },
+  {
+    id: 'gemma4:31b', name: 'Gemma 4 31B Dense', family: 'gemma4', params: '31B',
+    sizeGB: 20, minRAM: 32, idealRAM: 48, needsGPU: true,
+    speed: 'moderate', quality: 'excellent', architecture: 'dense',
+    strengths: ['chat', 'writing', 'coding', 'analysis'], weaknesses: [],
+    description: 'Google\'s strongest open model. Dense architecture, 256K context. Top-3 on public benchmarks.',
+  },
+  // --- GPT-OSS (OpenAI open-source, 2025) ---
+  {
+    id: 'gpt-oss:20b', name: 'GPT-OSS 20B', family: 'gpt-oss', params: '20B',
+    sizeGB: 14, minRAM: 20, idealRAM: 32, needsGPU: false,
+    speed: 'moderate', quality: 'excellent', architecture: 'dense',
+    strengths: ['chat', 'coding', 'analysis'], weaknesses: [],
+    description: 'OpenAI\'s open-weight model. Strong reasoning and agentic workflows. 128K context.',
+  },
+  // --- Qwen 3 family (Alibaba) ---
   {
     id: 'qwen3:4b', name: 'Qwen 3 4B', family: 'qwen', params: '4B',
     sizeGB: 2.6, minRAM: 8, idealRAM: 12, needsGPU: false,
-    speed: 'fast', quality: 'good',
+    speed: 'fast', quality: 'good', architecture: 'dense',
     strengths: ['coding', 'analysis', 'chat'], weaknesses: [],
-    description: 'Alibaba\'s model. Strong at coding and multilingual tasks.',
-  },
-  // Medium models (8-12GB RAM needed)
-  {
-    id: 'gemma3:12b', name: 'Gemma 3 12B', family: 'gemma', params: '12B',
-    sizeGB: 8.1, minRAM: 12, idealRAM: 16, needsGPU: false,
-    speed: 'moderate', quality: 'very-good',
-    strengths: ['chat', 'writing', 'analysis', 'coding'], weaknesses: [],
-    description: 'High quality across all tasks. Needs decent hardware but delivers strong results.',
-  },
-  {
-    id: 'llama3.1:8b', name: 'Llama 3.1 8B', family: 'llama', params: '8B',
-    sizeGB: 4.7, minRAM: 10, idealRAM: 16, needsGPU: false,
-    speed: 'moderate', quality: 'very-good',
-    strengths: ['chat', 'writing', 'coding'], weaknesses: [],
-    description: 'Meta\'s workhorse model. Reliable across all tasks.',
+    description: 'Alibaba\'s compact model. Strong at coding and multilingual tasks.',
   },
   {
     id: 'qwen3:8b', name: 'Qwen 3 8B', family: 'qwen', params: '8B',
     sizeGB: 5.2, minRAM: 10, idealRAM: 16, needsGPU: false,
-    speed: 'moderate', quality: 'very-good',
+    speed: 'moderate', quality: 'very-good', architecture: 'dense',
     strengths: ['coding', 'analysis', 'chat'], weaknesses: [],
-    description: 'Excellent for coding and analytical tasks. Strong reasoning.',
+    description: 'Excellent for coding and analytical tasks. Strong reasoning. 128K context.',
   },
+  {
+    id: 'qwen3:30b', name: 'Qwen 3 30B', family: 'qwen', params: '30B',
+    sizeGB: 18, minRAM: 24, idealRAM: 32, needsGPU: true,
+    speed: 'moderate', quality: 'excellent', architecture: 'moe',
+    strengths: ['coding', 'analysis', 'chat', 'writing'], weaknesses: [],
+    description: 'MoE architecture. Widely considered the best all-round local model in 2026.',
+  },
+  // --- Gemma 3 family (still solid options) ---
+  {
+    id: 'gemma3:4b', name: 'Gemma 3 4B', family: 'gemma3', params: '4B',
+    sizeGB: 3.0, minRAM: 8, idealRAM: 12, needsGPU: false,
+    speed: 'fast', quality: 'good', architecture: 'dense',
+    strengths: ['chat', 'writing', 'analysis'], weaknesses: [],
+    description: 'Previous-gen but still capable. Good starting point for 8GB machines.',
+  },
+  {
+    id: 'gemma3:12b', name: 'Gemma 3 12B', family: 'gemma3', params: '12B',
+    sizeGB: 8.1, minRAM: 12, idealRAM: 16, needsGPU: false,
+    speed: 'moderate', quality: 'very-good', architecture: 'dense',
+    strengths: ['chat', 'writing', 'analysis', 'coding'], weaknesses: [],
+    description: 'High quality across all tasks. 128K context. Proven reliable.',
+  },
+  // --- Llama family (Meta) ---
+  {
+    id: 'llama3.2:3b', name: 'Llama 3.2 3B', family: 'llama', params: '3B',
+    sizeGB: 2.0, minRAM: 6, idealRAM: 8, needsGPU: false,
+    speed: 'fast', quality: 'good', architecture: 'dense',
+    strengths: ['chat', 'writing'], weaknesses: ['coding'],
+    description: 'Meta\'s compact model. Strong conversational ability for its size.',
+  },
+  {
+    id: 'llama3.1:8b', name: 'Llama 3.1 8B', family: 'llama', params: '8B',
+    sizeGB: 4.7, minRAM: 10, idealRAM: 16, needsGPU: false,
+    speed: 'moderate', quality: 'very-good', architecture: 'dense',
+    strengths: ['chat', 'writing', 'coding'], weaknesses: [],
+    description: 'Meta\'s workhorse model. Reliable across all tasks. 128K context.',
+  },
+  // --- Phi 4 (Microsoft) ---
+  {
+    id: 'phi4-mini', name: 'Phi 4 Mini', family: 'phi', params: '3.8B',
+    sizeGB: 2.5, minRAM: 6, idealRAM: 8, needsGPU: false,
+    speed: 'fast', quality: 'good', architecture: 'dense',
+    strengths: ['coding', 'analysis'], weaknesses: [],
+    description: 'Microsoft\'s compact model. Punches above its weight for coding and reasoning.',
+  },
+  {
+    id: 'phi4', name: 'Phi 4', family: 'phi', params: '14B',
+    sizeGB: 9.1, minRAM: 12, idealRAM: 16, needsGPU: false,
+    speed: 'moderate', quality: 'very-good', architecture: 'dense',
+    strengths: ['coding', 'analysis', 'chat'], weaknesses: [],
+    description: 'Microsoft\'s best compact text model. Strong reasoning at modest size.',
+  },
+  // --- Mistral ---
   {
     id: 'mistral:7b', name: 'Mistral 7B', family: 'mistral', params: '7B',
     sizeGB: 4.1, minRAM: 10, idealRAM: 16, needsGPU: false,
-    speed: 'moderate', quality: 'very-good',
+    speed: 'moderate', quality: 'very-good', architecture: 'dense',
     strengths: ['coding', 'analysis'], weaknesses: [],
     description: 'French AI lab\'s flagship small model. Efficient and capable.',
   },
-  {
-    id: 'deepseek-coder-v2:16b', name: 'DeepSeek Coder V2 16B', family: 'deepseek', params: '16B',
-    sizeGB: 8.9, minRAM: 16, idealRAM: 24, needsGPU: true,
-    speed: 'moderate', quality: 'excellent',
-    strengths: ['coding'], weaknesses: ['chat'],
-    description: 'Purpose-built for code generation. Best local coding model at this size.',
-  },
-  // Large models (16GB+ RAM needed)
-  {
-    id: 'llama3.3:70b', name: 'Llama 3.3 70B', family: 'llama', params: '70B',
-    sizeGB: 43, minRAM: 48, idealRAM: 64, needsGPU: true,
-    speed: 'slow', quality: 'excellent',
-    strengths: ['chat', 'writing', 'coding', 'analysis'], weaknesses: [],
-    description: 'Near frontier-model quality. Requires high-end hardware.',
-  },
+  // --- Large models (32GB+ RAM) ---
   {
     id: 'qwen3:32b', name: 'Qwen 3 32B', family: 'qwen', params: '32B',
     sizeGB: 20, minRAM: 32, idealRAM: 48, needsGPU: true,
-    speed: 'slow', quality: 'excellent',
+    speed: 'slow', quality: 'excellent', architecture: 'dense',
     strengths: ['coding', 'analysis', 'chat', 'writing'], weaknesses: [],
     description: 'Top-tier local model for users with powerful machines.',
   },
-  // Embedding model (always recommended alongside a chat model)
+  {
+    id: 'llama3.3:70b', name: 'Llama 3.3 70B', family: 'llama', params: '70B',
+    sizeGB: 43, minRAM: 48, idealRAM: 64, needsGPU: true,
+    speed: 'slow', quality: 'excellent', architecture: 'dense',
+    strengths: ['chat', 'writing', 'coding', 'analysis'], weaknesses: [],
+    description: 'Near frontier-model quality. Requires high-end hardware.',
+  },
+  // --- Embedding model (always recommended alongside a chat model) ---
   {
     id: 'nomic-embed-text', name: 'Nomic Embed Text', family: 'nomic', params: '137M',
     sizeGB: 0.3, minRAM: 4, idealRAM: 4, needsGPU: false,
-    speed: 'very-fast', quality: 'n/a',
+    speed: 'very-fast', quality: 'n/a', architecture: 'dense',
     strengths: ['embeddings'], weaknesses: [],
     description: 'Required for Knowledge Base search. Tiny footprint.',
     isEmbedding: true,

@@ -95,6 +95,11 @@ const ProviderManager = {
     if (found) {
       this.activeProvider = found;
       window.api.settings.set('activeModel', name);
+      // Sync provider.active so the backend RAG path knows which type to use
+      window.api.settings.set('provider.active', {
+        type: found.type,
+        model: found.modelId || found.name,
+      });
     }
   },
 

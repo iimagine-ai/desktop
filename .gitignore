@@ -6,3 +6,4 @@ out/
 *.exe
 .DS_Store
 config.json
+docs/client-coms-example.md

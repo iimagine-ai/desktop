@@ -27,7 +27,7 @@ function buildProjectContext(project) {
 
   lines.push('You are assisting a professional working on this project.');
   lines.push('The user is the professional. Respond as a knowledgeable assistant.');
-  lines.push('Communications and documents for this project may be available via memory context or KB.');
+  lines.push('IMPORTANT: If project resources (communications, documents) are provided below, use them to answer questions. They contain real data from this project.');
 
   return lines.join('\n');
 }

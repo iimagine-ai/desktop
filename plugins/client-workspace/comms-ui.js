@@ -39,10 +39,16 @@ function renderCommsSection(project) {
   return `
     <div class="space-y-4">
       <!-- Log New Communication -->
-      <button onclick="window.cwShowCommForm()" id="cw-comm-add-btn"
-        class="w-full px-4 py-2.5 rounded-lg bg-neutral-900 dark:bg-neutral-100 text-sm font-medium text-white dark:text-neutral-900 hover:bg-neutral-800 dark:hover:bg-neutral-200 transition-all shadow-sm">
-        + Log Communication
-      </button>
+      <div class="flex gap-2">
+        <button onclick="window.cwShowCommForm()" id="cw-comm-add-btn"
+          class="flex-1 px-4 py-2.5 rounded-lg bg-neutral-900 dark:bg-neutral-100 text-sm font-medium text-white dark:text-neutral-900 hover:bg-neutral-800 dark:hover:bg-neutral-200 transition-all shadow-sm">
+          + Log Communication
+        </button>
+        <button onclick="window.cwReindexComms('${project.id}')" id="cw-comm-reindex-btn" title="Re-index all comms for AI search"
+          class="px-3 py-2.5 rounded-lg bg-white/60 dark:bg-neutral-700/60 border border-neutral-200/50 dark:border-neutral-600/50 text-sm text-neutral-600 dark:text-neutral-400 hover:bg-white/90 dark:hover:bg-neutral-700/90 transition-all shadow-sm">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+        </button>
+      </div>
 
       <!-- Add Comm Form (hidden by default) -->
       <div id="cw-comm-form" class="hidden bg-white/60 dark:bg-neutral-800/60 border border-neutral-200/40 dark:border-neutral-700/40 rounded-2xl p-4 space-y-3">
@@ -112,6 +118,25 @@ function renderCommsSection(project) {
  */
 function getCommsScript() {
   return `
+    window.cwReindexComms = async function(projectId) {
+      const btn = document.getElementById('cw-comm-reindex-btn');
+      btn.disabled = true;
+      btn.innerHTML = '<span class="text-xs">Indexing...</span>';
+      try {
+        const result = await window.api.plugins.sendEvent('cw:reindex-comms', { projectId });
+        if (result && result.success) {
+          btn.innerHTML = '<span class="text-xs text-green-600 dark:text-green-400">✓ ' + result.indexed + ' indexed</span>';
+        } else {
+          btn.innerHTML = '<span class="text-xs text-red-500">Failed</span>';
+        }
+      } catch (e) {
+        btn.innerHTML = '<span class="text-xs text-red-500">Error</span>';
+      }
+      setTimeout(() => {
+        btn.disabled = false;
+        btn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>';
+      }, 3000);
+    };
     window.cwShowCommForm = function() {
       document.getElementById('cw-comm-form').classList.remove('hidden');
       document.getElementById('cw-comm-add-btn').classList.add('hidden');

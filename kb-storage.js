@@ -194,6 +194,13 @@ function getDocuments(collectionId) {
   `).all(collectionId);
 }
 
+function getDocumentsWithContent(collectionId) {
+  return db.prepare(`
+    SELECT id, collection_id, title, content, char_count
+    FROM kb_documents WHERE collection_id = ? ORDER BY created_at DESC
+  `).all(collectionId);
+}
+
 function getDocument(id) {
   return db.prepare('SELECT * FROM kb_documents WHERE id = ?').get(id) || null;
 }
@@ -521,6 +528,7 @@ module.exports = {
   // Documents
   addDocument,
   getDocuments,
+  getDocumentsWithContent,
   getDocument,
   updateDocument,
   deleteDocument,

@@ -79,6 +79,11 @@ const SettingsPage = {
       this._pollInterval = null;
     }
 
+    // Stop runtime monitor polling when leaving models tab
+    if (window.RuntimeMonitor) {
+      window.RuntimeMonitor.stopPolling();
+    }
+
     if (tab === 'profile') this._renderProfile(content);
     else if (tab === 'models') this._renderModelsTab(content);
     else if (tab === 'plugins') this._renderPluginsTab(content);
@@ -393,6 +398,12 @@ const SettingsPage = {
           <!-- Installed models list -->
           <div id="modelList" class="space-y-1"></div>
         </div>
+
+        <!-- Advanced Ollama Settings mount point -->
+        <div id="advancedOllamaMount"></div>
+
+        <!-- Runtime Monitor mount point -->
+        <div id="runtimeMonitorMount"></div>
       </section>
 
       <!-- Vertex AI (Regional Cloud) -->
@@ -491,6 +502,18 @@ const SettingsPage = {
 
     // ── Advanced Options ─────────────────────────────────────────
     this._bindAdvancedOptions(content);
+
+    // ── Advanced Ollama Settings (GPU, threads, keep alive) ──────
+    const advOllamaMount = content.querySelector('#advancedOllamaMount');
+    if (advOllamaMount && window.AdvancedOllamaSettings) {
+      window.AdvancedOllamaSettings.mount(advOllamaMount);
+    }
+
+    // ── Runtime Monitor (loaded models status) ───────────────────
+    const runtimeMount = content.querySelector('#runtimeMonitorMount');
+    if (runtimeMount && window.RuntimeMonitor) {
+      window.RuntimeMonitor.mount(runtimeMount);
+    }
 
     // ── Vertex AI (Regional Cloud) setup ─────────────────────────
     const vertexRegion = content.querySelector('#vertexRegion');

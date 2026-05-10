@@ -30,6 +30,9 @@ contextBridge.exposeInMainWorld('api', {
     testConnection: (host) => ipcRenderer.invoke('ollama:testConnection', host),
     getModelLocation: () => ipcRenderer.invoke('ollama:getModelLocation'),
     openModelLocation: () => ipcRenderer.invoke('ollama:openModelLocation'),
+    getAdvancedSettings: () => ipcRenderer.invoke('ollama:getAdvancedSettings'),
+    setAdvancedSettings: (settings) => ipcRenderer.invoke('ollama:setAdvancedSettings', settings),
+    getRunningModels: () => ipcRenderer.invoke('ollama:getRunningModels'),
     onStreamChunk: (cb) => ipcRenderer.on('ollama:stream-chunk', (_, chunk) => cb(chunk)),
     onStreamDone: (cb) => ipcRenderer.on('ollama:stream-done', () => cb()),
     onPullProgress: (cb) => ipcRenderer.on('ollama:pull-progress', (_, data) => cb(data)),
@@ -96,6 +99,7 @@ contextBridge.exposeInMainWorld('api', {
   // Chat RAG — KB-augmented chat for general chat page
   chatRag: {
     send: (data) => ipcRenderer.invoke('chat:ragSend', data),
+    estimateFullContext: (selections) => ipcRenderer.invoke('chat:ragEstimateFullContext', selections),
     onChunk: (cb) => ipcRenderer.on('chat:rag-chunk', (_, data) => cb(data)),
     onDone: (cb) => ipcRenderer.on('chat:rag-done', () => cb()),
   },
@@ -164,6 +168,8 @@ contextBridge.exposeInMainWorld('api', {
     list: () => ipcRenderer.invoke('plugins:list'),
     setEnabled: (id, enabled) => ipcRenderer.invoke('plugins:setEnabled', id, enabled),
     getSidebarItems: () => ipcRenderer.invoke('plugins:getSidebarItems'),
+    renderPage: (pluginId) => ipcRenderer.invoke('plugins:renderPage', pluginId),
+    sendEvent: (event, data) => ipcRenderer.invoke('plugins:event', event, data),
     getDir: () => ipcRenderer.invoke('plugins:getDir'),
     install: () => ipcRenderer.invoke('plugins:install'),
     uninstall: (id) => ipcRenderer.invoke('plugins:uninstall', id),
@@ -171,6 +177,42 @@ contextBridge.exposeInMainWorld('api', {
     chatPostprocess: (data) => ipcRenderer.invoke('plugins:chatPostprocess', data),
     getCommands: () => ipcRenderer.invoke('plugins:getCommands'),
     getMentions: () => ipcRenderer.invoke('plugins:getMentions'),
+  },
+
+  // Folders — connect local folders to KB
+  folders: {
+    add: () => ipcRenderer.invoke('folder:add'),
+    list: () => ipcRenderer.invoke('folder:list'),
+    remove: (id) => ipcRenderer.invoke('folder:remove', id),
+    reindex: (id) => ipcRenderer.invoke('folder:reindex', id),
+    onProgress: (cb) => ipcRenderer.on('folder:index-progress', (_, data) => cb(data)),
+    onDone: (cb) => ipcRenderer.on('folder:index-done', (_, data) => cb(data)),
+  },
+
+  // Prompts — reusable prompt templates
+  prompts: {
+    create: (data) => ipcRenderer.invoke('prompts:create', data),
+    list: () => ipcRenderer.invoke('prompts:list'),
+    update: (id, data) => ipcRenderer.invoke('prompts:update', id, data),
+    delete: (id) => ipcRenderer.invoke('prompts:delete', id),
+    search: (query) => ipcRenderer.invoke('prompts:search', query),
+  },
+
+  // Personas — AI persona management
+  personas: {
+    create: (data) => ipcRenderer.invoke('persona:create', data),
+    list: () => ipcRenderer.invoke('persona:list'),
+    getActive: () => ipcRenderer.invoke('persona:getActive'),
+    update: (id, data) => ipcRenderer.invoke('persona:update', id, data),
+    delete: (id) => ipcRenderer.invoke('persona:delete', id),
+    activate: (id) => ipcRenderer.invoke('persona:activate', id),
+    deactivate: () => ipcRenderer.invoke('persona:deactivate'),
+  },
+
+  // Web Search
+  webSearch: {
+    search: (query) => ipcRenderer.invoke('websearch:search', query),
+    isEnabled: () => ipcRenderer.invoke('settings:get', 'webSearch.enabled'),
   },
 
   agent: {

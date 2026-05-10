@@ -17,6 +17,8 @@ const AppRouter = {
     videos: window.VideosPage,
     knowledge: window.KnowledgePage,
     assistants: window.AssistantsPage,
+    prompts: window.PromptsPage,
+    personalization: window.PersonalizationPage,
     settings: window.SettingsPage,
   },
 
@@ -235,6 +237,83 @@ document.addEventListener('click', (e) => {
   }
 });
 
+// ── Plugin Sidebar Pages ─────────────────────────────────────────
+async function loadPluginSidebarItems() {
+  try {
+    const items = await window.api.plugins.getSidebarItems();
+    if (!items || !items.length) return;
+
+    const nav = document.querySelector('#sidebar nav');
+    if (!nav) return;
+
+    // Find the settings button to insert before it
+    const settingsBtn = nav.querySelector('[data-page="settings"]');
+
+    for (const item of items) {
+      // Skip if already added
+      if (nav.querySelector(`[data-page="plugin:${item.id}"]`)) continue;
+
+      const btn = document.createElement('button');
+      btn.setAttribute('data-page', `plugin:${item.id}`);
+      btn.className = 'nav-btn w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-neutral-500 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-neutral-100 hover:bg-white/40 dark:hover:bg-neutral-800/40 transition-all group';
+      btn.innerHTML = `
+        <span class="text-base group-hover:scale-110 transition-transform">${item.icon}</span>
+        <span class="text-sm font-medium">${item.label}</span>
+      `;
+      btn.addEventListener('click', () => {
+        AppRouter.navigatePlugin(item.id);
+      });
+
+      if (settingsBtn) {
+        nav.insertBefore(btn, settingsBtn);
+      } else {
+        nav.appendChild(btn);
+      }
+    }
+  } catch (err) {
+    console.warn('[App] Failed to load plugin sidebar items:', err.message);
+  }
+}
+
+// Add plugin page navigation to router
+AppRouter.navigatePlugin = async function(pluginId) {
+  // Destroy previous page
+  const prev = this.pages[window.AppState.currentPage];
+  if (prev?.destroy) prev.destroy();
+
+  window.AppState.currentPage = `plugin:${pluginId}`;
+  const container = document.querySelector('#mainContent');
+
+  try {
+    const html = await window.api.plugins.renderPage(pluginId);
+    if (html) {
+      container.innerHTML = html;
+      // Execute any script tags in the injected HTML
+      container.querySelectorAll('script').forEach(oldScript => {
+        const newScript = document.createElement('script');
+        newScript.textContent = oldScript.textContent;
+        oldScript.parentNode.replaceChild(newScript, oldScript);
+      });
+    } else {
+      container.innerHTML = '<div class="p-6 text-neutral-500">Plugin page not available.</div>';
+    }
+  } catch (err) {
+    container.innerHTML = `<div class="p-6 text-red-500">Error loading plugin page: ${err.message}</div>`;
+  }
+
+  // Update nav highlight
+  document.querySelectorAll('.nav-btn').forEach(btn => {
+    const isActive = btn.dataset.page === `plugin:${pluginId}`;
+    if (isActive) {
+      btn.classList.remove('text-neutral-500', 'dark:text-neutral-400', 'hover:text-neutral-900', 'dark:hover:text-neutral-100', 'hover:bg-white/40', 'dark:hover:bg-neutral-800/40');
+      btn.classList.add('bg-white/60', 'dark:bg-neutral-800/60', 'text-neutral-900', 'dark:text-neutral-100', 'shadow-sm', 'border', 'border-white/50', 'dark:border-neutral-700/50');
+    } else {
+      btn.classList.remove('bg-white/60', 'dark:bg-neutral-800/60', 'text-neutral-900', 'dark:text-neutral-100', 'shadow-sm', 'border', 'border-white/50', 'dark:border-neutral-700/50');
+      btn.classList.add('text-neutral-500', 'dark:text-neutral-400', 'hover:text-neutral-900', 'dark:hover:text-neutral-100', 'hover:bg-white/40', 'dark:hover:bg-neutral-800/40');
+    }
+  });
+};
+
 // ── Init ────────────────────────────────────────────────────────
 async function init() {
   // Auth disabled — always go straight to dashboard
@@ -244,6 +323,9 @@ async function init() {
 
   await window.ProviderManager.refreshLocal();
   AppRouter.updateModelDropdown();
+
+  // Load plugin sidebar items
+  await loadPluginSidebarItems();
 
   // Re-check provider status on chat page after models load
   if (window.ProviderManager.activeProvider) {

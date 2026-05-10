@@ -40,6 +40,10 @@
       "storage.js",
       "kb-storage.js",
       "assistant-storage.js",
+      "persona-storage.js",
+      "folder-connect.js",
+      "prompt-storage.js",
+      "tool-calling.js",
       "plugin-manager.js",
       "stream-abort.js",
       "renderer/**/*",
@@ -64,6 +68,7 @@
   },
   "dependencies": {
     "better-sqlite3": "^12.9.0",
+    "chokidar": "^3.6.0",
     "electron-store": "^8.2.0",
     "keytar": "^7.9.0",
     "mammoth": "^1.9.1",

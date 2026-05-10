@@ -8,6 +8,7 @@ const ChatPage = {
   activeKBSelections: [], // New: [{ collectionId, documentId? }]
   chatHistory: [],
   isStreaming: false,
+  fullContext: false, // Full Context mode: skip RAG, send all doc content
   activeAssistantEl: null,
   activeAssistantContent: '',
   activeTypingEl: null,
@@ -42,10 +43,6 @@ const ChatPage = {
             </div>
           </div>
           <div class="border-t border-neutral-200/40 dark:border-neutral-700/40 p-3 flex-shrink-0 bg-white/30 dark:bg-neutral-800/30">
-            <div id="kbSelectorRow" class="flex items-center gap-2 mb-2">
-              <div id="kbSelectorContainer" class="flex-1"></div>
-              <span id="kbBadge" class="hidden text-[10px] px-2 py-0.5 rounded-full bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 border border-emerald-100 dark:border-emerald-800 whitespace-nowrap">KB active</span>
-            </div>
             <div class="flex gap-2">
               <textarea id="chatInput" placeholder="Message your local AI..." rows="3"
                 class="flex-1 resize-none bg-white/60 dark:bg-neutral-800/60 border border-neutral-200/50 dark:border-neutral-700/50 rounded-xl px-3 py-2.5 text-sm text-neutral-700 dark:text-neutral-300 placeholder-neutral-400 dark:placeholder-neutral-500 focus:bg-white/90 dark:focus:bg-neutral-800/90 focus:outline-none transition-all shadow-sm"></textarea>
@@ -56,6 +53,19 @@ const ChatPage = {
                 <button id="stopBtn" class="hidden px-4 py-2.5 rounded-lg bg-neutral-200 dark:bg-neutral-700 text-sm font-medium text-rose-600 dark:text-rose-400 hover:bg-neutral-300 dark:hover:bg-neutral-600 transition-all shadow-sm">
                   <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="6" width="12" height="12" rx="2"/></svg>
                 </button>
+              </div>
+            </div>
+            <div class="flex items-center gap-2 mt-2">
+              <div id="promptPickerMount" class="shrink-0"></div>
+              <div id="projSelectorContainer" class="shrink-0"></div>
+              <div id="kbSelectorRow" class="flex items-center gap-2 flex-1 min-w-0">
+                <div id="kbSelectorContainer" class="flex-1 min-w-0"></div>
+                <span id="kbBadge" class="hidden text-[10px] px-2 py-0.5 rounded-full bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 border border-emerald-100 dark:border-emerald-800 whitespace-nowrap">KB active</span>
+                <div id="kbModeButtons" class="hidden flex items-center gap-1">
+                  <button id="btnModeRag" class="text-[10px] px-2 py-0.5 rounded-full border whitespace-nowrap transition-all bg-neutral-900 dark:bg-neutral-100 text-white dark:text-neutral-900 border-neutral-900 dark:border-neutral-100">RAG</button>
+                  <button id="btnModeContext" class="text-[10px] px-2 py-0.5 rounded-full border whitespace-nowrap transition-all bg-white/60 dark:bg-neutral-700/60 text-neutral-500 dark:text-neutral-400 border-neutral-200/50 dark:border-neutral-600/50 hover:bg-white/90 dark:hover:bg-neutral-700/90">Context Window</button>
+                </div>
+                <span id="fullContextTokens" class="hidden text-[10px] text-amber-600 dark:text-amber-400 whitespace-nowrap"></span>
               </div>
             </div>
             <div class="flex items-center justify-between mt-1.5 px-1">
@@ -80,6 +90,10 @@ const ChatPage = {
     const convList = container.querySelector('#convList');
     const kbSelectorContainer = container.querySelector('#kbSelectorContainer');
     const kbBadge = container.querySelector('#kbBadge');
+    const kbModeButtons = container.querySelector('#kbModeButtons');
+    const btnModeRag = container.querySelector('#btnModeRag');
+    const btnModeContext = container.querySelector('#btnModeContext');
+    const fullContextTokens = container.querySelector('#fullContextTokens');
     const newConvBtn = container.querySelector('#newConvBtn');
     const stopBtn = container.querySelector('#stopBtn');
 
@@ -101,23 +115,70 @@ const ChatPage = {
     // Initialize KB multi-select component
     window.KBSelector.render(kbSelectorContainer, async (selections) => {
       this.activeKBSelections = selections;
-      // Backward compat: set activeCollectionId to first collection if any
       this.activeCollectionId = selections.length > 0 ? selections[0].collectionId : null;
       kbBadge.classList.toggle('hidden', selections.length === 0);
-      // Persist KB selections on the active conversation
+      kbModeButtons.classList.toggle('hidden', selections.length === 0);
+      if (selections.length === 0) {
+        fullContextTokens.classList.add('hidden');
+        this.fullContext = false;
+      } else if (this.fullContext) {
+        this._estimateFullContextTokens(fullContextTokens);
+      }
       if (this.activeConversationId) {
         await window.api.storage.updateConversationKBSelections(this.activeConversationId, selections);
       }
-      // Update placeholder text
       chatInput.placeholder = selections.length > 0
-        ? 'Ask about your knowledge base...'
+        ? (this.fullContext ? 'Ask with full document context...' : 'Ask about your knowledge base...')
         : 'Message your local AI...';
+    });
+
+    // Mode buttons click handlers
+    btnModeRag.addEventListener('click', () => {
+      this.fullContext = false;
+      this._updateModeButtonsUI(btnModeRag, btnModeContext, fullContextTokens);
+      chatInput.placeholder = 'Ask about your knowledge base...';
+    });
+
+    btnModeContext.addEventListener('click', async () => {
+      this.fullContext = true;
+      this._updateModeButtonsUI(btnModeRag, btnModeContext, fullContextTokens);
+      chatInput.placeholder = 'Ask with full document context...';
+      await this._estimateFullContextTokens(fullContextTokens);
     });
 
     // Restore selections if conversation has them
     if (this.activeKBSelections.length > 0) {
       window.KBSelector.setSelections(this.activeKBSelections);
       kbBadge.classList.toggle('hidden', this.activeKBSelections.length === 0);
+      kbModeButtons.classList.toggle('hidden', this.activeKBSelections.length === 0);
+      this._updateModeButtonsUI(btnModeRag, btnModeContext, fullContextTokens);
+      if (this.fullContext) {
+        this._estimateFullContextTokens(fullContextTokens);
+      }
+    }
+
+    // Initialize Prompt Picker below input
+    const promptPickerMount = container.querySelector('#promptPickerMount');
+    if (promptPickerMount && window.PromptPicker) {
+      window.PromptPicker.render(promptPickerMount, (content) => {
+        chatInput.value = content;
+        chatInput.style.height = 'auto';
+        chatInput.style.height = Math.min(chatInput.scrollHeight, 120) + 'px';
+        sendBtn.disabled = !content.trim() || this.isStreaming || !pm.activeProvider;
+        chatInput.focus();
+      });
+    }
+
+    // Show active project indicator (Client Workspace plugin)
+    this._updateActiveProjectBar(container);
+
+    // Initialize Project Selector dropdown
+    const projSelectorContainer = container.querySelector('#projSelectorContainer');
+    if (projSelectorContainer && window.ProjectSelector) {
+      window.ProjectSelector.render(projSelectorContainer, (project) => {
+        // Update the active project bar when selection changes
+        this._updateActiveProjectBar(container);
+      });
     }
 
     // Load conversations
@@ -386,14 +447,25 @@ const ChatPage = {
     }
     this.activeCollectionId = this.activeKBSelections.length > 0 ? this.activeKBSelections[0].collectionId : null;
     const kbBadge = document.querySelector('#kbBadge');
+    const kbModeButtons = document.querySelector('#kbModeButtons');
+    const btnModeRag = document.querySelector('#btnModeRag');
+    const btnModeContext = document.querySelector('#btnModeContext');
+    const fullContextTokens = document.querySelector('#fullContextTokens');
     if (window.KBSelector) {
       window.KBSelector.setSelections(this.activeKBSelections);
     }
     if (kbBadge) kbBadge.classList.toggle('hidden', this.activeKBSelections.length === 0);
+    if (kbModeButtons) kbModeButtons.classList.toggle('hidden', this.activeKBSelections.length === 0);
+    if (btnModeRag && btnModeContext) {
+      this._updateModeButtonsUI(btnModeRag, btnModeContext, fullContextTokens);
+    }
+    if (this.fullContext && this.activeKBSelections.length > 0 && fullContextTokens) {
+      this._estimateFullContextTokens(fullContextTokens);
+    }
     const chatInput = document.querySelector('#chatInput');
     if (chatInput) {
       chatInput.placeholder = this.activeKBSelections.length > 0
-        ? 'Ask about your knowledge base...'
+        ? (this.fullContext ? 'Ask with full document context...' : 'Ask about your knowledge base...')
         : 'Message your local AI...';
     }
 
@@ -629,6 +701,7 @@ const ChatPage = {
         collectionId: this.activeCollectionId, // Legacy: first collection
         kbSelections: this.activeKBSelections,  // New: full selections array
         chatHistory: this.chatHistory,
+        fullContext: this.fullContext,          // Full Context mode
       });
 
       if (!result.success) {
@@ -676,29 +749,161 @@ const ChatPage = {
 
   _appendMessage(container, role, content) {
     const div = document.createElement('div');
-    div.className = `message-enter flex ${role === 'user' ? 'justify-end' : 'justify-start'}`;
+    div.className = `message-enter group flex ${role === 'user' ? 'justify-end' : 'justify-start'}`;
+    const wrapper = document.createElement('div');
+    wrapper.className = 'flex flex-col max-w-[85%]';
     const bubble = document.createElement('div');
     bubble.className = role === 'user'
-      ? 'bg-neutral-900 dark:bg-neutral-100 text-white dark:text-neutral-900 rounded-2xl rounded-br-sm px-4 py-2.5 max-w-[85%] text-sm'
-      : 'text-neutral-800 dark:text-neutral-200 rounded-2xl rounded-bl-sm px-4 py-2.5 max-w-[85%] text-sm whitespace-pre-wrap';
+      ? 'bg-neutral-900 dark:bg-neutral-100 text-white dark:text-neutral-900 rounded-2xl rounded-br-sm px-4 py-2.5 text-sm'
+      : 'text-neutral-800 dark:text-neutral-200 rounded-2xl rounded-bl-sm px-4 py-2.5 text-sm whitespace-pre-wrap';
     if (role === 'assistant') {
       bubble.classList.add('assistant-bubble');
     }
     bubble.textContent = content;
-    div.appendChild(bubble);
+    wrapper.appendChild(bubble);
+
+    // Add action bar with save/copy icons for assistant messages
+    if (role === 'assistant') {
+      const actionBar = this._createMessageActionBar(content);
+      wrapper.appendChild(actionBar);
+    }
+
+    div.appendChild(wrapper);
     container.appendChild(div);
     container.scrollTop = container.scrollHeight;
   },
 
+  _createMessageActionBar(content) {
+    const bar = document.createElement('div');
+    bar.className = 'flex items-center gap-1 mt-1 opacity-0 group-hover:opacity-100 transition-opacity';
+
+    // Copy button
+    const copyBtn = document.createElement('button');
+    copyBtn.className = 'p-1 rounded text-neutral-300 hover:text-neutral-600 dark:text-neutral-600 dark:hover:text-neutral-300 transition-colors';
+    copyBtn.title = 'Copy';
+    copyBtn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>';
+    copyBtn.addEventListener('click', () => {
+      navigator.clipboard.writeText(content);
+      copyBtn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>';
+      setTimeout(() => {
+        copyBtn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>';
+      }, 2000);
+    });
+
+    // Save to project button (📄)
+    const saveBtn = document.createElement('button');
+    saveBtn.className = 'cw-save-btn p-1 rounded text-neutral-300 hover:text-neutral-600 dark:text-neutral-600 dark:hover:text-neutral-300 transition-colors';
+    saveBtn.title = 'Save to project';
+    saveBtn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/></svg>';
+    saveBtn.addEventListener('click', () => this._showSaveDialog(content));
+
+    bar.appendChild(copyBtn);
+    bar.appendChild(saveBtn);
+    return bar;
+  },
+
+  _showSaveDialog(content) {
+    // Check if client-workspace plugin has an active project
+    const existing = document.getElementById('cw-save-dialog');
+    if (existing) existing.remove();
+
+    const dialog = document.createElement('div');
+    dialog.id = 'cw-save-dialog';
+    dialog.className = 'fixed inset-0 z-50 flex items-center justify-center bg-black/20 backdrop-blur-sm';
+    dialog.innerHTML = `
+      <div class="bg-white/90 dark:bg-neutral-800/90 backdrop-blur-xl border border-neutral-200/60 dark:border-neutral-700/60 rounded-2xl p-6 w-full max-w-md shadow-xl">
+        <h3 class="text-base font-semibold text-neutral-900 dark:text-neutral-100 mb-4">Save to Project</h3>
+        <div class="space-y-3">
+          <div>
+            <label class="text-xs font-medium text-neutral-500 dark:text-neutral-400 block mb-1">Title *</label>
+            <input type="text" id="cw-save-title" placeholder="e.g. Client Job Ad Draft"
+              class="w-full bg-white/60 dark:bg-neutral-700/60 border border-neutral-200/50 dark:border-neutral-600/50 rounded-xl px-4 py-2 text-sm text-neutral-700 dark:text-neutral-300 placeholder-neutral-400 dark:placeholder-neutral-500 focus-within:bg-white/90 dark:focus-within:bg-neutral-700/90 transition-all shadow-sm focus:outline-none" />
+          </div>
+          <div>
+            <label class="text-xs font-medium text-neutral-500 dark:text-neutral-400 block mb-1">Description (optional)</label>
+            <input type="text" id="cw-save-desc" placeholder="Brief note about this document"
+              class="w-full bg-white/60 dark:bg-neutral-700/60 border border-neutral-200/50 dark:border-neutral-600/50 rounded-xl px-4 py-2 text-sm text-neutral-700 dark:text-neutral-300 placeholder-neutral-400 dark:placeholder-neutral-500 focus-within:bg-white/90 dark:focus-within:bg-neutral-700/90 transition-all shadow-sm focus:outline-none" />
+          </div>
+        </div>
+        <div id="cw-save-error" class="hidden text-xs text-rose-600 dark:text-rose-400 mt-2"></div>
+        <div class="flex justify-end gap-2 mt-4">
+          <button id="cw-save-cancel"
+            class="px-4 py-2.5 rounded-lg bg-white/60 dark:bg-neutral-700/60 border border-neutral-200/50 dark:border-neutral-600/50 text-sm font-medium text-neutral-700 dark:text-neutral-300 hover:bg-white/90 dark:hover:bg-neutral-700/90 transition-all shadow-sm">
+            Cancel
+          </button>
+          <button id="cw-save-confirm"
+            class="px-4 py-2.5 rounded-lg bg-neutral-900 dark:bg-neutral-100 text-sm font-medium text-white dark:text-neutral-900 hover:bg-neutral-800 dark:hover:bg-neutral-200 transition-all shadow-sm">
+            Save
+          </button>
+        </div>
+      </div>
+    `;
+
+    document.body.appendChild(dialog);
+
+    const titleInput = dialog.querySelector('#cw-save-title');
+    const descInput = dialog.querySelector('#cw-save-desc');
+    const errorEl = dialog.querySelector('#cw-save-error');
+    const cancelBtn = dialog.querySelector('#cw-save-cancel');
+    const confirmBtn = dialog.querySelector('#cw-save-confirm');
+
+    titleInput.focus();
+
+    cancelBtn.addEventListener('click', () => dialog.remove());
+    dialog.addEventListener('click', (e) => { if (e.target === dialog) dialog.remove(); });
+
+    titleInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') confirmBtn.click();
+      if (e.key === 'Escape') dialog.remove();
+    });
+
+    confirmBtn.addEventListener('click', async () => {
+      const title = titleInput.value.trim();
+      if (!title) {
+        errorEl.textContent = 'Title is required';
+        errorEl.classList.remove('hidden');
+        return;
+      }
+
+      const result = await window.api.plugins.sendEvent('cw:save-response', {
+        content,
+        title,
+        description: descInput.value.trim() || null,
+      });
+
+      if (result?.error) {
+        errorEl.textContent = result.error;
+        errorEl.classList.remove('hidden');
+        return;
+      }
+
+      dialog.remove();
+
+      // Show confirmation toast
+      this._showToast(`Saved to ${result?.projectName || 'project'}`);
+    });
+  },
+
+  _showToast(message) {
+    const toast = document.createElement('div');
+    toast.className = 'fixed bottom-6 left-1/2 -translate-x-1/2 z-50 px-4 py-2 rounded-lg bg-neutral-900 dark:bg-neutral-100 text-white dark:text-neutral-900 text-sm font-medium shadow-lg transition-opacity';
+    toast.textContent = `📄 ${message}`;
+    document.body.appendChild(toast);
+    setTimeout(() => { toast.style.opacity = '0'; setTimeout(() => toast.remove(), 300); }, 2500);
+  },
+
   _createAssistantBubble(container) {
     const div = document.createElement('div');
-    div.className = 'message-enter flex justify-start';
+    div.className = 'message-enter group flex justify-start';
+    const wrapper = document.createElement('div');
+    wrapper.className = 'flex flex-col max-w-[85%]';
     const bubble = document.createElement('div');
-    bubble.className = 'assistant-bubble text-neutral-800 dark:text-neutral-200 rounded-2xl rounded-bl-sm px-4 py-2.5 max-w-[85%] text-sm whitespace-pre-wrap';
+    bubble.className = 'assistant-bubble text-neutral-800 dark:text-neutral-200 rounded-2xl rounded-bl-sm px-4 py-2.5 text-sm whitespace-pre-wrap';
     const content = document.createElement('span');
     content.className = 'msg-content';
     bubble.appendChild(content);
-    div.appendChild(bubble);
+    wrapper.appendChild(bubble);
+    div.appendChild(wrapper);
     container.appendChild(div);
     container.scrollTop = container.scrollHeight;
     return div;
@@ -744,6 +949,15 @@ const ChatPage = {
         }
       }
 
+      // Add action bar (copy + save) to the completed assistant bubble
+      if (this.activeAssistantEl) {
+        const wrapper = this.activeAssistantEl.querySelector('.flex.flex-col');
+        if (wrapper) {
+          const actionBar = this._createMessageActionBar(this.activeAssistantContent);
+          wrapper.appendChild(actionBar);
+        }
+      }
+
       this.chatHistory.push({ role: 'assistant', content: this.activeAssistantContent });
       const pm = window.ProviderManager;
       await window.api.storage.addMessage({
@@ -765,6 +979,52 @@ const ChatPage = {
     this.activeAssistantContent = '';
     this.activeTypingEl = null;
   },
+  _updateActiveProjectBar(container) {
+    // The ProjectSelector component handles the active project display.
+    // This method is kept as a hook for future use (e.g. updating badges).
+  },
+
+  _updateModeButtonsUI(ragBtn, contextBtn, tokensEl) {
+    const activeClasses = ['bg-neutral-900', 'dark:bg-neutral-100', 'text-white', 'dark:text-neutral-900', 'border-neutral-900', 'dark:border-neutral-100'];
+    const inactiveClasses = ['bg-white/60', 'dark:bg-neutral-700/60', 'text-neutral-500', 'dark:text-neutral-400', 'border-neutral-200/50', 'dark:border-neutral-600/50'];
+
+    if (this.fullContext) {
+      // Context Window is active
+      ragBtn.classList.remove(...activeClasses);
+      ragBtn.classList.add(...inactiveClasses, 'hover:bg-white/90', 'dark:hover:bg-neutral-700/90');
+      contextBtn.classList.remove(...inactiveClasses, 'hover:bg-white/90', 'dark:hover:bg-neutral-700/90');
+      contextBtn.classList.add(...activeClasses);
+    } else {
+      // RAG is active
+      ragBtn.classList.remove(...inactiveClasses, 'hover:bg-white/90', 'dark:hover:bg-neutral-700/90');
+      ragBtn.classList.add(...activeClasses);
+      contextBtn.classList.remove(...activeClasses);
+      contextBtn.classList.add(...inactiveClasses, 'hover:bg-white/90', 'dark:hover:bg-neutral-700/90');
+      if (tokensEl) tokensEl.classList.add('hidden');
+    }
+  },
+
+  async _estimateFullContextTokens(tokensEl) {
+    if (!this.activeKBSelections.length) {
+      tokensEl.classList.add('hidden');
+      return;
+    }
+    try {
+      const estimate = await window.api.chatRag.estimateFullContext(this.activeKBSelections);
+      if (estimate && estimate.totalChars > 0) {
+        const tokens = Math.ceil(estimate.totalChars / 4); // ~4 chars per token
+        const display = tokens > 1000 ? `~${(tokens / 1000).toFixed(1)}k tokens` : `~${tokens} tokens`;
+        tokensEl.textContent = display;
+        tokensEl.classList.remove('hidden');
+      } else {
+        tokensEl.classList.add('hidden');
+      }
+    } catch (err) {
+      console.warn('[Chat] Token estimate failed:', err);
+      tokensEl.classList.add('hidden');
+    }
+  },
+
   async _stopStream(stopBtn, sendBtn, chatInput) {
     try {
       await window.api.chat.stop();

@@ -40,6 +40,9 @@ const KnowledgePage = {
 
     el.innerHTML = `
       <div class="p-6 space-y-4">
+        <!-- Folder Connect Section -->
+        <div id="fcContainer" class="mb-4"></div>
+
         <div class="flex items-center justify-between">
           <h2 class="text-lg font-semibold tracking-tight text-neutral-900 dark:text-neutral-100">Knowledge Base</h2>
           <button id="kbNewCollBtn" class="px-4 py-2.5 rounded-lg bg-neutral-900 dark:bg-neutral-100 text-sm font-medium text-white dark:text-neutral-900 hover:bg-neutral-800 dark:hover:bg-neutral-200 transition-all shadow-sm">
@@ -156,6 +159,12 @@ const KnowledgePage = {
     document.querySelector('#kbCollNext')?.addEventListener('click', () => {
       this.collPage++; this._showCollections();
     });
+
+    // Render Folder Connect section
+    const fcContainer = document.querySelector('#fcContainer');
+    if (fcContainer && window.FolderConnectUI) {
+      window.FolderConnectUI.render(fcContainer);
+    }
   },
 
   // ── Documents List ──────────────────────────────────────────

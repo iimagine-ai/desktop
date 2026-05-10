@@ -222,7 +222,9 @@ class PluginManager {
     }
 
     // Otherwise run all plugins with chatPreprocess hook (existing behavior)
-    for (const p of this.getWithHook('chatPreprocess')) {
+    const preprocessPlugins = this.getWithHook('chatPreprocess');
+    console.log(`[Plugin] Running chatPreprocess on ${preprocessPlugins.length} plugins: ${preprocessPlugins.map(p => p.id).join(', ')}`);
+    for (const p of preprocessPlugins) {
       try {
         if (typeof p.instance.onChatPreprocess === 'function') {
           result = await p.instance.onChatPreprocess(result);

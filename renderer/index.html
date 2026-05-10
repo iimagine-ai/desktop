@@ -184,6 +184,14 @@
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="group-hover:scale-110 transition-transform"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
             <span class="text-sm font-medium">Assistants</span>
           </button>
+          <button data-page="prompts" class="nav-btn w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-neutral-500 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-neutral-100 hover:bg-white/40 dark:hover:bg-neutral-800/40 transition-all group">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="group-hover:scale-110 transition-transform"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1"/><path d="M9 14h6"/><path d="M9 18h6"/><path d="M9 10h6"/></svg>
+            <span class="text-sm font-medium">Prompts</span>
+          </button>
+          <button data-page="personalization" class="nav-btn w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-neutral-500 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-neutral-100 hover:bg-white/40 dark:hover:bg-neutral-800/40 transition-all group">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="group-hover:scale-110 transition-transform"><path d="M12 2a5 5 0 0 1 5 5c0 1.63-.78 3.07-2 3.97V13h-6v-2.03A5 5 0 0 1 12 2z"/><path d="M9 13v2"/><path d="M15 13v2"/><rect x="9" y="15" width="6" height="4" rx="1"/><path d="M10 19v2"/><path d="M14 19v2"/></svg>
+            <span class="text-sm font-medium">Personas</span>
+          </button>
           <button data-page="images" class="nav-btn w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-neutral-500 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-neutral-100 hover:bg-white/40 dark:hover:bg-neutral-800/40 transition-all group">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="group-hover:scale-110 transition-transform"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="m21 15-5-5L5 21"/></svg>
             <span class="text-sm font-medium">Images</span>
@@ -230,11 +238,19 @@
   <script src="providers.js"></script>
   <script src="model-advisor.js"></script>
   <script src="components/kb-selector.js"></script>
+  <script src="components/project-selector.js"></script>
+  <script src="components/folder-connect-ui.js"></script>
+  <script src="components/prompt-picker.js"></script>
+  <script src="components/web-search.js"></script>
+  <script src="components/advanced-ollama-settings.js"></script>
+  <script src="components/runtime-monitor.js"></script>
   <script src="pages/chat.js"></script>
   <script src="pages/images.js"></script>
   <script src="pages/videos.js"></script>
   <script src="pages/knowledge.js"></script>
   <script src="pages/assistants.js"></script>
+  <script src="pages/prompts.js"></script>
+  <script src="pages/personalization.js"></script>
   <script src="pages/settings.js"></script>
   <script src="agent-runner.js"></script>
   <script src="app.js"></script>

@@ -1206,9 +1206,37 @@ function setupIPC() {
   ipcMain.handle('asst:create', (event, data) => assistantStorage.createAssistant(data));
 
   // Chat RAG — KB-augmented chat for the general chat page
-  ipcMain.handle('chat:ragSend', async (event, { conversationId, userMessage, collectionId, kbSelections, chatHistory }) => {
+  ipcMain.handle('chat:ragSend', async (event, { conversationId, userMessage, collectionId, kbSelections, chatHistory, fullContext }) => {
     try {
-      console.log('[ChatRAG] Starting KB chat, selections:', JSON.stringify(kbSelections || [{ collectionId }]));
+      // ── DIAGNOSTIC: Chat Submit State ──────────────────────────
+      const activePlugins = pluginManager.getAll().filter(p => p.enabled).map(p => p.name);
+      const cwPlugin = pluginManager.getAll().find(p => p.id === 'client-workspace');
+      const cwInstance = cwPlugin?.hasInstance ? pluginManager.plugins?.get('client-workspace')?.instance : null;
+      const activeProject = cwInstance?.getActiveProject?.() || null;
+      console.log('═══════════════════════════════════════════════════════');
+      console.log('[Chat:Submit] PATH: KB RAG');
+      console.log('[Chat:Submit] Query:', userMessage?.slice(0, 80));
+      console.log('[Chat:Submit] Active plugins:', activePlugins.join(', '));
+      console.log('[Chat:Submit] KB selections:', JSON.stringify(kbSelections || [{ collectionId }]));
+      console.log('[Chat:Submit] Active project:', activeProject ? `"${activeProject.name}" (${activeProject.id})` : 'NONE');
+      console.log('[Chat:Submit] Chat history length:', (chatHistory || []).length);
+      console.log('[Chat:Submit] Model:', store.get('provider.active')?.model || 'auto');
+      const _dV = store.get('gateway.vendor') || 'openai';
+      const _dM = store.get('gateway.model') || 'NONE';
+      const _dT = store.get('provider.active')?.type || 'local';
+      const _dKS = { openai: 'openai.apiKey', anthropic: 'anthropic.apiKey', google: 'gemini.apiKey', openrouter: 'openrouter.apiKey' };
+      const _dHK = !!store.get(_dKS[_dV]);
+      const _dWillCloud = _dM !== 'NONE' && _dHK && _dT !== 'local';
+      console.log('[Chat:Submit] UI selected: vendor=' + _dV + ' model=' + _dM + ' type=' + _dT);
+      console.log('[Chat:Submit] API key for ' + _dV + ':', _dHK ? 'YES' : '⚠️  MISSING');
+      console.log('[Chat:Submit] Will use:', _dWillCloud ? _dV + '/' + _dM : 'LOCAL OLLAMA');
+      if (!_dWillCloud && _dM !== 'NONE' && !_dHK) {
+        console.log('⚠️⚠️⚠️  MODEL MISMATCH: Selected ' + _dV + '/' + _dM + ' but API key MISSING — will fall back to LOCAL OLLAMA!');
+      }
+      console.log('═══════════════════════════════════════════════════════');
+      // ── END DIAGNOSTIC ─────────────────────────────────────────
+
+      console.log('[ChatRAG] Starting KB chat, selections:', JSON.stringify(kbSelections || [{ collectionId }]), 'fullContext:', !!fullContext);
       const ollamaHost = store.get('local.ollamaHost') || OLLAMA_URL;
       const numCtx = store.get('local.contextWindow') || 4096;
 
@@ -1218,7 +1246,20 @@ function setupIPC() {
         ? kbSelections
         : (collectionId ? [{ collectionId }] : []);
 
-      if (selections.length > 0 && kbStorage.isVecLoaded()) {
+      if (fullContext && selections.length > 0) {
+        // FULL CONTEXT MODE: Load all document content directly (skip vector search)
+        console.log('[ChatRAG:FullContext] Loading all documents for', selections.length, 'source(s)');
+        for (const sel of selections) {
+          if (sel.collectionId) {
+            const docs = kbStorage.getDocumentsWithContent(sel.collectionId);
+            for (const doc of docs) {
+              if (sel.documentId && doc.id !== sel.documentId) continue;
+              contextChunks.push({ content: doc.content, docTitle: doc.title, distance: 0 });
+            }
+          }
+        }
+        console.log('[ChatRAG:FullContext] Loaded', contextChunks.length, 'documents, total chars:', contextChunks.reduce((sum, c) => sum + c.content.length, 0));
+      } else if (selections.length > 0 && kbStorage.isVecLoaded()) {
         try {
           console.log('[ChatRAG] Embedding query for KB search...');
           const embedRes = await fetch(`${ollamaHost}/api/embed`, {
@@ -1232,7 +1273,7 @@ function setupIPC() {
             if (queryVec) {
               console.log('[ChatRAG] Searching KB, vector dims:', queryVec.length, 'across', selections.length, 'source(s)');
               // Search across all selected collections/documents
-              const results = kbStorage.searchMultiple(new Float32Array(queryVec), selections, 5);
+              const results = kbStorage.searchMultiple(new Float32Array(queryVec), selections, 15);
               contextChunks = results.map(r => ({ content: r.content, docTitle: r.doc_title, distance: r.distance }));
               console.log('[ChatRAG] Found', contextChunks.length, 'relevant chunks');
               contextChunks.forEach((c, i) => {
@@ -1251,7 +1292,28 @@ function setupIPC() {
         const kbContext = contextChunks.map(c =>
           `[Source: ${c.docTitle}]\n${c.content}`
         ).join('\n\n---\n\n');
-        systemContent = `You are a knowledge base assistant. Answer questions using BOTH the documents below AND any memory context provided in other system messages. Memory context contains facts from earlier in this conversation that may not be in the documents.
+
+        if (fullContext) {
+          // Full Context mode: stronger instruction to find and quote specific answers
+          systemContent = `You are a document search assistant with access to the COMPLETE text of the user's documents below. The user is asking you to find specific information within these documents.
+
+CRITICAL INSTRUCTIONS:
+1. Search the ENTIRE document thoroughly for the answer. Do not skim.
+2. When you find the relevant section, QUOTE the exact text from the document. Use quotation marks.
+3. If the user asks "what did I say" or "what was my response", find THEIR words/messages and quote them directly.
+4. If the user asks about what someone else said, find that person's exact words and quote them.
+5. Always include the surrounding context so the answer makes sense.
+6. If you cannot find the specific information after searching the full document, say "I searched the entire document but could not find [specific thing]."
+7. NEVER paraphrase when the user is asking for specific quotes or responses. Give them the exact text.
+
+FULL DOCUMENT CONTENT:
+
+${kbContext}
+
+END OF DOCUMENT`;
+        } else {
+          // RAG mode: standard instruction
+          systemContent = `You are a knowledge base assistant. Answer questions using BOTH the documents below AND any memory context provided in other system messages. Memory context contains facts from earlier in this conversation that may not be in the documents.
 
 If the answer is in the memory context (e.g. amounts, dates, or facts the user mentioned earlier), use it. If the answer is in the documents, use it and cite the source. If neither source has the answer, say so.
 
@@ -1260,7 +1322,8 @@ DOCUMENTS FROM KNOWLEDGE BASE:
 ${kbContext}
 
 END OF DOCUMENTS`;
-        console.log('[ChatRAG] System prompt length:', systemContent.length, 'chars');
+        }
+        console.log('[ChatRAG] System prompt length:', systemContent.length, 'chars', fullContext ? '(FULL CONTEXT MODE)' : '(RAG MODE)');
       } else {
         console.log('[ChatRAG] WARNING: No context chunks found, responding without KB context');
       }
@@ -1278,6 +1341,7 @@ END OF DOCUMENTS`;
       try {
         const preprocessed = await pluginManager.runChatPreprocess({ messages, assistant: null });
         messages = preprocessed.messages || messages;
+        console.log('[ChatRAG] After plugin preprocess: messages count =', messages.length, ', roles:', messages.map(m => m.role).join(', '));
       } catch (err) {
         console.warn('[ChatRAG] Plugin preprocess error:', err.message);
       }
@@ -1288,7 +1352,102 @@ END OF DOCUMENTS`;
       const pm = store.get('provider.active');
       const providerType = pm?.type || 'local';
 
-      if (providerType === 'local') {
+      // Check if a cloud provider (OpenAI, Anthropic, etc.) is configured
+      const vendor = store.get('gateway.vendor') || 'openai';
+      const PROVIDER_CONFIG = {
+        openai: { url: 'https://api.openai.com/v1/chat/completions', keyStore: 'openai.apiKey', authHeader: 'Bearer' },
+        anthropic: { url: 'https://api.anthropic.com/v1/messages', keyStore: 'anthropic.apiKey', isAnthropic: true },
+        google: { url: 'https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent', keyStore: 'gemini.apiKey', isGemini: true },
+        openrouter: { url: 'https://openrouter.ai/api/v1/chat/completions', keyStore: 'openrouter.apiKey', authHeader: 'Bearer' },
+      };
+      const cloudConfig = PROVIDER_CONFIG[vendor];
+      const cloudApiKey = cloudConfig ? store.get(cloudConfig.keyStore) : null;
+      const gatewayModel = store.get('gateway.model');
+
+      // Use cloud provider if configured and has API key AND user selected cloud
+      // CRITICAL: Respect the user's model selection. If type is 'local', use Ollama.
+      if (gatewayModel && cloudApiKey && cloudConfig && providerType !== 'local') {
+        console.log('[ChatRAG] Using cloud provider:', vendor, 'model:', gatewayModel);
+
+        if (cloudConfig.isAnthropic) {
+          // Anthropic
+          const systemMsgs = messages.filter(m => m.role === 'system').map(m => m.content).join('\n\n');
+          const nonSystemMsgs = messages.filter(m => m.role !== 'system');
+          const res = await fetch(cloudConfig.url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'x-api-key': cloudApiKey, 'anthropic-version': '2023-06-01' },
+            body: JSON.stringify({ model: gatewayModel, max_tokens: 4096, system: systemMsgs, messages: nonSystemMsgs, stream: false }),
+          });
+          if (!res.ok) {
+            const errText = await res.text().catch(() => '');
+            console.error('[ChatRAG] Anthropic error:', res.status, errText.slice(0, 200));
+            mainWindow?.webContents.send('chat:rag-done');
+            return { success: false, error: `Anthropic error: ${res.status}` };
+          }
+          const data = await res.json();
+          const fullResponse = data.content?.[0]?.text || '';
+          mainWindow?.webContents.send('chat:rag-chunk', { content: fullResponse });
+          mainWindow?.webContents.send('chat:rag-done');
+          console.log('[ChatRAG] Response complete, length:', fullResponse.length, 'chars');
+          try { await pluginManager.runChatPostprocess({ response: fullResponse, assistant: null }); } catch (err) { console.warn('[ChatRAG] Plugin postprocess error:', err.message); }
+          return { success: true, contextUsed: contextChunks.length };
+
+        } else if (cloudConfig.isGemini) {
+          // Gemini
+          const url = cloudConfig.url.replace('{model}', gatewayModel) + `?key=${cloudApiKey}`;
+          const contents = messages.filter(m => m.role !== 'system').map(m => ({ role: m.role === 'assistant' ? 'model' : 'user', parts: [{ text: m.content }] }));
+          const systemInstruction = messages.filter(m => m.role === 'system').map(m => m.content).join('\n\n');
+          const res = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ contents, systemInstruction: { parts: [{ text: systemInstruction }] } }) });
+          if (!res.ok) { mainWindow?.webContents.send('chat:rag-done'); return { success: false, error: `Gemini error: ${res.status}` }; }
+          const data = await res.json();
+          const fullResponse = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
+          mainWindow?.webContents.send('chat:rag-chunk', { content: fullResponse });
+          mainWindow?.webContents.send('chat:rag-done');
+          console.log('[ChatRAG] Response complete, length:', fullResponse.length, 'chars');
+          try { await pluginManager.runChatPostprocess({ response: fullResponse, assistant: null }); } catch (err) { console.warn('[ChatRAG] Plugin postprocess error:', err.message); }
+          return { success: true, contextUsed: contextChunks.length };
+
+        } else {
+          // OpenAI-compatible (openai, openrouter) — streaming
+          const headers = { 'Content-Type': 'application/json', 'Authorization': `${cloudConfig.authHeader} ${cloudApiKey}` };
+          if (vendor === 'openrouter') { headers['HTTP-Referer'] = 'https://iimagine.ai'; headers['X-Title'] = 'IIMAGINE Desktop'; }
+          const res = await fetch(cloudConfig.url, {
+            method: 'POST',
+            headers,
+            body: JSON.stringify({ model: gatewayModel, messages, stream: true }),
+          });
+          if (!res.ok) {
+            const errText = await res.text().catch(() => '');
+            console.error('[ChatRAG] OpenAI error:', res.status, errText.slice(0, 200));
+            mainWindow?.webContents.send('chat:rag-done');
+            return { success: false, error: `${vendor} error: ${res.status}` };
+          }
+          const reader = res.body.getReader();
+          const decoder = new TextDecoder();
+          let fullResponse = '';
+          while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            const chunk = decoder.decode(value);
+            for (const line of chunk.split('\n').filter(l => l.startsWith('data: '))) {
+              const data = line.slice(6);
+              if (data === '[DONE]') break;
+              try {
+                const parsed = JSON.parse(data);
+                const content = parsed.choices?.[0]?.delta?.content;
+                if (content) { fullResponse += content; mainWindow?.webContents.send('chat:rag-chunk', { content }); }
+              } catch {}
+            }
+          }
+          mainWindow?.webContents.send('chat:rag-done');
+          console.log('[ChatRAG] Response complete, length:', fullResponse.length, 'chars');
+          try { await pluginManager.runChatPostprocess({ response: fullResponse, assistant: null }); } catch (err) { console.warn('[ChatRAG] Plugin postprocess error:', err.message); }
+          return { success: true, contextUsed: contextChunks.length };
+        }
+      }
+
+      // Fallback: Use local Ollama
+      if (providerType === 'local' || !cloudApiKey) {
         // Use Ollama
         const ollamaStatus = await checkOllama();
         if (!ollamaStatus.running || !ollamaStatus.models?.length) {
@@ -1355,6 +1514,30 @@ END OF DOCUMENTS`;
       return { success: false, error: err.message };
     }
   });
+
+  // Estimate token count for Full Context mode
+  ipcMain.handle('chat:ragEstimateFullContext', async (event, selections) => {
+    try {
+      let totalChars = 0;
+      let docCount = 0;
+      const selArray = selections || [];
+      for (const sel of selArray) {
+        if (sel.collectionId) {
+          const docs = kbStorage.getDocumentsWithContent(sel.collectionId);
+          for (const doc of docs) {
+            if (sel.documentId && doc.id !== sel.documentId) continue;
+            totalChars += (doc.content || '').length;
+            docCount++;
+          }
+        }
+      }
+      return { totalChars, docCount };
+    } catch (err) {
+      console.warn('[ChatRAG:Estimate] Error:', err.message);
+      return { totalChars: 0, docCount: 0 };
+    }
+  });
+
   ipcMain.handle('asst:list', () => assistantStorage.getAssistants());
   ipcMain.handle('asst:get', (event, id) => assistantStorage.getAssistant(id));
   ipcMain.handle('asst:update', (event, id, data) => assistantStorage.updateAssistant(id, data));
@@ -1543,6 +1726,22 @@ END OF DOCUMENTS`;
 
   // Plugin chat hooks
   ipcMain.handle('plugins:chatPreprocess', async (event, data) => {
+    // ── DIAGNOSTIC: Standard Chat (no KB) ────────────────────────
+    const activePlugins = pluginManager.getAll().filter(p => p.enabled).map(p => p.name);
+    const cwPlugin = pluginManager.getAll().find(p => p.id === 'client-workspace');
+    const cwInstance = cwPlugin?.hasInstance ? pluginManager.plugins?.get('client-workspace')?.instance : null;
+    const activeProject = cwInstance?.getActiveProject?.() || null;
+    const lastMsg = [...(data.messages || [])].reverse().find(m => m.role === 'user');
+    console.log('═══════════════════════════════════════════════════════');
+    console.log('[Chat:Submit] PATH: Standard (no KB)');
+    console.log('[Chat:Submit] Query:', lastMsg?.content?.slice(0, 80) || '(empty)');
+    console.log('[Chat:Submit] Active plugins:', activePlugins.join(', '));
+    console.log('[Chat:Submit] Active project:', activeProject ? `"${activeProject.name}" (${activeProject.id})` : 'NONE');
+    console.log('[Chat:Submit] Messages count:', (data.messages || []).length);
+    console.log('[Chat:Submit] Mentions:', JSON.stringify(data.mentions || []));
+    console.log('[Chat:Submit] Model:', store.get('provider.active')?.model || 'auto');
+    console.log('═══════════════════════════════════════════════════════');
+    // ── END DIAGNOSTIC ───────────────────────────────────────────
     return await pluginManager.runChatPreprocess(data);
   });
   ipcMain.handle('plugins:chatPostprocess', async (event, data) => {
@@ -2013,6 +2212,7 @@ app.whenReady().then(async () => {
     kbStorage,
     assistantStorage,
     getOllamaUrl: () => store.get('local.ollamaHost') || OLLAMA_URL,
+    autoEmbedCollection: (collectionId) => autoEmbedCollection(collectionId),
   });
 
   // Copy bundled sample plugins to user plugins dir if not present
