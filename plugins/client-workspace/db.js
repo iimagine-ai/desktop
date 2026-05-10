@@ -17,6 +17,7 @@ function createTables() {
     CREATE TABLE IF NOT EXISTS cw_projects (
       id TEXT PRIMARY KEY,
       name TEXT NOT NULL,
+      client_name TEXT,
       client_email TEXT,
       notes TEXT,
       tags TEXT DEFAULT '[]',
@@ -75,12 +76,12 @@ function createTables() {
 
 // ── Projects ────────────────────────────────────────────────────
 
-function createProject({ name, clientEmail, notes, tags }) {
+function createProject({ name, clientName, clientEmail, notes, tags }) {
   const id = crypto.randomUUID();
   db.prepare(`
-    INSERT INTO cw_projects (id, name, client_email, notes, tags)
-    VALUES (?, ?, ?, ?, ?)
-  `).run(id, name, clientEmail || null, notes || null, JSON.stringify(tags || []));
+    INSERT INTO cw_projects (id, name, client_name, client_email, notes, tags)
+    VALUES (?, ?, ?, ?, ?, ?)
+  `).run(id, name, clientName || null, clientEmail || null, notes || null, JSON.stringify(tags || []));
 
   addTimelineEntry(id, 'project_created', `Project "${name}" created`);
   return id;

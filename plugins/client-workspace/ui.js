@@ -24,7 +24,7 @@ function renderProjectList(activeProjectId) {
         </div>
         <div class="flex gap-3 text-xs text-neutral-500 dark:text-neutral-400">
           <span>${docCount} docs</span>
-          ${p.client_email ? `<span>${p.client_email}</span>` : ''}
+          ${p.client_name ? `<span>${p.client_name}</span>` : (p.client_email ? `<span>${p.client_email}</span>` : '')}
           <span>${p.created_at?.split('T')[0] || ''}</span>
         </div>
       </div>`;
@@ -58,7 +58,12 @@ function renderProjectList(activeProjectId) {
         <div class="space-y-3">
           <div>
             <label class="text-xs font-medium text-neutral-500 dark:text-neutral-400 block mb-1">Project Name *</label>
-            <input type="text" id="cw-new-name" placeholder="e.g. Acme Corp Recruitment"
+            <input type="text" id="cw-new-name" placeholder="e.g. Acme Corp — Codebase Merge"
+              class="w-full bg-white/60 dark:bg-neutral-700/60 border border-neutral-200/50 dark:border-neutral-600/50 rounded-xl px-4 py-2 text-sm text-neutral-700 dark:text-neutral-300 placeholder-neutral-400 dark:placeholder-neutral-500 focus:bg-white/90 dark:focus:bg-neutral-700/90 focus:outline-none transition-all shadow-sm" />
+          </div>
+          <div>
+            <label class="text-xs font-medium text-neutral-500 dark:text-neutral-400 block mb-1">Client Name</label>
+            <input type="text" id="cw-new-client-name" placeholder="e.g. John Smith"
               class="w-full bg-white/60 dark:bg-neutral-700/60 border border-neutral-200/50 dark:border-neutral-600/50 rounded-xl px-4 py-2 text-sm text-neutral-700 dark:text-neutral-300 placeholder-neutral-400 dark:placeholder-neutral-500 focus:bg-white/90 dark:focus:bg-neutral-700/90 focus:outline-none transition-all shadow-sm" />
           </div>
           <div>
@@ -68,7 +73,7 @@ function renderProjectList(activeProjectId) {
           </div>
           <div>
             <label class="text-xs font-medium text-neutral-500 dark:text-neutral-400 block mb-1">Notes</label>
-            <textarea id="cw-new-notes" rows="3" placeholder="Project context, requirements..."
+            <textarea id="cw-new-notes" rows="6" placeholder="Project context, requirements, scope..."
               class="w-full bg-white/60 dark:bg-neutral-700/60 border border-neutral-200/50 dark:border-neutral-600/50 rounded-xl px-4 py-2 text-sm text-neutral-700 dark:text-neutral-300 placeholder-neutral-400 dark:placeholder-neutral-500 focus:bg-white/90 dark:focus:bg-neutral-700/90 focus:outline-none transition-all shadow-sm resize-none"></textarea>
           </div>
         </div>
@@ -96,9 +101,10 @@ function renderProjectList(activeProjectId) {
       window.cwCreateProject = async function() {
         const name = document.getElementById('cw-new-name').value.trim();
         if (!name) { document.getElementById('cw-new-name').focus(); return; }
+        const clientName = document.getElementById('cw-new-client-name').value.trim();
         const email = document.getElementById('cw-new-email').value.trim();
         const notes = document.getElementById('cw-new-notes').value.trim();
-        await window.api.plugins.sendEvent('cw:create-project', { name, clientEmail: email || null, notes: notes || null });
+        await window.api.plugins.sendEvent('cw:create-project', { name, clientName: clientName || null, clientEmail: email || null, notes: notes || null });
         window.cwHideCreateProject();
         if (window.AppRouter) window.AppRouter.navigatePlugin('client-workspace');
       };
@@ -177,7 +183,7 @@ function renderProjectDetail(project) {
       </div>
 
       ${project.notes ? `<p class="text-sm text-neutral-500 dark:text-neutral-400">${project.notes}</p>` : ''}
-      ${project.client_email ? `<p class="text-xs text-neutral-400 dark:text-neutral-500">Client: ${project.client_email}</p>` : ''}
+      ${project.client_name ? `<p class="text-xs text-neutral-400 dark:text-neutral-500">Client: ${project.client_name}${project.client_email ? ' (' + project.client_email + ')' : ''}</p>` : (project.client_email ? `<p class="text-xs text-neutral-400 dark:text-neutral-500">Client: ${project.client_email}</p>` : '')}
 
       <!-- Documents -->
       <div>

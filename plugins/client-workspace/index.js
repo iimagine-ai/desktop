@@ -114,6 +114,7 @@ module.exports = {
     if (eventName === 'cw:create-project') {
       const id = cwDb.createProject({
         name: data.name,
+        clientName: data.clientName,
         clientEmail: data.clientEmail,
         notes: data.notes,
       });
