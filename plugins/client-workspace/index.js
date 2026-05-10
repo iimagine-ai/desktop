@@ -54,9 +54,17 @@ module.exports = {
       if (lastUserMsg) lastUserMessage = lastUserMsg.content || '';
 
       const contextStr = buildProjectContext(project);
-      if (!contextStr) return { messages, assistant };
 
-      const systemMsg = { role: 'system', content: contextStr };
+      // Search project comms and documents for relevant content
+      const projectData = this._searchProjectResources(lastUserMessage, activeProjectId);
+
+      const parts = [];
+      if (contextStr) parts.push(contextStr);
+      if (projectData) parts.push(projectData);
+
+      if (parts.length === 0) return { messages, assistant };
+
+      const systemMsg = { role: 'system', content: parts.join('\n\n') };
       const systemEnd = messages.findIndex(m => m.role !== 'system');
       const insertAt = systemEnd === -1 ? 0 : systemEnd;
       messages.splice(insertAt, 0, systemMsg);
@@ -66,6 +74,48 @@ module.exports = {
       console.error(`${LOG} Preprocess error:`, err.message);
       return { messages, assistant };
     }
+  },
+
+  _searchProjectResources(query, projectId) {
+    if (!query || query.trim().length < 3) return null;
+
+    const results = [];
+    const keywords = query.toLowerCase().replace(/[^\w\s]/g, '').split(/\s+/).filter(w => w.length > 3);
+    if (keywords.length === 0) return null;
+
+    // Search comms
+    const comms = cwDb.getComms(projectId, 100);
+    for (const comm of comms) {
+      const contentLower = comm.content.toLowerCase();
+      const matches = keywords.filter(k => contentLower.includes(k));
+      if (matches.length > 0) {
+        // Extract relevant snippet (first 500 chars around the match)
+        const idx = contentLower.indexOf(matches[0]);
+        const start = Math.max(0, idx - 100);
+        const end = Math.min(comm.content.length, idx + 400);
+        const snippet = comm.content.slice(start, end);
+        results.push(`[Comms ${comm.source} ${comm.comm_date}]: ${snippet}`);
+        if (results.length >= 3) break;
+      }
+    }
+
+    // Search documents
+    const docs = cwDb.getDocumentsForProject(projectId);
+    for (const doc of docs) {
+      const contentLower = (doc.content || '').toLowerCase();
+      const matches = keywords.filter(k => contentLower.includes(k));
+      if (matches.length > 0) {
+        const idx = contentLower.indexOf(matches[0]);
+        const start = Math.max(0, idx - 100);
+        const end = Math.min(doc.content.length, idx + 400);
+        const snippet = doc.content.slice(start, end);
+        results.push(`[Doc "${doc.title}"]: ${snippet}`);
+        if (results.length >= 5) break;
+      }
+    }
+
+    if (results.length === 0) return null;
+    return `[Project Resources]\n${results.join('\n\n')}`;
   },
 
   // ── Chat Postprocess (TIMELINE LOGGING) ─────────────────────
