@@ -258,7 +258,6 @@ async function loadPluginSidebarItems() {
       btn.setAttribute('data-page', `plugin:${item.id}`);
       btn.className = 'nav-btn w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-neutral-500 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-neutral-100 hover:bg-white/40 dark:hover:bg-neutral-800/40 transition-all group';
       btn.innerHTML = `
-        <span class="text-base group-hover:scale-110 transition-transform">${item.icon}</span>
         <span class="text-sm font-medium">${item.label}</span>
       `;
       btn.addEventListener('click', () => {
