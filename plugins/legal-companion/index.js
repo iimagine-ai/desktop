@@ -436,7 +436,7 @@ function renderMattersList(matters, stats) {
   return `
     <div class="p-6 space-y-4">
       <div class="flex items-center justify-between">
-        <h2 class="text-xl font-semibold text-white">⚖️ Matters</h2>
+        <h2 class="text-xl font-semibold text-white">Matters</h2>
         <button id="legal-new-matter-btn"
           class="px-3 py-1.5 bg-white text-black text-xs font-medium rounded hover:bg-gray-200">
           + New Matter

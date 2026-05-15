@@ -195,7 +195,7 @@ module.exports = {
     return `
       <div class="p-6 space-y-6">
         <div class="flex items-center justify-between">
-          <h2 class="text-xl font-semibold text-white">🧠 Memory</h2>
+          <h2 class="text-xl font-semibold text-white">Memory</h2>
           <div class="flex gap-4 text-xs text-gray-400">
             <span>${stats.entities} entities</span>
             <span>${stats.relationships} relationships</span>
