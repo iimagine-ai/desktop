@@ -3,6 +3,9 @@
 const PromptsPage = {
   currentView: 'list', // 'list' | 'form'
   editingPrompt: null,
+  searchQuery: '',
+  page: 0,
+  PAGE_SIZE: 10,
 
   render(container) {
     container.innerHTML = `
@@ -17,9 +20,19 @@ const PromptsPage = {
     this.currentView = 'list';
     this.editingPrompt = null;
     const el = document.querySelector('#promptsContent');
-    const prompts = await window.api.prompts.list();
+    const allPrompts = await window.api.prompts.list();
 
-    // Group by category
+    // Filter by search
+    const q = this.searchQuery.toLowerCase();
+    const filtered = q ? allPrompts.filter(p => p.title.toLowerCase().includes(q) || (p.content || '').toLowerCase().includes(q) || (p.category || '').toLowerCase().includes(q)) : allPrompts;
+
+    const total = filtered.length;
+    const totalPages = Math.max(1, Math.ceil(total / this.PAGE_SIZE));
+    this.page = Math.min(this.page, totalPages - 1);
+    const start = this.page * this.PAGE_SIZE;
+    const prompts = filtered.slice(start, start + this.PAGE_SIZE);
+
+    // Group paginated results by category
     const categories = {};
     for (const p of prompts) {
       const cat = p.category || 'Uncategorized';
@@ -30,7 +43,7 @@ const PromptsPage = {
     el.innerHTML = `
       <div class="p-6 space-y-4">
         <div class="flex items-center justify-between">
-          <h2 class="text-lg font-semibold tracking-tight text-neutral-900 dark:text-neutral-100">Prompt Templates</h2>
+          <h2 class="text-lg font-semibold tracking-tight text-neutral-900 dark:text-neutral-100">Prompts</h2>
           <button id="pmNewBtn" class="px-4 py-2.5 rounded-lg bg-neutral-900 dark:bg-neutral-100 text-sm font-medium text-white dark:text-neutral-900 hover:bg-neutral-800 dark:hover:bg-neutral-200 transition-all shadow-sm">
             + New Prompt
           </button>
@@ -38,12 +51,15 @@ const PromptsPage = {
 
         <p class="text-xs text-neutral-500 dark:text-neutral-400">Save reusable prompts and quickly insert them into chat.</p>
 
+        <input id="pmSearch" type="text" placeholder="Search prompts..." value="${this._escAttr(this.searchQuery)}"
+          class="w-full bg-white/60 dark:bg-neutral-800/60 border border-neutral-200/50 dark:border-neutral-700/50 rounded-xl px-3 py-2 text-sm text-neutral-700 dark:text-neutral-300 placeholder-neutral-400 dark:placeholder-neutral-500 focus:bg-white/90 dark:focus:bg-neutral-800/90 focus:outline-none transition-all shadow-sm" />
+
         ${prompts.length === 0 ? `
           <div class="text-center py-12 text-neutral-400">
             <div class="p-3 bg-white dark:bg-neutral-800 rounded-2xl border border-neutral-100 dark:border-neutral-800 shadow-sm text-neutral-400 inline-flex mb-2">
               <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1"/></svg>
             </div>
-            <p class="text-sm">No prompts yet. Create one to get started.</p>
+            <p class="text-sm">${q ? 'No prompts match your search.' : 'No prompts yet. Create one to get started.'}</p>
           </div>
         ` : Object.entries(categories).map(([cat, items]) => `
           <div class="space-y-2">
@@ -68,6 +84,14 @@ const PromptsPage = {
             `).join('')}
           </div>
         `).join('')}
+
+        ${total > this.PAGE_SIZE ? `
+          <div class="flex items-center justify-center gap-2 pt-2">
+            <button id="pmPrev" class="px-3 py-1.5 rounded-lg text-xs font-medium ${this.page === 0 ? 'text-neutral-300 dark:text-neutral-600 cursor-default' : 'text-neutral-600 dark:text-neutral-400 hover:bg-white/60 dark:hover:bg-neutral-800/60'}">← Prev</button>
+            <span class="text-xs text-neutral-400">Page ${this.page + 1} of ${totalPages}</span>
+            <button id="pmNext" class="px-3 py-1.5 rounded-lg text-xs font-medium ${this.page >= totalPages - 1 ? 'text-neutral-300 dark:text-neutral-600 cursor-default' : 'text-neutral-600 dark:text-neutral-400 hover:bg-white/60 dark:hover:bg-neutral-800/60'}">Next →</button>
+          </div>
+        ` : ''}
       </div>
     `;
 
@@ -76,6 +100,19 @@ const PromptsPage = {
 
   _bindListEvents() {
     document.querySelector('#pmNewBtn')?.addEventListener('click', () => this._showForm(null));
+
+    document.querySelector('#pmSearch')?.addEventListener('input', (e) => {
+      this.searchQuery = e.target.value;
+      this.page = 0;
+      this._showList();
+    });
+
+    document.querySelector('#pmPrev')?.addEventListener('click', () => {
+      if (this.page > 0) { this.page--; this._showList(); }
+    });
+    document.querySelector('#pmNext')?.addEventListener('click', () => {
+      this.page++; this._showList();
+    });
 
     document.querySelectorAll('.pm-edit').forEach(btn => {
       btn.addEventListener('click', async (e) => {
