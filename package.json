@@ -1,6 +1,6 @@
 {
   "name": "iimagine-desktop",
-  "version": "0.1.0",
+  "version": "0.5.0",
   "description": "IIMAGINE Desktop Companion - Local LLM chat with your IIMAGINE account",
   "main": "main.js",
   "scripts": {
@@ -43,6 +43,7 @@
       "persona-storage.js",
       "folder-connect.js",
       "prompt-storage.js",
+      "rag-prompt-storage.js",
       "tool-calling.js",
       "plugin-manager.js",
       "stream-abort.js",
