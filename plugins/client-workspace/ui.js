@@ -255,6 +255,7 @@ function renderProjectDetail(project) {
         <button onclick="window.cwSwitchTab('outputs')" id="cw-tab-outputs" class="cw-tab px-3 py-2 text-sm font-medium text-neutral-500 dark:text-neutral-400 border-b-2 border-transparent hover:text-neutral-700 dark:hover:text-neutral-300 whitespace-nowrap">Outputs</button>
         <button onclick="window.cwSwitchTab('billing')" id="cw-tab-billing" class="cw-tab px-3 py-2 text-sm font-medium text-neutral-500 dark:text-neutral-400 border-b-2 border-transparent hover:text-neutral-700 dark:hover:text-neutral-300 whitespace-nowrap">Billing</button>
         <button onclick="window.cwSwitchTab('timeline')" id="cw-tab-timeline" class="cw-tab px-3 py-2 text-sm font-medium text-neutral-500 dark:text-neutral-400 border-b-2 border-transparent hover:text-neutral-700 dark:hover:text-neutral-300 whitespace-nowrap">Timeline</button>
+        <button onclick="window.cwSwitchTab('rag-prompts')" id="cw-tab-rag-prompts" class="cw-tab px-3 py-2 text-sm font-medium text-neutral-500 dark:text-neutral-400 border-b-2 border-transparent hover:text-neutral-700 dark:hover:text-neutral-300 whitespace-nowrap">RAG Prompts</button>
       </div>
 
       <!-- Chat Tab -->
@@ -299,6 +300,11 @@ function renderProjectDetail(project) {
         <div class="max-h-80 overflow-auto rounded-xl border border-neutral-200/40 dark:border-neutral-700/40 p-3 bg-white/30 dark:bg-neutral-800/30">
           ${timelineRows || '<p class="text-sm text-neutral-500 dark:text-neutral-400">No activity yet.</p>'}
         </div>
+      </div>
+
+      <!-- RAG Prompts Tab -->
+      <div id="cw-panel-rag-prompts" class="cw-panel hidden">
+        <div id="cw-rag-prompts-container"></div>
       </div>
     </div>
 
@@ -367,6 +373,13 @@ function renderProjectDetail(project) {
         // Load scan status when files tab is shown
         if (tab === 'files' && window.cwLoadScanStatus) {
           window.cwLoadScanStatus('${project.id}');
+        }
+        // Render RAG Prompts when tab is shown
+        if (tab === 'rag-prompts' && window.RagPromptsPage) {
+          const container = document.querySelector('#cw-rag-prompts-container');
+          if (container && !container.hasChildNodes()) {
+            window.RagPromptsPage.render(container);
+          }
         }
       };
 
