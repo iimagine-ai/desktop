@@ -41,19 +41,108 @@ const KnowledgePage = {
     }
   },
 
+  folderSearch: '',
+  folderPage: 0,
+
   // ── Connected Folders Tab ───────────────────────────────────
-  _showFolders() {
+  async _showFolders() {
     const el = document.querySelector('#kbContent');
+    const allFolders = await window.api.folders.list();
+
+    // Filter by search
+    const q = this.folderSearch.toLowerCase();
+    const filtered = q ? allFolders.filter(f => f.name.toLowerCase().includes(q) || f.path.toLowerCase().includes(q)) : allFolders;
+
+    const total = filtered.length;
+    const totalPages = Math.max(1, Math.ceil(total / this.PAGE_SIZE));
+    this.folderPage = Math.min(this.folderPage, totalPages - 1);
+    const start = this.folderPage * this.PAGE_SIZE;
+    const folders = filtered.slice(start, start + this.PAGE_SIZE);
+
     el.innerHTML = `
       <div class="p-6 space-y-4">
         <p class="text-xs text-neutral-500 dark:text-neutral-400">Connect a folder from your computer. Files inside will be automatically synced and indexed so the AI can reference them in conversations.</p>
-        <div id="fcContainer"></div>
+
+        <div class="flex items-center justify-between">
+          <span class="text-xs text-neutral-500">${allFolders.length} folder${allFolders.length !== 1 ? 's' : ''} connected</span>
+          <button id="fcAddBtn" class="px-4 py-2.5 rounded-lg bg-neutral-900 dark:bg-neutral-100 text-sm font-medium text-white dark:text-neutral-900 hover:bg-neutral-800 dark:hover:bg-neutral-200 transition-all shadow-sm">
+            + Connect Folder
+          </button>
+        </div>
+
+        <input id="fcSearch" type="text" placeholder="Search folders..." value="${this._escAttr(this.folderSearch)}"
+          class="w-full bg-white/60 dark:bg-neutral-800/60 border border-neutral-200/50 dark:border-neutral-700/50 rounded-xl px-3 py-2 text-sm text-neutral-700 dark:text-neutral-300 placeholder-neutral-400 dark:placeholder-neutral-500 focus:bg-white/90 dark:focus:bg-neutral-800/90 focus:outline-none transition-all shadow-sm" />
+
+        <div id="fcFolderList" class="space-y-2">
+          ${folders.length === 0 ? `
+            <div class="text-center py-8 border border-dashed border-neutral-200/60 dark:border-neutral-700/60 rounded-2xl">
+              <p class="text-xs text-neutral-400 dark:text-neutral-500">${q ? 'No folders match your search.' : 'No folders connected. Click "+ Connect Folder" to get started.'}</p>
+            </div>
+          ` : folders.map(f => window.FolderConnectUI._renderFolder(f)).join('')}
+        </div>
+
+        ${total > this.PAGE_SIZE ? `
+          <div class="flex items-center justify-center gap-2 pt-2">
+            <button id="fcPrev" class="px-3 py-1.5 rounded-lg text-xs font-medium ${this.folderPage === 0 ? 'text-neutral-300 dark:text-neutral-600 cursor-default' : 'text-neutral-600 dark:text-neutral-400 hover:bg-white/60 dark:hover:bg-neutral-800/60'}">← Prev</button>
+            <span class="text-xs text-neutral-400">Page ${this.folderPage + 1} of ${totalPages}</span>
+            <button id="fcNext" class="px-3 py-1.5 rounded-lg text-xs font-medium ${this.folderPage >= totalPages - 1 ? 'text-neutral-300 dark:text-neutral-600 cursor-default' : 'text-neutral-600 dark:text-neutral-400 hover:bg-white/60 dark:hover:bg-neutral-800/60'}">Next →</button>
+          </div>
+        ` : ''}
       </div>
     `;
-    const fcContainer = document.querySelector('#fcContainer');
-    if (fcContainer && window.FolderConnectUI) {
-      window.FolderConnectUI.render(fcContainer);
-    }
+
+    // Bind events
+    document.querySelector('#fcAddBtn')?.addEventListener('click', async () => {
+      const result = await window.api.folders.add();
+      if (result && !result.canceled && !result.error) {
+        this._showFolders();
+      } else if (result?.error) {
+        alert(result.error);
+      }
+    });
+
+    document.querySelector('#fcSearch')?.addEventListener('input', (e) => {
+      this.folderSearch = e.target.value;
+      this.folderPage = 0;
+      this._showFolders();
+    });
+
+    document.querySelector('#fcPrev')?.addEventListener('click', () => {
+      if (this.folderPage > 0) { this.folderPage--; this._showFolders(); }
+    });
+    document.querySelector('#fcNext')?.addEventListener('click', () => {
+      if (this.folderPage < totalPages - 1) { this.folderPage++; this._showFolders(); }
+    });
+
+    // Reindex and remove buttons (from FolderConnectUI's rendered HTML)
+    document.querySelectorAll('.fc-reindex').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        btn.disabled = true;
+        await window.api.folders.reindex(btn.dataset.id);
+        this._showFolders();
+      });
+    });
+
+    document.querySelectorAll('.fc-remove').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        if (!confirm('Remove this folder connection? Files will no longer be indexed.')) return;
+        await window.api.folders.remove(btn.dataset.id);
+        this._showFolders();
+      });
+    });
+
+    // Listen for indexing progress
+    window.api.folders.onProgress((data) => {
+      if (!data.folderId) return;
+      const el = document.querySelector(`#fc-progress-${data.folderId}`);
+      if (!el) return;
+      if (data.done) { this._showFolders(); return; }
+      el.classList.remove('hidden');
+      const bar = el.querySelector('.fc-bar');
+      const count = el.querySelector('.fc-count');
+      if (bar && data.total > 0) bar.style.width = Math.round((data.indexed / data.total) * 100) + '%';
+      if (count) count.textContent = `${data.indexed || 0}/${data.total || 0}`;
+    });
   },
 
   // ── Collections List ────────────────────────────────────────
