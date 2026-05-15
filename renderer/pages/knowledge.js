@@ -10,13 +10,50 @@ const KnowledgePage = {
   docSearch: '',
   PAGE_SIZE: 10,
 
+  activeTab: 'folders', // 'folders' | 'collections'
+
   render(container) {
     container.innerHTML = `
       <div id="kbPage" class="flex flex-col flex-1 min-h-0">
+        <div class="p-6 pb-0">
+          <h2 class="text-xl font-semibold tracking-tight text-neutral-900 dark:text-neutral-100 mb-4">Knowledge</h2>
+          <div class="flex gap-1 border-b border-neutral-200/40 dark:border-neutral-700/40">
+            <button data-kb-tab="folders" class="kb-tab-btn px-4 py-2 text-sm font-medium transition-all border-b-2 ${this.activeTab === 'folders' ? 'text-neutral-900 dark:text-neutral-100 border-neutral-900 dark:border-neutral-100' : 'text-neutral-500 dark:text-neutral-400 border-transparent hover:text-neutral-700 dark:hover:text-neutral-300'}">Connected Folders</button>
+            <button data-kb-tab="collections" class="kb-tab-btn px-4 py-2 text-sm font-medium transition-all border-b-2 ${this.activeTab === 'collections' ? 'text-neutral-900 dark:text-neutral-100 border-neutral-900 dark:border-neutral-100' : 'text-neutral-500 dark:text-neutral-400 border-transparent hover:text-neutral-700 dark:hover:text-neutral-300'}">Knowledge Bases</button>
+          </div>
+        </div>
         <div id="kbContent" class="flex-1 overflow-y-auto"></div>
       </div>
     `;
-    this._showCollections();
+
+    // Tab switching
+    container.querySelectorAll('.kb-tab-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        this.activeTab = btn.dataset.kbTab;
+        this.render(container);
+      });
+    });
+
+    if (this.activeTab === 'folders') {
+      this._showFolders();
+    } else {
+      this._showCollections();
+    }
+  },
+
+  // ── Connected Folders Tab ───────────────────────────────────
+  _showFolders() {
+    const el = document.querySelector('#kbContent');
+    el.innerHTML = `
+      <div class="p-6 space-y-4">
+        <p class="text-xs text-neutral-500 dark:text-neutral-400">Connect a folder from your computer. Files inside will be automatically synced and indexed so the AI can reference them in conversations.</p>
+        <div id="fcContainer"></div>
+      </div>
+    `;
+    const fcContainer = document.querySelector('#fcContainer');
+    if (fcContainer && window.FolderConnectUI) {
+      window.FolderConnectUI.render(fcContainer);
+    }
   },
 
   // ── Collections List ────────────────────────────────────────
@@ -40,20 +77,17 @@ const KnowledgePage = {
 
     el.innerHTML = `
       <div class="p-6 space-y-4">
-        <!-- Folder Connect Section -->
-        <div id="fcContainer" class="mb-4"></div>
+        <p class="text-xs text-neutral-500 dark:text-neutral-400">Create collections and add documents (text, PDF, DOCX, CSV). The AI will search these when answering your questions.</p>
 
         <div class="flex items-center justify-between">
-          <h2 class="text-lg font-semibold tracking-tight text-neutral-900 dark:text-neutral-100">Knowledge Base</h2>
+          <div class="flex gap-3 text-xs text-neutral-500">
+            <span>${stats.collections} collection${stats.collections !== 1 ? 's' : ''}</span>
+            <span>·</span>
+            <span>${stats.documents} document${stats.documents !== 1 ? 's' : ''}</span>
+          </div>
           <button id="kbNewCollBtn" class="px-4 py-2.5 rounded-lg bg-neutral-900 dark:bg-neutral-100 text-sm font-medium text-white dark:text-neutral-900 hover:bg-neutral-800 dark:hover:bg-neutral-200 transition-all shadow-sm">
             + New Collection
           </button>
-        </div>
-
-        <div class="flex gap-3 text-xs text-neutral-500">
-          <span>${stats.collections} collection${stats.collections !== 1 ? 's' : ''}</span>
-          <span>·</span>
-          <span>${stats.documents} document${stats.documents !== 1 ? 's' : ''}</span>
         </div>
 
         <input id="kbCollSearch" type="text" placeholder="Search collections..." value="${this._escAttr(this.collSearch)}"
@@ -159,12 +193,6 @@ const KnowledgePage = {
     document.querySelector('#kbCollNext')?.addEventListener('click', () => {
       this.collPage++; this._showCollections();
     });
-
-    // Render Folder Connect section
-    const fcContainer = document.querySelector('#fcContainer');
-    if (fcContainer && window.FolderConnectUI) {
-      window.FolderConnectUI.render(fcContainer);
-    }
   },
 
   // ── Documents List ──────────────────────────────────────────
