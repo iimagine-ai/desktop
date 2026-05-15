@@ -55,6 +55,17 @@
 
     /* Animations */
     .message-enter { animation: fadeIn 0.2s ease-out; }
+
+    /* Sidebar collapse */
+    #sidebar.collapsed { width: 4rem; }
+    #sidebar.collapsed .sidebar-label { display: none; }
+    #sidebar.collapsed .sidebar-logo-area { padding-left: 1.25rem; padding-right: 1.25rem; justify-content: center; }
+    #sidebar.collapsed #modelDropdown { display: none; }
+    #sidebar.collapsed nav { padding-left: 0.5rem; padding-right: 0.5rem; }
+    #sidebar.collapsed .nav-btn { justify-content: center; padding-left: 0; padding-right: 0; gap: 0; }
+    #sidebar.collapsed #collapseIcon { transform: rotate(180deg); }
+    #sidebar.collapsed .p-3 { padding: 0.5rem; }
+    #sidebar.collapsed .p-3 > div { justify-content: center; padding: 0.5rem; }
     @keyframes fadeIn {
       from { opacity: 0; transform: translateY(4px); }
       to { opacity: 1; transform: translateY(0); }
@@ -147,14 +158,14 @@
     <div class="flex w-full h-full bg-white/40 dark:bg-neutral-900/50 backdrop-blur-2xl border border-white/60 dark:border-neutral-700/40 shadow-[0_8px_30px_rgb(0,0,0,0.04)] dark:shadow-[0_8px_30px_rgb(0,0,0,0.3)] rounded-[1.5rem] overflow-hidden">
 
       <!-- Sidebar -->
-      <aside id="sidebar" class="hidden md:flex flex-col w-56 border-r border-neutral-200/40 dark:border-neutral-700/40 bg-white/20 dark:bg-neutral-900/30 flex-shrink-0">
+      <aside id="sidebar" class="hidden md:flex flex-col w-56 border-r border-neutral-200/40 dark:border-neutral-700/40 bg-white/20 dark:bg-neutral-900/30 flex-shrink-0 transition-all duration-200">
         <!-- Logo + drag area -->
-        <div class="h-14 flex items-center px-6 titlebar-drag">
-          <span class="text-sm font-semibold tracking-tighter text-neutral-900 dark:text-neutral-100 flex items-center gap-2">
-            <div class="w-5 h-5 rounded-md bg-gradient-to-br from-neutral-800 to-neutral-950 flex items-center justify-center">
+        <div class="h-14 flex items-center px-6 titlebar-drag sidebar-logo-area">
+          <span class="sidebar-brand text-sm font-semibold tracking-tighter text-neutral-900 dark:text-neutral-100 flex items-center gap-2">
+            <div class="w-5 h-5 rounded-md bg-gradient-to-br from-neutral-800 to-neutral-950 flex items-center justify-center flex-shrink-0">
               <div class="w-1.5 h-1.5 bg-white rounded-full"></div>
             </div>
-            IIMAGINE
+            <span class="sidebar-label">IIMAGINE</span>
           </span>
         </div>
 
@@ -173,34 +184,34 @@
         <nav class="flex-1 px-3 py-2 space-y-0.5 overflow-y-auto">
 
           <button data-page="chat" class="nav-btn w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-neutral-500 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-neutral-100 hover:bg-white/40 dark:hover:bg-neutral-800/40 transition-all group">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="group-hover:scale-110 transition-transform"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/><path d="M8 10h.01M12 10h.01M16 10h.01"/></svg>
-            <span class="text-sm font-medium">Chat</span>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="group-hover:scale-110 transition-transform flex-shrink-0"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/><path d="M8 10h.01M12 10h.01M16 10h.01"/></svg>
+            <span class="text-sm font-medium sidebar-label">Chat</span>
           </button>
           <button data-page="knowledge" class="nav-btn w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-neutral-500 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-neutral-100 hover:bg-white/40 dark:hover:bg-neutral-800/40 transition-all group">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="group-hover:scale-110 transition-transform"><path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1 0-5H20"/></svg>
-            <span class="text-sm font-medium">Knowledge</span>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="group-hover:scale-110 transition-transform flex-shrink-0"><path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1 0-5H20"/></svg>
+            <span class="text-sm font-medium sidebar-label">Knowledge</span>
           </button>
           <button data-page="assistants" class="nav-btn w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-neutral-500 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-neutral-100 hover:bg-white/40 dark:hover:bg-neutral-800/40 transition-all group">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="group-hover:scale-110 transition-transform"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
-            <span class="text-sm font-medium">Assistants</span>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="group-hover:scale-110 transition-transform flex-shrink-0"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+            <span class="text-sm font-medium sidebar-label">Assistants</span>
           </button>
           <button data-page="prompts" class="nav-btn w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-neutral-500 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-neutral-100 hover:bg-white/40 dark:hover:bg-neutral-800/40 transition-all group">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="group-hover:scale-110 transition-transform"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1"/><path d="M9 14h6"/><path d="M9 18h6"/><path d="M9 10h6"/></svg>
-            <span class="text-sm font-medium">Prompts</span>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="group-hover:scale-110 transition-transform flex-shrink-0"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1"/><path d="M9 14h6"/><path d="M9 18h6"/><path d="M9 10h6"/></svg>
+            <span class="text-sm font-medium sidebar-label">Prompts</span>
           </button>
 
 
           <button data-page="images" class="nav-btn w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-neutral-500 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-neutral-100 hover:bg-white/40 dark:hover:bg-neutral-800/40 transition-all group">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="group-hover:scale-110 transition-transform"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="m21 15-5-5L5 21"/></svg>
-            <span class="text-sm font-medium">Images</span>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="group-hover:scale-110 transition-transform flex-shrink-0"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="m21 15-5-5L5 21"/></svg>
+            <span class="text-sm font-medium sidebar-label">Images</span>
           </button>
           <button data-page="videos" class="nav-btn w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-neutral-500 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-neutral-100 hover:bg-white/40 dark:hover:bg-neutral-800/40 transition-all group">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="group-hover:scale-110 transition-transform"><path d="m22 8-6 4 6 4V8Z"/><rect x="1" y="5" width="15" height="14" rx="2"/></svg>
-            <span class="text-sm font-medium">Video</span>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="group-hover:scale-110 transition-transform flex-shrink-0"><path d="m22 8-6 4 6 4V8Z"/><rect x="1" y="5" width="15" height="14" rx="2"/></svg>
+            <span class="text-sm font-medium sidebar-label">Video</span>
           </button>
           <button data-page="settings" class="nav-btn w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-neutral-500 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-neutral-100 hover:bg-white/40 dark:hover:bg-neutral-800/40 transition-all group">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="group-hover:scale-110 transition-transform"><circle cx="12" cy="12" r="3"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>
-            <span class="text-sm font-medium">Settings</span>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="group-hover:scale-110 transition-transform flex-shrink-0"><circle cx="12" cy="12" r="3"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>
+            <span class="text-sm font-medium sidebar-label">Settings</span>
           </button>
         </nav>
 
@@ -210,10 +221,13 @@
             <div class="w-8 h-8 rounded-full bg-neutral-200 dark:bg-neutral-700 flex items-center justify-center text-neutral-500 dark:text-neutral-400 text-xs font-medium flex-shrink-0">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
             </div>
-            <div class="flex-1 overflow-hidden min-w-0">
+            <div class="flex-1 overflow-hidden min-w-0 sidebar-label">
               <p id="sidebarUser" class="text-xs font-medium text-neutral-900 dark:text-neutral-100 truncate"></p>
               <button id="logoutBtn" class="text-[11px] text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-300 transition-colors">Sign out</button>
             </div>
+            <button id="sidebarCollapseBtn" class="p-1.5 rounded-lg text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-300 hover:bg-white/40 dark:hover:bg-neutral-800/40 transition-all flex-shrink-0" title="Collapse sidebar">
+              <svg id="collapseIcon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="11 17 6 12 11 7"/><polyline points="18 17 13 12 18 7"/></svg>
+            </button>
           </div>
         </div>
       </aside>
@@ -243,6 +257,7 @@
   <script src="components/advanced-ollama-settings.js"></script>
   <script src="components/runtime-monitor.js"></script>
   <script src="pages/chat.js"></script>
+  <script src="pages/recent.js"></script>
   <script src="pages/images.js"></script>
   <script src="pages/videos.js"></script>
   <script src="pages/knowledge.js"></script>

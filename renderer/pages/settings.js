@@ -5,32 +5,17 @@ const SettingsPage = {
 
   render(container) {
     container.innerHTML = `
-      <div id="settingsPage" class="flex flex-1 min-h-0">
-        <!-- Settings sidebar -->
-        <div class="w-40 border-r border-neutral-200/40 dark:border-neutral-700/40 flex flex-col flex-shrink-0 p-3 space-y-0.5">
-          <button data-settings-tab="profile" class="settings-tab-btn w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-sm font-medium transition-all text-left">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
-            Profile
-          </button>
-          <button data-settings-tab="models" class="settings-tab-btn w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-sm font-medium transition-all text-left">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="16" height="16" rx="2"/><path d="M9 1v3M15 1v3M9 20v3M15 20v3M1 9h3M1 15h3M20 9h3M20 15h3"/><path d="m13 8-4 8h6l-4-8z"/></svg>
-            Models
-          </button>
-          <button data-settings-tab="plugins" class="settings-tab-btn w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-sm font-medium transition-all text-left">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10z"/><path d="M9 8v3M15 8v3M8 11h8v2a4 4 0 0 1-8 0v-2z"/></svg>
-            Plugins
-          </button>
-          <button data-settings-tab="personas" class="settings-tab-btn w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-sm font-medium transition-all text-left">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a5 5 0 0 1 5 5c0 1.63-.78 3.07-2 3.97V13h-6v-2.03A5 5 0 0 1 12 2z"/><path d="M9 13v2"/><path d="M15 13v2"/><rect x="9" y="15" width="6" height="4" rx="1"/><path d="M10 19v2"/><path d="M14 19v2"/></svg>
-            Personas
-          </button>
-          <button data-settings-tab="memory" id="memoryTabBtn" class="settings-tab-btn w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-sm font-medium transition-all text-left hidden">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a7 7 0 0 1 7 7c0 2.38-1.19 4.47-3 5.74V17a2 2 0 0 1-2 2h-4a2 2 0 0 1-2-2v-2.26C6.19 13.47 5 11.38 5 9a7 7 0 0 1 7-7z"/><path d="M10 21h4"/></svg>
-            Memory
-          </button>
+      <div id="settingsPage" class="flex flex-col flex-1 min-h-0">
+        <div class="p-6 pb-0">
+          <h2 class="text-xl font-semibold tracking-tight text-neutral-900 dark:text-neutral-100 mb-4">Settings</h2>
+          <div class="flex gap-1 border-b border-neutral-200/40 dark:border-neutral-700/40">
+            <button data-settings-tab="profile" class="settings-tab-btn px-4 py-2 text-sm font-medium transition-all border-b-2">Profile</button>
+            <button data-settings-tab="models" class="settings-tab-btn px-4 py-2 text-sm font-medium transition-all border-b-2">Models</button>
+            <button data-settings-tab="plugins" class="settings-tab-btn px-4 py-2 text-sm font-medium transition-all border-b-2">Plugins</button>
+            <button data-settings-tab="personas" class="settings-tab-btn px-4 py-2 text-sm font-medium transition-all border-b-2">Personas</button>
+            <button data-settings-tab="memory" id="memoryTabBtn" class="settings-tab-btn px-4 py-2 text-sm font-medium transition-all border-b-2 hidden">Memory</button>
+          </div>
         </div>
-
-        <!-- Settings content -->
         <div id="settingsContent" class="flex-1 overflow-y-auto p-6 space-y-6"></div>
       </div>
     `;
@@ -63,11 +48,11 @@ const SettingsPage = {
     container.querySelectorAll('.settings-tab-btn').forEach(btn => {
       const isActive = btn.dataset.settingsTab === tab;
       if (isActive) {
-        btn.classList.remove('text-neutral-500', 'dark:text-neutral-400', 'hover:bg-white/40', 'dark:hover:bg-neutral-800/40');
-        btn.classList.add('bg-white/60', 'dark:bg-neutral-800/60', 'text-neutral-900', 'dark:text-neutral-100', 'shadow-sm');
+        btn.classList.remove('text-neutral-500', 'dark:text-neutral-400', 'border-transparent', 'hover:text-neutral-700', 'dark:hover:text-neutral-300');
+        btn.classList.add('text-neutral-900', 'dark:text-neutral-100', 'border-neutral-900', 'dark:border-neutral-100');
       } else {
-        btn.classList.remove('bg-white/60', 'dark:bg-neutral-800/60', 'text-neutral-900', 'dark:text-neutral-100', 'shadow-sm');
-        btn.classList.add('text-neutral-500', 'dark:text-neutral-400', 'hover:bg-white/40', 'dark:hover:bg-neutral-800/40');
+        btn.classList.remove('text-neutral-900', 'dark:text-neutral-100', 'border-neutral-900', 'dark:border-neutral-100');
+        btn.classList.add('text-neutral-500', 'dark:text-neutral-400', 'border-transparent', 'hover:text-neutral-700', 'dark:hover:text-neutral-300');
       }
     });
   },

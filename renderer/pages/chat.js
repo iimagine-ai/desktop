@@ -18,58 +18,55 @@ const ChatPage = {
   async render(container) {
     container.innerHTML = `
       <div id="chatPage" class="flex flex-1 min-h-0">
-        <!-- Conversation list -->
-        <div id="convSidebar" class="w-48 border-r border-neutral-200/40 dark:border-neutral-700/40 flex flex-col flex-shrink-0 bg-white/50 dark:bg-neutral-800/20">
-          <div class="p-2 border-b border-neutral-200/40 dark:border-neutral-700/40">
-            <button id="newConvBtn" class="w-full px-3 py-1.5 rounded-lg bg-neutral-900 dark:bg-neutral-100 text-xs font-medium text-white dark:text-neutral-900 hover:bg-neutral-800 dark:hover:bg-neutral-200 transition-all shadow-sm flex items-center justify-center gap-1.5">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M8 12h8M12 8v8"/></svg>
-              New chat
-            </button>
-          </div>
-          <div id="convList" class="flex-1 overflow-y-auto p-1 space-y-0.5"></div>
-        </div>
-
         <!-- Chat area -->
         <div class="flex flex-col flex-1 min-h-0 min-w-0 bg-white/60 dark:bg-transparent" style="--dark-bg: rgba(255,255,255,0.25);">
           <div id="messages" class="flex-1 overflow-y-auto p-4 space-y-4 min-h-0">
             <div id="welcomeMessage" class="text-center py-8">
-              <div class="p-3 bg-white dark:bg-neutral-800 rounded-2xl border border-neutral-100 dark:border-neutral-800 shadow-sm text-neutral-400 inline-flex mb-3"><svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8.5V3a1 1 0 0 0-1-1h-4l-4 4-4-4H1a1 1 0 0 0-1 1v5.5"/><path d="m2 14 4-4 3 3 4-4 3 3 4-4"/><path d="M2 14v5a1 1 0 0 0 1 1h4"/><path d="M22 14v5a1 1 0 0 1-1 1h-4"/></svg></div>
-              <p class="text-neutral-900 dark:text-neutral-100 font-semibold mb-1 tracking-tight">Welcome back</p>
-              <p id="chatUserName" class="text-neutral-400 text-sm mb-4"></p>
-              <div id="noProviderMsg" class="hidden bg-white/50 dark:bg-neutral-800/50 border border-neutral-200/40 dark:border-neutral-700/40 rounded-2xl p-4 text-sm text-neutral-600 dark:text-neutral-400 max-w-xs mx-auto backdrop-blur-md">
+              <p id="chatUserName" class="text-neutral-900 dark:text-neutral-100 font-semibold text-lg tracking-tight"></p>
+              <div id="noProviderMsg" class="hidden bg-white/50 dark:bg-neutral-800/50 border border-neutral-200/40 dark:border-neutral-700/40 rounded-2xl p-4 text-sm text-neutral-600 dark:text-neutral-400 max-w-xs mx-auto backdrop-blur-md mt-4">
                 <p class="font-medium mb-1">No AI model configured</p>
                 <p class="text-xs">Go to <button id="goToSettings" class="underline text-neutral-900 dark:text-neutral-100 font-medium">Settings</button> to set up a local model.</p>
               </div>
             </div>
           </div>
           <div class="border-t border-neutral-200/40 dark:border-neutral-700/40 p-3 flex-shrink-0 bg-white/30 dark:bg-neutral-800/30">
-            <div class="flex gap-2">
-              <textarea id="chatInput" placeholder="Message your local AI..." rows="3"
-                class="flex-1 resize-none bg-white/60 dark:bg-neutral-800/60 border border-neutral-200/50 dark:border-neutral-700/50 rounded-xl px-3 py-2.5 text-sm text-neutral-700 dark:text-neutral-300 placeholder-neutral-400 dark:placeholder-neutral-500 focus:bg-white/90 dark:focus:bg-neutral-800/90 focus:outline-none transition-all shadow-sm"></textarea>
-              <div class="flex flex-col gap-1 self-end">
-                <button id="sendBtn" class="px-4 py-2.5 rounded-lg bg-neutral-900 dark:bg-neutral-100 text-sm font-medium text-white dark:text-neutral-900 hover:bg-neutral-800 dark:hover:bg-neutral-200 transition-all shadow-sm disabled:opacity-40 disabled:cursor-not-allowed" disabled>
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="19" x2="12" y2="5"/><polyline points="5 12 12 5 19 12"/></svg>
-                </button>
-                <button id="stopBtn" class="hidden px-4 py-2.5 rounded-lg bg-neutral-200 dark:bg-neutral-700 text-sm font-medium text-rose-600 dark:text-rose-400 hover:bg-neutral-300 dark:hover:bg-neutral-600 transition-all shadow-sm">
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="6" width="12" height="12" rx="2"/></svg>
-                </button>
-              </div>
-            </div>
-            <div class="flex items-center gap-2 mt-2">
-              <div id="promptPickerMount" class="shrink-0"></div>
-              <div id="projSelectorContainer" class="shrink-0"></div>
-              <div id="kbSelectorRow" class="flex items-center gap-2 flex-1 min-w-0">
-                <div id="kbSelectorContainer" class="flex-1 min-w-0"></div>
-                <span id="kbBadge" class="hidden text-[10px] px-2 py-0.5 rounded-full bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 border border-emerald-100 dark:border-emerald-800 whitespace-nowrap">KB active</span>
-                <div id="kbModeButtons" class="hidden flex items-center gap-1">
-                  <button id="btnModeRag" class="text-[10px] px-2 py-0.5 rounded-full border whitespace-nowrap transition-all bg-neutral-900 dark:bg-neutral-100 text-white dark:text-neutral-900 border-neutral-900 dark:border-neutral-100">RAG</button>
-                  <button id="btnModeContext" class="text-[10px] px-2 py-0.5 rounded-full border whitespace-nowrap transition-all bg-white/60 dark:bg-neutral-700/60 text-neutral-500 dark:text-neutral-400 border-neutral-200/50 dark:border-neutral-600/50 hover:bg-white/90 dark:hover:bg-neutral-700/90">Context Window</button>
+            <div class="relative bg-white/60 dark:bg-neutral-800/60 border border-neutral-200/50 dark:border-neutral-700/50 rounded-xl shadow-sm">
+              <div class="flex">
+                <textarea id="chatInput" placeholder="Ask anything..." rows="3"
+                  class="flex-1 resize-none bg-transparent px-3 py-2.5 text-sm text-neutral-700 dark:text-neutral-300 placeholder-neutral-400 dark:placeholder-neutral-500 focus:outline-none"></textarea>
+                <div class="flex flex-col gap-1 p-2 self-end">
+                  <button id="sendBtn" class="px-3 py-2 rounded-lg bg-neutral-900 dark:bg-neutral-100 text-white dark:text-neutral-900 hover:bg-neutral-800 dark:hover:bg-neutral-200 transition-all shadow-sm disabled:opacity-40 disabled:cursor-not-allowed" disabled>
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="19" x2="12" y2="5"/><polyline points="5 12 12 5 19 12"/></svg>
+                  </button>
+                  <button id="stopBtn" class="hidden px-3 py-2 rounded-lg bg-neutral-200 dark:bg-neutral-700 text-rose-600 dark:text-rose-400 hover:bg-neutral-300 dark:hover:bg-neutral-600 transition-all shadow-sm">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="6" width="12" height="12" rx="2"/></svg>
+                  </button>
                 </div>
-                <span id="fullContextTokens" class="hidden text-[10px] text-amber-600 dark:text-amber-400 whitespace-nowrap"></span>
+              </div>
+              <div class="flex items-center gap-1.5 px-2 pb-2 pt-1.5">
+                <button id="newChatBtn" class="flex items-center gap-1 text-xs px-2 py-1 rounded-md text-neutral-500 dark:text-neutral-400 hover:bg-neutral-100/80 dark:hover:bg-neutral-700/60 transition-all whitespace-nowrap" title="Start a new chat">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M8 12h8M12 8v8"/></svg>
+                  <span>New</span>
+                </button>
+                <button id="recentBtn" class="flex items-center gap-1 text-xs px-2 py-1 rounded-md text-neutral-500 dark:text-neutral-400 hover:bg-neutral-100/80 dark:hover:bg-neutral-700/60 transition-all whitespace-nowrap" title="Recent chats">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                  <span>Recents</span>
+                </button>
+                <div id="projSelectorContainer" class="shrink-0"></div>
+                <div id="kbSelectorContainer" class="shrink-0 min-w-0"></div>
+                <div id="promptPickerMount" class="shrink-0"></div>
+                <button id="downloadChatBtn" class="p-1.5 rounded-md text-neutral-400 dark:text-neutral-500 hover:text-neutral-600 dark:hover:text-neutral-300 hover:bg-neutral-100/80 dark:hover:bg-neutral-700/60 transition-all shrink-0" title="Download chat">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                </button>
               </div>
             </div>
-            <div class="flex items-center justify-between mt-1.5 px-1">
-              <span class="text-[10px] text-neutral-400">Running locally · Your data stays on this computer</span>
+            <div class="flex items-center gap-2 mt-1.5 px-1">
+              <span id="kbBadge" class="hidden text-xs leading-none py-[5px] px-2.5 rounded-full bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 border border-emerald-100 dark:border-emerald-800 whitespace-nowrap inline-flex items-center">KB active</span>
+              <div id="kbModeButtons" class="hidden flex items-center gap-1">
+                <button id="btnModeRag" class="text-xs leading-none py-[5px] px-2.5 rounded-full border whitespace-nowrap transition-all inline-flex items-center bg-neutral-900 dark:bg-neutral-100 text-white dark:text-neutral-900 border-neutral-900 dark:border-neutral-100">RAG</button>
+                <button id="btnModeContext" class="text-xs leading-none py-[5px] px-2.5 rounded-full border whitespace-nowrap transition-all inline-flex items-center bg-white/60 dark:bg-neutral-700/60 text-neutral-500 dark:text-neutral-400 border-neutral-200/50 dark:border-neutral-600/50 hover:bg-white/90 dark:hover:bg-neutral-700/90">Context Window</button>
+              </div>
+              <span id="fullContextTokens" class="hidden text-xs leading-none py-[5px] px-2.5 rounded-full border border-amber-200 dark:border-amber-700 bg-amber-50 dark:bg-amber-900/20 text-amber-600 dark:text-amber-400 whitespace-nowrap inline-flex items-center"></span>
             </div>
           </div>
         </div>
@@ -87,18 +84,18 @@ const ChatPage = {
     const noProviderMsg = container.querySelector('#noProviderMsg');
     const goToSettings = container.querySelector('#goToSettings');
     const chatUserName = container.querySelector('#chatUserName');
-    const convList = container.querySelector('#convList');
     const kbSelectorContainer = container.querySelector('#kbSelectorContainer');
     const kbBadge = container.querySelector('#kbBadge');
     const kbModeButtons = container.querySelector('#kbModeButtons');
     const btnModeRag = container.querySelector('#btnModeRag');
     const btnModeContext = container.querySelector('#btnModeContext');
     const fullContextTokens = container.querySelector('#fullContextTokens');
-    const newConvBtn = container.querySelector('#newConvBtn');
     const stopBtn = container.querySelector('#stopBtn');
 
     if (window.AppState?.currentUser) {
-      chatUserName.textContent = window.AppState.currentUser.email || '';
+      const savedName = await window.api.settings.get('profile.displayName');
+      const displayName = savedName || window.AppState.currentUser.displayName || window.AppState.currentUser.email || 'there';
+      chatUserName.textContent = `Hi ${displayName}. What's on your mind?`;
     }
 
     const pm = window.ProviderManager;
@@ -128,15 +125,15 @@ const ChatPage = {
         await window.api.storage.updateConversationKBSelections(this.activeConversationId, selections);
       }
       chatInput.placeholder = selections.length > 0
-        ? (this.fullContext ? 'Ask with full document context...' : 'Ask about your knowledge base...')
-        : 'Message your local AI...';
+        ? (this.fullContext ? 'Ask anything...' : 'Ask anything...')
+        : 'Ask anything...';
     });
 
     // Mode buttons click handlers
     btnModeRag.addEventListener('click', () => {
       this.fullContext = false;
       this._updateModeButtonsUI(btnModeRag, btnModeContext, fullContextTokens);
-      chatInput.placeholder = 'Ask about your knowledge base...';
+      chatInput.placeholder = 'Ask anything...';
     });
 
     btnModeContext.addEventListener('click', async () => {
@@ -181,14 +178,8 @@ const ChatPage = {
       });
     }
 
-    // Load conversations
-    await this._loadConversations(convList, messages, welcomeMessage);
-
-    // New conversation
-    newConvBtn.addEventListener('click', async () => {
-      await this._startNewConversation(convList, messages, welcomeMessage);
-      chatInput.focus();
-    });
+    // Load conversations (auto-load most recent or start new)
+    await this._loadConversations(null, messages, welcomeMessage);
 
     // Input handling
     chatInput.addEventListener('input', () => {
@@ -200,17 +191,57 @@ const ChatPage = {
     chatInput.addEventListener('keydown', (e) => {
       if (e.key === 'Enter' && !e.shiftKey) {
         e.preventDefault();
-        if (!sendBtn.disabled) this._send(chatInput, sendBtn, messages, welcomeMessage, convList);
+        if (!sendBtn.disabled) this._send(chatInput, sendBtn, messages, welcomeMessage, null);
       }
     });
 
     sendBtn.addEventListener('click', () => {
-      this._send(chatInput, sendBtn, messages, welcomeMessage, convList);
+      this._send(chatInput, sendBtn, messages, welcomeMessage, null);
     });
 
     stopBtn.addEventListener('click', async () => {
       await this._stopStream(stopBtn, sendBtn, chatInput);
     });
+
+    // Recent button — navigate to chat history page
+    const recentBtn = container.querySelector('#recentBtn');
+    if (recentBtn) {
+      recentBtn.addEventListener('click', () => {
+        window.AppRouter.navigate('recent');
+      });
+    }
+
+    // New Chat button — start a fresh conversation
+    const newChatBtn = container.querySelector('#newChatBtn');
+    if (newChatBtn) {
+      newChatBtn.addEventListener('click', async () => {
+        await this._startNewConversation(null, container.querySelector('#messages'), container.querySelector('#welcomeMessage'));
+        container.querySelector('#chatInput')?.focus();
+      });
+    }
+
+    // Download chat button
+    const downloadChatBtn = container.querySelector('#downloadChatBtn');
+    if (downloadChatBtn) {
+      downloadChatBtn.addEventListener('click', async () => {
+        if (!this.activeConversationId) return;
+        const msgs = await window.api.storage.getMessages(this.activeConversationId, 500);
+        const conv = this.conversations.find(c => c.id === this.activeConversationId);
+        const title = conv?.title || 'conversation';
+        let text = `# ${title}\n\n`;
+        for (const m of msgs) {
+          const role = m.role === 'user' ? 'You' : 'AI';
+          text += `**${role}:**\n${m.content}\n\n`;
+        }
+        const blob = new Blob([text], { type: 'text/markdown' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `${title.replace(/[^a-z0-9]/gi, '-').toLowerCase()}.md`;
+        a.click();
+        URL.revokeObjectURL(url);
+      });
+    }
 
     // Register stream listeners once
     if (!this._listenersRegistered) {
@@ -288,25 +319,27 @@ const ChatPage = {
 
   async _loadConversations(convList, messagesEl, welcomeMessage) {
     this.conversations = await window.api.storage.getConversations(50);
-    this._renderConvList(convList, messagesEl, welcomeMessage);
+    if (convList) this._renderConvList(convList, messagesEl, welcomeMessage);
 
-    // Check if a specific conversation was requested (e.g. from project chat tab)
+    // Check if a specific conversation was requested (e.g. from project chat tab or recent page)
     const pendingId = window._cwPendingConvId;
     if (pendingId) {
       window._cwPendingConvId = null;
       const target = this.conversations.find(c => c.id === pendingId);
       if (target) {
         await this._selectConversation(target.id, messagesEl, welcomeMessage);
-        this._highlightConv(convList);
+        if (convList) this._highlightConv(convList);
         return;
       }
     }
 
-    // Load most recent conversation if exists
-    if (this.conversations.length > 0 && !this.activeConversationId) {
+    // Load active conversation or most recent, or start new
+    if (this.activeConversationId) {
+      await this._selectConversation(this.activeConversationId, messagesEl, welcomeMessage);
+    } else if (this.conversations.length > 0) {
       await this._selectConversation(this.conversations[0].id, messagesEl, welcomeMessage);
-      this._highlightConv(convList);
     }
+    if (convList) this._highlightConv(convList);
   },
 
   _renderConvList(convList, messagesEl, welcomeMessage) {
@@ -476,9 +509,7 @@ const ChatPage = {
     }
     const chatInput = document.querySelector('#chatInput');
     if (chatInput) {
-      chatInput.placeholder = this.activeKBSelections.length > 0
-        ? (this.fullContext ? 'Ask with full document context...' : 'Ask about your knowledge base...')
-        : 'Message your local AI...';
+      chatInput.placeholder = 'Ask anything...';
     }
 
     // Clear and re-render messages
@@ -516,8 +547,10 @@ const ChatPage = {
 
     // Refresh list
     this.conversations = await window.api.storage.getConversations(50);
-    this._renderConvList(convList, messagesEl, welcomeMessage);
-    this._highlightConv(convList);
+    if (convList) {
+      this._renderConvList(convList, messagesEl, welcomeMessage);
+      this._highlightConv(convList);
+    }
 
     // Clear messages area
     messagesEl.innerHTML = '';
@@ -705,8 +738,10 @@ const ChatPage = {
       const title = text.substring(0, 40) + (text.length > 40 ? '...' : '');
       await window.api.storage.updateConversationTitle(this.activeConversationId, title);
       this.conversations = await window.api.storage.getConversations(50);
-      this._renderConvList(convList, messages, welcomeMessage);
-      this._highlightConv(convList);
+      if (convList) {
+        this._renderConvList(convList, messages, welcomeMessage);
+        this._highlightConv(convList);
+      }
     }
 
     chatInput.value = '';

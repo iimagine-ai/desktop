@@ -13,6 +13,7 @@ window.AppState = {
 const AppRouter = {
   pages: {
     chat: window.ChatPage,
+    recent: window.RecentPage,
     images: window.ImagesPage,
     videos: window.VideosPage,
     knowledge: window.KnowledgePage,
@@ -36,7 +37,8 @@ const AppRouter = {
 
     // Update nav highlight
     document.querySelectorAll('.nav-btn').forEach(btn => {
-      const isActive = btn.dataset.page === page;
+      const btnPage = btn.dataset.page;
+      const isActive = btnPage === page || (btnPage === 'chat' && page === 'recent');
       if (isActive) {
         btn.classList.remove('text-neutral-500', 'dark:text-neutral-400', 'hover:text-neutral-900', 'dark:hover:text-neutral-100', 'hover:bg-white/40', 'dark:hover:bg-neutral-800/40');
         btn.classList.add('bg-white/60', 'dark:bg-neutral-800/60', 'text-neutral-900', 'dark:text-neutral-100', 'shadow-sm', 'border', 'border-white/50', 'dark:border-neutral-700/50');
@@ -224,6 +226,23 @@ document.querySelectorAll('.nav-btn').forEach(btn => {
   });
 });
 
+// ── Sidebar Collapse ─────────────────────────────────────────────
+(async function initSidebarCollapse() {
+  const sidebar = $('#sidebar');
+  const collapseBtn = $('#sidebarCollapseBtn');
+  if (!sidebar || !collapseBtn) return;
+
+  // Restore saved state
+  const isCollapsed = await window.api.settings.get('sidebar.collapsed');
+  if (isCollapsed) sidebar.classList.add('collapsed');
+
+  collapseBtn.addEventListener('click', async () => {
+    sidebar.classList.toggle('collapsed');
+    const nowCollapsed = sidebar.classList.contains('collapsed');
+    await window.api.settings.set('sidebar.collapsed', nowCollapsed);
+  });
+})();
+
 // ── Model Dropdown Toggle ────────────────────────────────────────
 $('#modelDropdownBtn').addEventListener('click', () => {
   const list = $('#modelDropdownList');
@@ -257,8 +276,8 @@ async function loadPluginSidebarItems() {
       btn.setAttribute('data-page', `plugin:${item.id}`);
       btn.className = 'nav-btn w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-neutral-500 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-neutral-100 hover:bg-white/40 dark:hover:bg-neutral-800/40 transition-all group';
       btn.innerHTML = `
-        <span class="text-base group-hover:scale-110 transition-transform">${item.icon}</span>
-        <span class="text-sm font-medium">${item.label}</span>
+        <span class="text-base group-hover:scale-110 transition-transform flex-shrink-0">${item.icon}</span>
+        <span class="text-sm font-medium sidebar-label">${item.label}</span>
       `;
       btn.addEventListener('click', () => {
         AppRouter.navigatePlugin(item.id);

@@ -34,7 +34,7 @@ const KBSelector = {
           <span id="kbSelectionLabel" class="flex-1 truncate">No knowledge base</span>
           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="shrink-0 text-neutral-400"><polyline points="6 9 12 15 18 9"/></svg>
         </button>
-        <div id="kbDropdown" class="hidden absolute bottom-full left-0 right-0 mb-1 bg-white dark:bg-neutral-800 border border-neutral-200/60 dark:border-neutral-700/60 rounded-xl shadow-lg max-h-64 overflow-hidden z-50 flex flex-col">
+        <div id="kbDropdown" class="hidden absolute bottom-full left-0 mb-1 bg-white dark:bg-neutral-800 border border-neutral-200/60 dark:border-neutral-700/60 rounded-xl shadow-lg w-[28rem] max-h-64 overflow-hidden z-50 flex flex-col">
           <div class="px-2 pt-2 pb-1 border-b border-neutral-100 dark:border-neutral-700/50 shrink-0">
             <input id="kbSearchInput" type="text" placeholder="Search files..." 
               class="w-full bg-neutral-50 dark:bg-neutral-700/50 border border-neutral-200/50 dark:border-neutral-600/50 rounded-lg px-2.5 py-1.5 text-[11px] text-neutral-700 dark:text-neutral-300 placeholder-neutral-400 dark:placeholder-neutral-500 focus:bg-white dark:focus:bg-neutral-700 focus:outline-none transition-all" />
@@ -189,12 +189,10 @@ const KBSelector = {
     let html = '<div class="kb-doc-list pl-6 border-l border-neutral-100 dark:border-neutral-700 ml-4">';
     for (const doc of docs) {
       const isSelected = this._isDocumentSelected(collectionId, doc.id);
-      const icon = this._getDocIcon(doc.source_type);
       html += `
         <label class="flex items-center gap-2 px-2 py-1 hover:bg-neutral-50 dark:hover:bg-neutral-700/50 cursor-pointer">
           <input type="checkbox" class="kb-doc-check rounded border-neutral-300 dark:border-neutral-600 text-neutral-900 dark:text-neutral-100 focus:ring-0 focus:ring-offset-0 w-3 h-3"
             data-coll-id="${collectionId}" data-doc-id="${doc.id}" ${isSelected ? 'checked' : ''}>
-          <span class="text-[10px] text-neutral-400 shrink-0">${icon}</span>
           <span class="text-[11px] text-neutral-600 dark:text-neutral-400 truncate">${this._esc(doc.title)}</span>
         </label>
       `;
