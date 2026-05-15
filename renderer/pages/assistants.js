@@ -39,7 +39,7 @@ const AssistantsPage = {
     el.innerHTML = `
       <div class="p-6 space-y-4">
         <div class="flex items-center justify-between">
-          <h2 class="text-lg font-semibold tracking-tight text-neutral-900 dark:text-neutral-100">AI Assistants</h2>
+          <h2 class="text-lg font-semibold tracking-tight text-neutral-900 dark:text-neutral-100">Assistants</h2>
           <button id="asstNewBtn" class="px-4 py-2.5 rounded-lg bg-neutral-900 dark:bg-neutral-100 text-sm font-medium text-white dark:text-neutral-900 hover:bg-neutral-800 dark:hover:bg-neutral-200 transition-all shadow-sm">+ New Assistant</button>
         </div>
         <p class="text-xs text-neutral-500">${allAssistants.length} assistant${allAssistants.length !== 1 ? 's' : ''}${q ? ` · ${filtered.length} match${filtered.length !== 1 ? 'es' : ''}` : ''}</p>
