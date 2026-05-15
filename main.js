@@ -2270,14 +2270,34 @@ app.whenReady().then(async () => {
   // Copy bundled sample plugins to user plugins dir if not present
   const samplePluginsDir = path.join(__dirname, 'plugins');
   const userPluginsDir = pluginManager.getPluginsDir();
+
+  function copyDirFromAsar(src, dest) {
+    if (!fs.existsSync(dest)) fs.mkdirSync(dest, { recursive: true });
+    const entries = fs.readdirSync(src, { withFileTypes: true });
+    for (const entry of entries) {
+      const srcPath = path.join(src, entry.name);
+      const destPath = path.join(dest, entry.name);
+      if (entry.isDirectory()) {
+        copyDirFromAsar(srcPath, destPath);
+      } else {
+        fs.writeFileSync(destPath, fs.readFileSync(srcPath));
+      }
+    }
+  }
+
   if (fs.existsSync(samplePluginsDir)) {
     for (const folder of fs.readdirSync(samplePluginsDir, { withFileTypes: true })) {
       if (!folder.isDirectory()) continue;
+      const src = path.join(samplePluginsDir, folder.name);
       const dest = path.join(userPluginsDir, folder.name);
-      // Always sync bundled plugins (overwrite on every launch to ensure updates propagate)
-      fs.cpSync(path.join(samplePluginsDir, folder.name), dest, { recursive: true });
-      if (!fs.existsSync(dest)) {
-        console.log(`[Plugin] Installed sample plugin: ${folder.name}`);
+      try {
+        if (fs.existsSync(dest)) {
+          fs.rmSync(dest, { recursive: true, force: true });
+        }
+        copyDirFromAsar(src, dest);
+        console.log(`[Plugin] Synced bundled plugin: ${folder.name}`);
+      } catch (err) {
+        console.warn(`[Plugin] Failed to sync ${folder.name}:`, err.message);
       }
     }
   }
