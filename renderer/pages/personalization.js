@@ -15,7 +15,7 @@ window.PersonalizationPage = {
   render(container) {
     container.innerHTML = `<div class="flex-1 overflow-y-auto p-6 space-y-6">
       <div class="flex items-center justify-between">
-        <h1 class="text-lg font-semibold text-neutral-900 dark:text-neutral-100">AI Personas</h1>
+        <h1 class="text-lg font-semibold text-neutral-900 dark:text-neutral-100">Personas</h1>
         <button id="createPersonaBtn" class="px-4 py-2 rounded-lg bg-neutral-900 dark:bg-white text-white dark:text-neutral-900 text-sm font-medium hover:opacity-90 transition-all shadow-sm">+ Create Persona</button>
       </div>
       <div id="personaGrid" class="grid grid-cols-1 sm:grid-cols-2 gap-4"></div>
