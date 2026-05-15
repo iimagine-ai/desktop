@@ -290,6 +290,18 @@ const ChatPage = {
     this.conversations = await window.api.storage.getConversations(50);
     this._renderConvList(convList, messagesEl, welcomeMessage);
 
+    // Check if a specific conversation was requested (e.g. from project chat tab)
+    const pendingId = window._cwPendingConvId;
+    if (pendingId) {
+      window._cwPendingConvId = null;
+      const target = this.conversations.find(c => c.id === pendingId);
+      if (target) {
+        await this._selectConversation(target.id, messagesEl, welcomeMessage);
+        this._highlightConv(convList);
+        return;
+      }
+    }
+
     // Load most recent conversation if exists
     if (this.conversations.length > 0 && !this.activeConversationId) {
       await this._selectConversation(this.conversations[0].id, messagesEl, welcomeMessage);
@@ -484,6 +496,12 @@ const ChatPage = {
 
   async _startNewConversation(convList, messagesEl, welcomeMessage) {
     const id = crypto.randomUUID();
+    // Get active project ID from Client Workspace plugin
+    let projectId = null;
+    try {
+      const activeProject = await window.api.plugins.sendEvent('cw:get-active-project', {});
+      if (activeProject && activeProject.id) projectId = activeProject.id;
+    } catch {}
     await window.api.storage.createConversation({
       id,
       title: 'New conversation',
@@ -491,6 +509,7 @@ const ChatPage = {
       providerType: window.ProviderManager.activeProvider?.type || 'local',
       collectionId: this.activeCollectionId || null,
       kbSelections: this.activeKBSelections.length > 0 ? JSON.stringify(this.activeKBSelections) : null,
+      projectId,
     });
     this.activeConversationId = id;
     this.chatHistory = [];
@@ -668,6 +687,17 @@ const ChatPage = {
       model: pm.activeProvider.name,
       providerType: pm.activeProvider.type,
     });
+
+    // Stamp project_id on this conversation if a project is active and it's not already stamped
+    try {
+      const activeProject = await window.api.plugins.sendEvent('cw:get-active-project', {});
+      if (activeProject && activeProject.id && this.activeConversationId) {
+        await window.api.plugins.sendEvent('cw:stamp-conversation-project', {
+          conversationId: this.activeConversationId,
+          projectId: activeProject.id,
+        });
+      }
+    } catch {}
 
     // Auto-title from first message
     const conv = this.conversations.find(c => c.id === this.activeConversationId);

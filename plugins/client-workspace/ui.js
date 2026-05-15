@@ -1,9 +1,14 @@
 // Client Workspace — UI Rendering
 // Renders sidebar pages and settings panel HTML.
-// Full CRUD for documents: view, edit, delete, status toggle.
+// Tabs: Chat | Tasks | Comms | Files | Outputs | Timeline
 
 const cwDb = require('./db');
 const { renderCommsSection, getCommsScript } = require('./comms-ui');
+const { renderTasksSection, getTasksScript } = require('./tasks-ui');
+const { renderFilesSection, getFilesScript } = require('./files-ui');
+const { renderBillingSection, getBillingScript } = require('./billing-ui');
+const { renderKanbanSection, getKanbanScript } = require('./kanban-ui');
+const { renderNotesSection, getNotesScript } = require('./notes-ui');
 
 /**
  * Render the project list view (no active project selected).
@@ -41,14 +46,27 @@ function renderProjectList(activeProjectId) {
         </button>
       </div>
 
-      <div class="flex gap-4 text-xs text-neutral-500 dark:text-neutral-400">
-        <span>${stats.projects} projects</span>
-        <span>${stats.documents} documents</span>
-        <span>${stats.activeProjects} active</span>
+      <!-- Tabs: Projects | Kanban -->
+      <div class="flex gap-1 border-b border-neutral-200/40 dark:border-neutral-700/40">
+        <button onclick="window.cwListTab('projects')" id="cw-list-tab-projects" class="cw-list-tab px-3 py-2 text-sm font-medium text-neutral-900 dark:text-neutral-100 border-b-2 border-neutral-900 dark:border-neutral-100 whitespace-nowrap">Projects</button>
+        <button onclick="window.cwListTab('kanban')" id="cw-list-tab-kanban" class="cw-list-tab px-3 py-2 text-sm font-medium text-neutral-500 dark:text-neutral-400 border-b-2 border-transparent hover:text-neutral-700 dark:hover:text-neutral-300 whitespace-nowrap">Kanban</button>
       </div>
 
-      <div class="space-y-3">
-        ${projectRows || '<p class="text-sm text-neutral-500 dark:text-neutral-400">No projects yet. Create one to get started.</p>'}
+      <!-- Projects Tab -->
+      <div id="cw-list-panel-projects" class="cw-list-panel">
+        <div class="flex gap-4 text-xs text-neutral-500 dark:text-neutral-400 mb-4">
+          <span>${stats.projects} projects</span>
+          <span>${stats.documents} documents</span>
+          <span>${stats.activeProjects} active</span>
+        </div>
+        <div class="space-y-3">
+          ${projectRows || '<p class="text-sm text-neutral-500 dark:text-neutral-400">No projects yet. Create one to get started.</p>'}
+        </div>
+      </div>
+
+      <!-- Kanban Tab -->
+      <div id="cw-list-panel-kanban" class="cw-list-panel hidden">
+        ${renderKanbanSection()}
       </div>
     </div>
 
@@ -92,6 +110,22 @@ function renderProjectList(activeProjectId) {
     </div>
 
     <script>
+      window.cwListTab = function(tab) {
+        document.querySelectorAll('.cw-list-panel').forEach(p => p.classList.add('hidden'));
+        document.querySelectorAll('.cw-list-tab').forEach(t => {
+          t.classList.remove('text-neutral-900', 'dark:text-neutral-100', 'border-neutral-900', 'dark:border-neutral-100');
+          t.classList.add('text-neutral-500', 'dark:text-neutral-400', 'border-transparent');
+        });
+        document.getElementById('cw-list-panel-' + tab).classList.remove('hidden');
+        const activeTab = document.getElementById('cw-list-tab-' + tab);
+        activeTab.classList.remove('text-neutral-500', 'dark:text-neutral-400', 'border-transparent');
+        activeTab.classList.add('text-neutral-900', 'dark:text-neutral-100', 'border-neutral-900', 'dark:border-neutral-100');
+      };
+      // Alias so navigatePlugin('client-workspace', 'kanban') works
+      window.cwSwitchTab = window.cwListTab;
+
+      ${getKanbanScript()}
+
       window.cwShowCreateProject = function() {
         document.getElementById('cw-create-modal').classList.remove('hidden');
         setTimeout(() => document.getElementById('cw-new-name').focus(), 100);
@@ -119,12 +153,14 @@ function renderProjectList(activeProjectId) {
 
 
 /**
- * Render the project detail view with full document CRUD.
+ * Render the project detail view with 6 tabs:
+ * Chat | Tasks | Comms | Files | Outputs | Timeline
  */
 function renderProjectDetail(project) {
   const documents = cwDb.getDocumentsForProject(project.id);
-  const timeline = cwDb.getTimeline(project.id, 20);
+  const timeline = cwDb.getTimeline(project.id, 30);
 
+  // ── Outputs (formerly Documents) ──
   const docRows = documents.map(d => {
     const statusLabel = d.status === 'final' ? 'final' : 'draft';
     const statusClass = d.status === 'final'
@@ -150,12 +186,35 @@ function renderProjectDetail(project) {
       </div>`;
   }).join('');
 
+  // ── Timeline ──
   const timelineRows = timeline.map(t => `
     <div class="flex gap-2 text-xs py-1.5 border-b border-neutral-100 dark:border-neutral-700/50 last:border-0">
-      <span class="text-neutral-400 dark:text-neutral-500 whitespace-nowrap">${t.created_at?.split('T')[0] || ''}</span>
+      <span class="text-neutral-400 dark:text-neutral-500 whitespace-nowrap">${formatTimelineDate(t.created_at)}</span>
       <span class="text-neutral-700 dark:text-neutral-300">${t.summary}</span>
     </div>
   `).join('');
+
+  // ── Chat tab content — show project conversations ──
+  const chatContent = `
+    <div class="space-y-3">
+      <div class="flex items-center justify-between">
+        <span class="text-xs text-neutral-500 dark:text-neutral-400">Conversations for this project</span>
+        <button onclick="window.cwNewProjectChat('${project.id}')"
+          class="px-4 py-2.5 rounded-lg bg-neutral-900 dark:bg-neutral-100 text-sm font-medium text-white dark:text-neutral-900 hover:bg-neutral-800 dark:hover:bg-neutral-200 transition-all shadow-sm">
+          + New Chat
+        </button>
+      </div>
+      <div class="bg-white/40 dark:bg-neutral-800/40 border border-neutral-200/30 dark:border-neutral-700/30 rounded-xl p-3">
+        <p class="text-xs text-neutral-500 dark:text-neutral-400">
+          <strong class="text-neutral-700 dark:text-neutral-300">Project context active:</strong>
+          All chats started from here automatically use this project's comms, files, and outputs for context.
+        </p>
+      </div>
+      <div id="cw-project-convos" class="space-y-2">
+        <p class="text-xs text-neutral-400 dark:text-neutral-500">Loading...</p>
+      </div>
+    </div>
+  `;
 
   return `
     <div class="p-6 space-y-6">
@@ -186,18 +245,26 @@ function renderProjectDetail(project) {
       ${project.notes ? `<p class="text-sm text-neutral-500 dark:text-neutral-400">${project.notes}</p>` : ''}
       ${project.client_name ? `<p class="text-xs text-neutral-400 dark:text-neutral-500">Client: ${project.client_name}${project.client_email ? ' (' + project.client_email + ')' : ''}</p>` : (project.client_email ? `<p class="text-xs text-neutral-400 dark:text-neutral-500">Client: ${project.client_email}</p>` : '')}
 
-      <!-- Tabs -->
-      <div class="flex gap-1 border-b border-neutral-200/40 dark:border-neutral-700/40">
-        <button onclick="window.cwSwitchTab('docs')" id="cw-tab-docs" class="cw-tab px-4 py-2 text-sm font-medium text-neutral-900 dark:text-neutral-100 border-b-2 border-neutral-900 dark:border-neutral-100">Documents</button>
-        <button onclick="window.cwSwitchTab('comms')" id="cw-tab-comms" class="cw-tab px-4 py-2 text-sm font-medium text-neutral-500 dark:text-neutral-400 border-b-2 border-transparent hover:text-neutral-700 dark:hover:text-neutral-300">Comms</button>
-        <button onclick="window.cwSwitchTab('timeline')" id="cw-tab-timeline" class="cw-tab px-4 py-2 text-sm font-medium text-neutral-500 dark:text-neutral-400 border-b-2 border-transparent hover:text-neutral-700 dark:hover:text-neutral-300">Timeline</button>
+      <!-- Tabs: Chat | Tasks | Comms | Files | Outputs | Timeline -->
+      <div class="flex gap-1 border-b border-neutral-200/40 dark:border-neutral-700/40 overflow-x-auto">
+        <button onclick="window.cwSwitchTab('chat')" id="cw-tab-chat" class="cw-tab px-3 py-2 text-sm font-medium text-neutral-900 dark:text-neutral-100 border-b-2 border-neutral-900 dark:border-neutral-100 whitespace-nowrap">Chat</button>
+        <button onclick="window.cwSwitchTab('tasks')" id="cw-tab-tasks" class="cw-tab px-3 py-2 text-sm font-medium text-neutral-500 dark:text-neutral-400 border-b-2 border-transparent hover:text-neutral-700 dark:hover:text-neutral-300 whitespace-nowrap">Tasks</button>
+        <button onclick="window.cwSwitchTab('comms')" id="cw-tab-comms" class="cw-tab px-3 py-2 text-sm font-medium text-neutral-500 dark:text-neutral-400 border-b-2 border-transparent hover:text-neutral-700 dark:hover:text-neutral-300 whitespace-nowrap">Comms</button>
+        <button onclick="window.cwSwitchTab('files')" id="cw-tab-files" class="cw-tab px-3 py-2 text-sm font-medium text-neutral-500 dark:text-neutral-400 border-b-2 border-transparent hover:text-neutral-700 dark:hover:text-neutral-300 whitespace-nowrap">Files</button>
+        <button onclick="window.cwSwitchTab('notes')" id="cw-tab-notes" class="cw-tab px-3 py-2 text-sm font-medium text-neutral-500 dark:text-neutral-400 border-b-2 border-transparent hover:text-neutral-700 dark:hover:text-neutral-300 whitespace-nowrap">Notes</button>
+        <button onclick="window.cwSwitchTab('outputs')" id="cw-tab-outputs" class="cw-tab px-3 py-2 text-sm font-medium text-neutral-500 dark:text-neutral-400 border-b-2 border-transparent hover:text-neutral-700 dark:hover:text-neutral-300 whitespace-nowrap">Outputs</button>
+        <button onclick="window.cwSwitchTab('billing')" id="cw-tab-billing" class="cw-tab px-3 py-2 text-sm font-medium text-neutral-500 dark:text-neutral-400 border-b-2 border-transparent hover:text-neutral-700 dark:hover:text-neutral-300 whitespace-nowrap">Billing</button>
+        <button onclick="window.cwSwitchTab('timeline')" id="cw-tab-timeline" class="cw-tab px-3 py-2 text-sm font-medium text-neutral-500 dark:text-neutral-400 border-b-2 border-transparent hover:text-neutral-700 dark:hover:text-neutral-300 whitespace-nowrap">Timeline</button>
       </div>
 
-      <!-- Documents Tab -->
-      <div id="cw-panel-docs" class="cw-panel">
-        <div class="space-y-2">
-          ${docRows || '<p class="text-sm text-neutral-500 dark:text-neutral-400">No documents yet. Save an AI response from chat to create one.</p>'}
-        </div>
+      <!-- Chat Tab -->
+      <div id="cw-panel-chat" class="cw-panel">
+        ${chatContent}
+      </div>
+
+      <!-- Tasks Tab -->
+      <div id="cw-panel-tasks" class="cw-panel hidden">
+        ${renderTasksSection(project)}
       </div>
 
       <!-- Comms Tab -->
@@ -205,9 +272,31 @@ function renderProjectDetail(project) {
         ${renderCommsSection(project)}
       </div>
 
+      <!-- Files Tab -->
+      <div id="cw-panel-files" class="cw-panel hidden">
+        ${renderFilesSection(project)}
+      </div>
+
+      <!-- Notes Tab -->
+      <div id="cw-panel-notes" class="cw-panel hidden">
+        ${renderNotesSection(project)}
+      </div>
+
+      <!-- Outputs Tab (formerly Documents) -->
+      <div id="cw-panel-outputs" class="cw-panel hidden">
+        <div class="space-y-2">
+          ${docRows || '<p class="text-sm text-neutral-500 dark:text-neutral-400">No outputs yet. Save an AI response from chat to create one.</p>'}
+        </div>
+      </div>
+
+      <!-- Billing Tab -->
+      <div id="cw-panel-billing" class="cw-panel hidden">
+        ${renderBillingSection(project)}
+      </div>
+
       <!-- Timeline Tab -->
       <div id="cw-panel-timeline" class="cw-panel hidden">
-        <div class="max-h-64 overflow-auto rounded-xl border border-neutral-200/40 dark:border-neutral-700/40 p-3 bg-white/30 dark:bg-neutral-800/30">
+        <div class="max-h-80 overflow-auto rounded-xl border border-neutral-200/40 dark:border-neutral-700/40 p-3 bg-white/30 dark:bg-neutral-800/30">
           ${timelineRows || '<p class="text-sm text-neutral-500 dark:text-neutral-400">No activity yet.</p>'}
         </div>
       </div>
@@ -275,9 +364,54 @@ function renderProjectDetail(project) {
         const activeTab = document.getElementById('cw-tab-' + tab);
         activeTab.classList.remove('text-neutral-500', 'dark:text-neutral-400', 'border-transparent');
         activeTab.classList.add('text-neutral-900', 'dark:text-neutral-100', 'border-neutral-900', 'dark:border-neutral-100');
+        // Load scan status when files tab is shown
+        if (tab === 'files' && window.cwLoadScanStatus) {
+          window.cwLoadScanStatus('${project.id}');
+        }
       };
 
       ${getCommsScript()}
+      ${getTasksScript()}
+      ${getFilesScript()}
+      ${getBillingScript()}
+      ${getNotesScript()}
+
+      // Load project conversations for Chat tab
+      (async function() {
+        try {
+          const convos = await window.api.plugins.sendEvent('cw:get-project-conversations', { projectId: '${project.id}' });
+          const container = document.getElementById('cw-project-convos');
+          if (!container) return;
+          if (!convos || convos.length === 0) {
+            container.innerHTML = '<p class="text-sm text-neutral-500 dark:text-neutral-400">No conversations yet. Start a new chat to begin.</p>';
+            return;
+          }
+          container.innerHTML = convos.map(function(c) {
+            const date = c.updated_at ? c.updated_at.split('T')[0] : '';
+            return '<div class="bg-white/50 dark:bg-neutral-800/50 border border-neutral-200/40 dark:border-neutral-700/40 rounded-xl p-3 hover:bg-white/80 dark:hover:bg-neutral-700/60 transition-all cursor-pointer" onclick="window.cwOpenConversation(\\'' + c.id + '\\')">' +
+              '<div class="flex items-center justify-between">' +
+              '<span class="text-sm font-medium text-neutral-900 dark:text-neutral-100 truncate">' + (c.title || 'Untitled') + '</span>' +
+              '<span class="text-xs text-neutral-400 dark:text-neutral-500 shrink-0 ml-2">' + date + '</span>' +
+              '</div></div>';
+          }).join('');
+        } catch (e) {
+          const container = document.getElementById('cw-project-convos');
+          if (container) container.innerHTML = '<p class="text-xs text-red-500">Failed to load conversations</p>';
+        }
+      })();
+
+      // Load notes list
+      window.cwLoadNotes('${project.id}');
+
+      window.cwOpenConversation = function(convId) {
+        // Set the pending conversation ID so chat page loads it on render
+        window._cwPendingConvId = convId;
+        if (window.AppRouter) window.AppRouter.navigate('chat');
+      };
+      window.cwNewProjectChat = function(projectId) {
+        // Navigate to chat — project is already active so new conv will be linked
+        if (window.AppRouter) window.AppRouter.navigate('chat');
+      };
 
       window.cwDeselectProject = async function() {
         await window.api.plugins.sendEvent('cw:deselect-project', {});
@@ -338,15 +472,28 @@ function renderProjectDetail(project) {
       };
       window.cwToggleDocStatus = async function(id, newStatus) {
         await window.api.plugins.sendEvent('cw:update-document', { id, status: newStatus });
-        if (window.AppRouter) window.AppRouter.navigatePlugin('client-workspace');
+        if (window.AppRouter) window.AppRouter.navigatePlugin('client-workspace', 'outputs');
       };
       window.cwDeleteDocument = async function(id, title) {
         if (!confirm('Delete document "' + title + '"?')) return;
         await window.api.plugins.sendEvent('cw:delete-document', { id });
-        if (window.AppRouter) window.AppRouter.navigatePlugin('client-workspace');
+        if (window.AppRouter) window.AppRouter.navigatePlugin('client-workspace', 'outputs');
       };
     </script>
   `;
+}
+
+/**
+ * Format timeline date for display.
+ */
+function formatTimelineDate(dateStr) {
+  if (!dateStr) return '';
+  const d = new Date(dateStr);
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  const hours = String(d.getHours()).padStart(2, '0');
+  const mins = String(d.getMinutes()).padStart(2, '0');
+  return `${month}/${day} ${hours}:${mins}`;
 }
 
 /**
@@ -370,7 +517,7 @@ function renderSettings(activeProjectId) {
         </div>
         <div class="bg-white/50 dark:bg-neutral-800/50 border border-neutral-200/40 dark:border-neutral-700/40 rounded-xl p-3">
           <div class="text-2xl font-bold text-neutral-900 dark:text-neutral-100">${stats.documents}</div>
-          <div class="text-xs text-neutral-500 dark:text-neutral-400">Documents</div>
+          <div class="text-xs text-neutral-500 dark:text-neutral-400">Outputs</div>
         </div>
         <div class="bg-white/50 dark:bg-neutral-800/50 border border-neutral-200/40 dark:border-neutral-700/40 rounded-xl p-3">
           <div class="text-2xl font-bold text-neutral-900 dark:text-neutral-100">${stats.activeProjects}</div>
@@ -395,6 +542,10 @@ function renderSettings(activeProjectId) {
       </div>
     </div>
   `;
+}
+
+function escHtml(str) {
+  return (str || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }
 
 module.exports = {

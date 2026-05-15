@@ -85,9 +85,71 @@ function createTables() {
       ON cw_comms(project_id);
     CREATE INDEX IF NOT EXISTS idx_cw_comms_date
       ON cw_comms(project_id, comm_date DESC);
+
+    CREATE TABLE IF NOT EXISTS cw_tasks (
+      id TEXT PRIMARY KEY,
+      project_id TEXT NOT NULL,
+      title TEXT NOT NULL,
+      description TEXT,
+      status TEXT NOT NULL DEFAULT 'todo',
+      due_date TEXT,
+      position INTEGER DEFAULT 0,
+      created_at TEXT DEFAULT (datetime('now')),
+      updated_at TEXT DEFAULT (datetime('now')),
+      FOREIGN KEY (project_id) REFERENCES cw_projects(id) ON DELETE CASCADE
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_cw_tasks_project
+      ON cw_tasks(project_id);
+    CREATE INDEX IF NOT EXISTS idx_cw_tasks_status
+      ON cw_tasks(project_id, status);
+
+    CREATE TABLE IF NOT EXISTS cw_project_folders (
+      id TEXT PRIMARY KEY,
+      project_id TEXT NOT NULL,
+      folder_path TEXT NOT NULL,
+      folder_name TEXT NOT NULL,
+      auto_index INTEGER DEFAULT 0,
+      created_at TEXT DEFAULT (datetime('now')),
+      FOREIGN KEY (project_id) REFERENCES cw_projects(id) ON DELETE CASCADE
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_cw_project_folders_project
+      ON cw_project_folders(project_id);
+
+    CREATE TABLE IF NOT EXISTS cw_billing_items (
+      id TEXT PRIMARY KEY,
+      project_id TEXT NOT NULL,
+      name TEXT NOT NULL,
+      amount REAL NOT NULL DEFAULT 0,
+      completed INTEGER NOT NULL DEFAULT 0,
+      billed INTEGER NOT NULL DEFAULT 0,
+      paid INTEGER NOT NULL DEFAULT 0,
+      created_at TEXT DEFAULT (datetime('now')),
+      updated_at TEXT DEFAULT (datetime('now')),
+      FOREIGN KEY (project_id) REFERENCES cw_projects(id) ON DELETE CASCADE
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_cw_billing_items_project
+      ON cw_billing_items(project_id);
   `);
 
   console.log(`${LOG} Tables initialized`);
+
+  // Migration: add client_name, client_email columns if missing (for existing databases)
+  const projCols = db.prepare("PRAGMA table_info(cw_projects)").all().map(c => c.name);
+  if (!projCols.includes('client_name')) {
+    db.exec(`ALTER TABLE cw_projects ADD COLUMN client_name TEXT`);
+    db.exec(`ALTER TABLE cw_projects ADD COLUMN client_email TEXT`);
+    console.log(`${LOG} Migrated cw_projects: added client_name, client_email`);
+  }
+
+  // Migration: add on_kanban column to cw_tasks if missing
+  const taskCols = db.prepare("PRAGMA table_info(cw_tasks)").all().map(c => c.name);
+  if (!taskCols.includes('on_kanban')) {
+    db.exec(`ALTER TABLE cw_tasks ADD COLUMN on_kanban INTEGER DEFAULT 0`);
+    console.log(`${LOG} Migrated cw_tasks: added on_kanban`);
+  }
 }
 
 // ── Projects ────────────────────────────────────────────────────
@@ -284,6 +346,168 @@ function deleteComm(id) {
   return true;
 }
 
+// ── Tasks ────────────────────────────────────────────────────────
+
+function createTask({ projectId, title, description, status, dueDate }) {
+  const id = crypto.randomUUID();
+  const maxPos = db.prepare(
+    'SELECT COALESCE(MAX(position), -1) + 1 as next FROM cw_tasks WHERE project_id = ? AND status = ?'
+  ).get(projectId, status || 'todo');
+  db.prepare(`
+    INSERT INTO cw_tasks (id, project_id, title, description, status, due_date, position)
+    VALUES (?, ?, ?, ?, ?, ?, ?)
+  `).run(id, projectId, title, description || null, status || 'todo', dueDate || null, maxPos.next);
+  db.prepare("UPDATE cw_projects SET updated_at = datetime('now') WHERE id = ?").run(projectId);
+  addTimelineEntry(projectId, 'task_created', `Task created: "${title}"`);
+  return id;
+}
+
+function getTasks(projectId) {
+  return db.prepare(
+    'SELECT * FROM cw_tasks WHERE project_id = ? ORDER BY status, position ASC'
+  ).all(projectId);
+}
+
+function getTask(id) {
+  return db.prepare('SELECT * FROM cw_tasks WHERE id = ?').get(id);
+}
+
+function updateTask(id, { title, description, status, dueDate, position }) {
+  const task = getTask(id);
+  if (!task) return false;
+  db.prepare(`
+    UPDATE cw_tasks
+    SET title = COALESCE(?, title),
+        description = COALESCE(?, description),
+        status = COALESCE(?, status),
+        due_date = COALESCE(?, due_date),
+        position = COALESCE(?, position),
+        updated_at = datetime('now')
+    WHERE id = ?
+  `).run(
+    title || null,
+    description !== undefined ? description : null,
+    status || null,
+    dueDate !== undefined ? dueDate : null,
+    position !== undefined ? position : null,
+    id
+  );
+  if (status && status !== task.status) {
+    addTimelineEntry(task.project_id, 'task_moved', `Task "${task.title}" moved to ${status}`);
+  }
+  return true;
+}
+
+function deleteTask(id) {
+  const task = getTask(id);
+  if (!task) return false;
+  db.prepare('DELETE FROM cw_tasks WHERE id = ?').run(id);
+  addTimelineEntry(task.project_id, 'task_deleted', `Task deleted: "${task.title}"`);
+  return true;
+}
+
+function getKanbanTasks() {
+  return db.prepare(
+    `SELECT t.*, p.name as project_name FROM cw_tasks t
+     JOIN cw_projects p ON t.project_id = p.id
+     WHERE t.on_kanban = 1 AND p.status = 'active'
+     ORDER BY t.status, t.position ASC`
+  ).all();
+}
+
+function toggleTaskKanban(id, onKanban) {
+  const task = getTask(id);
+  if (!task) return false;
+  db.prepare('UPDATE cw_tasks SET on_kanban = ? WHERE id = ?').run(onKanban ? 1 : 0, id);
+  return true;
+}
+
+// ── Project Folders ─────────────────────────────────────────────
+
+function addProjectFolder({ projectId, folderPath, folderName, autoIndex }) {
+  const id = crypto.randomUUID();
+  db.prepare(`
+    INSERT INTO cw_project_folders (id, project_id, folder_path, folder_name, auto_index)
+    VALUES (?, ?, ?, ?, ?)
+  `).run(id, projectId, folderPath, folderName, autoIndex ? 1 : 0);
+  db.prepare("UPDATE cw_projects SET updated_at = datetime('now') WHERE id = ?").run(projectId);
+  addTimelineEntry(projectId, 'folder_connected', `Folder connected: "${folderName}"`);
+  return id;
+}
+
+function getProjectFolders(projectId) {
+  return db.prepare(
+    'SELECT * FROM cw_project_folders WHERE project_id = ? ORDER BY created_at DESC'
+  ).all(projectId);
+}
+
+function removeProjectFolder(id) {
+  const folder = db.prepare('SELECT * FROM cw_project_folders WHERE id = ?').get(id);
+  if (!folder) return false;
+  db.prepare('DELETE FROM cw_project_folders WHERE id = ?').run(id);
+  addTimelineEntry(folder.project_id, 'folder_removed', `Folder removed: "${folder.folder_name}"`);
+  return true;
+}
+
+function updateProjectFolder(id, { autoIndex }) {
+  db.prepare('UPDATE cw_project_folders SET auto_index = ? WHERE id = ?').run(autoIndex ? 1 : 0, id);
+  return true;
+}
+
+// ── Billing Items ───────────────────────────────────────────────
+
+function createBillingItem({ projectId, name, amount }) {
+  const id = crypto.randomUUID();
+  db.prepare(`
+    INSERT INTO cw_billing_items (id, project_id, name, amount)
+    VALUES (?, ?, ?, ?)
+  `).run(id, projectId, name, amount || 0);
+  db.prepare("UPDATE cw_projects SET updated_at = datetime('now') WHERE id = ?").run(projectId);
+  addTimelineEntry(projectId, 'billing_item_created', `Billing item created: "${name}"`);
+  return id;
+}
+
+function getBillingItems(projectId) {
+  return db.prepare(
+    'SELECT * FROM cw_billing_items WHERE project_id = ? ORDER BY created_at ASC'
+  ).all(projectId);
+}
+
+function getBillingItem(id) {
+  return db.prepare('SELECT * FROM cw_billing_items WHERE id = ?').get(id);
+}
+
+function updateBillingItem(id, { name, amount, completed, billed, paid }) {
+  const item = getBillingItem(id);
+  if (!item) return false;
+  db.prepare(`
+    UPDATE cw_billing_items
+    SET name = COALESCE(?, name),
+        amount = COALESCE(?, amount),
+        completed = COALESCE(?, completed),
+        billed = COALESCE(?, billed),
+        paid = COALESCE(?, paid),
+        updated_at = datetime('now')
+    WHERE id = ?
+  `).run(
+    name || null,
+    amount !== undefined ? amount : null,
+    completed !== undefined ? (completed ? 1 : 0) : null,
+    billed !== undefined ? (billed ? 1 : 0) : null,
+    paid !== undefined ? (paid ? 1 : 0) : null,
+    id
+  );
+  return true;
+}
+
+function deleteBillingItem(id) {
+  const item = getBillingItem(id);
+  if (!item) return false;
+  db.prepare('DELETE FROM cw_billing_items WHERE id = ?').run(id);
+  addTimelineEntry(item.project_id, 'billing_item_deleted', `Billing item deleted: "${item.name}"`);
+  return true;
+}
+
 // ── Stats ───────────────────────────────────────────────────────
 
 function getStats() {
@@ -323,6 +547,25 @@ module.exports = {
   getComms,
   getComm,
   deleteComm,
+  // Tasks
+  createTask,
+  getTasks,
+  getTask,
+  updateTask,
+  deleteTask,
+  getKanbanTasks,
+  toggleTaskKanban,
+  // Project Folders
+  addProjectFolder,
+  getProjectFolders,
+  removeProjectFolder,
+  updateProjectFolder,
+  // Billing Items
+  createBillingItem,
+  getBillingItems,
+  getBillingItem,
+  updateBillingItem,
+  deleteBillingItem,
   // Stats
   getStats,
 };

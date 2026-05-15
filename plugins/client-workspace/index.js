@@ -6,6 +6,7 @@ const cwDb = require('./db');
 const ui = require('./ui');
 const { buildProjectContext, summarizeForTimeline } = require('./context');
 const crypto = require('crypto');
+const cpu = require('../cortex-lite/cpu');
 
 const LOG = '[ClientWorkspace]';
 
@@ -215,8 +216,8 @@ module.exports = {
       return null;
     }
 
-    // Take top 10 combined
-    const top = merged.slice(0, 10);
+    // Take top 5 combined (RAG search already provides chunks from this collection)
+    const top = merged.slice(0, 5);
     console.log(`${LOG} Hybrid search: ${top.length} results (${keywordResults.length} keyword + ${vectorResults.length} vector, ${top.length} after dedup)`);
 
     const project = cwDb.getProject(projectId);
@@ -225,7 +226,7 @@ module.exports = {
       return `[Source: ${r.docTitle} (${label})]\n${r.content}`;
     });
 
-    return `[Project Communications — Retrieved via hybrid search (keyword + semantic) from project "${project?.name}". Use this data to answer the user's question.]\n\n${snippets.join('\n\n---\n\n')}\n\n[End Project Communications]`;
+    return `[Project Communications — Retrieved via hybrid search (keyword + semantic) from project "${project?.name}". ${top.length} of ${merged.length} matching chunks shown, sorted by relevance.]\n\n${snippets.join('\n\n---\n\n')}\n\n[End Project Communications]`;
   },
 
   /**
@@ -335,6 +336,7 @@ module.exports = {
         clientEmail: data.clientEmail,
         notes: data.notes,
       });
+      this._ensureProjectDirs(id);
       activeProjectId = id;
       store.set('client-workspace.activeProjectId', id);
       return { success: true, id };
@@ -389,6 +391,29 @@ module.exports = {
     if (eventName === 'cw:get-documents') {
       return cwDb.getDocumentsForProject(data.projectId);
     }
+    if (eventName === 'cw:get-project-conversations') {
+      // Get conversations linked to this project from main storage
+      if (context && context.db) {
+        try {
+          return context.db.prepare(
+            'SELECT id, title, updated_at FROM conversations WHERE project_id = ? ORDER BY updated_at DESC LIMIT 30'
+          ).all(data.projectId);
+        } catch { return []; }
+      }
+      return [];
+    }
+    if (eventName === 'cw:stamp-conversation-project') {
+      // Stamp project_id on a conversation that doesn't have one yet
+      if (context && context.db && data.conversationId && data.projectId) {
+        try {
+          context.db.prepare(
+            'UPDATE conversations SET project_id = ? WHERE id = ? AND (project_id IS NULL OR project_id = ?)'
+          ).run(data.projectId, data.conversationId, data.projectId);
+          return { success: true };
+        } catch { return { success: false }; }
+      }
+      return { success: false };
+    }
     if (eventName === 'cw:get-timeline') {
       return cwDb.getTimeline(data.projectId, data.limit || 50);
     }
@@ -406,6 +431,20 @@ module.exports = {
 
       // Index into KB vector store for RAG search
       this._indexCommToKB(id, data.projectId, data.content, data.source || 'other', data.commDate || new Date().toISOString().split('T')[0]);
+
+      // CPU: extract entities/relationships/facts into local KG (fire-and-forget)
+      const project = cwDb.getProject(data.projectId);
+      cpu.processAsync({
+        content: data.content,
+        source: 'comm',
+        metadata: {
+          projectId: data.projectId,
+          projectName: project?.name,
+          clientName: project?.client_name,
+          commDate: data.commDate,
+          commSource: data.source,
+        },
+      });
 
       return { success: true, id };
     }
@@ -426,6 +465,120 @@ module.exports = {
     }
     if (eventName === 'cw:reindex-comms') {
       return this._reindexAllComms(data.projectId);
+    }
+    if (eventName === 'cw:create-task') {
+      const id = cwDb.createTask({
+        projectId: data.projectId,
+        title: data.title,
+        description: data.description,
+        status: data.status,
+        dueDate: data.dueDate,
+      });
+      return { success: true, id };
+    }
+    if (eventName === 'cw:get-tasks') {
+      return cwDb.getTasks(data.projectId);
+    }
+    if (eventName === 'cw:get-task') {
+      return cwDb.getTask(data.id);
+    }
+    if (eventName === 'cw:update-task') {
+      return cwDb.updateTask(data.id, {
+        title: data.title,
+        description: data.description,
+        status: data.status,
+        dueDate: data.dueDate,
+        position: data.position,
+      });
+    }
+    if (eventName === 'cw:delete-task') {
+      return cwDb.deleteTask(data.id);
+    }
+    if (eventName === 'cw:get-kanban-tasks') {
+      return cwDb.getKanbanTasks();
+    }
+    if (eventName === 'cw:toggle-task-kanban') {
+      return cwDb.toggleTaskKanban(data.id, data.onKanban);
+    }
+    if (eventName === 'cw:connect-folder') {
+      const id = cwDb.addProjectFolder({
+        projectId: data.projectId,
+        folderPath: data.folderPath,
+        folderName: data.folderName,
+        autoIndex: data.autoIndex || false,
+      });
+      return { success: true, id };
+    }
+    if (eventName === 'cw:get-folders') {
+      return cwDb.getProjectFolders(data.projectId);
+    }
+    if (eventName === 'cw:remove-folder') {
+      return cwDb.removeProjectFolder(data.id);
+    }
+    if (eventName === 'cw:toggle-folder-index') {
+      return cwDb.updateProjectFolder(data.id, { autoIndex: data.autoIndex });
+    }
+    // ── Project Files (disk-based files/ folder) ─────────────────
+    if (eventName === 'cw:get-project-files') {
+      const filesDir = this._getFilesDir(data.projectId);
+      this._ensureFilesDir(data.projectId);
+      const files = this._listProjectFiles(data.projectId);
+      const scanMeta = store.get(`client-workspace.lastScan.${data.projectId}`, null);
+      return { filesDir, files, lastScan: scanMeta };
+    }
+    if (eventName === 'cw:get-files-path') {
+      const filesDir = this._getFilesDir(data.projectId);
+      this._ensureFilesDir(data.projectId);
+      return { path: filesDir };
+    }
+    if (eventName === 'cw:scan-index-files') {
+      return this._scanAndIndexFiles(data.projectId);
+    }
+    // ── Billing ──────────────────────────────────────────────────
+    if (eventName === 'cw:create-billing-item') {
+      const id = cwDb.createBillingItem({
+        projectId: data.projectId,
+        name: data.name,
+        amount: data.amount,
+      });
+      return { success: true, id };
+    }
+    if (eventName === 'cw:get-billing-items') {
+      return cwDb.getBillingItems(data.projectId);
+    }
+    if (eventName === 'cw:get-billing-item') {
+      return cwDb.getBillingItem(data.id);
+    }
+    if (eventName === 'cw:update-billing-item') {
+      return cwDb.updateBillingItem(data.id, {
+        name: data.name,
+        amount: data.amount,
+        completed: data.completed,
+        billed: data.billed,
+        paid: data.paid,
+      });
+    }
+    if (eventName === 'cw:delete-billing-item') {
+      return cwDb.deleteBillingItem(data.id);
+    }
+    // ── Notes ──────────────────────────────────────────────────
+    if (eventName === 'cw:get-notes') {
+      return this._getNotes(data.projectId);
+    }
+    if (eventName === 'cw:get-note') {
+      return this._getNote(data.projectId, data.filename);
+    }
+    if (eventName === 'cw:create-note') {
+      return this._createNote(data.projectId, data.title, data.content);
+    }
+    if (eventName === 'cw:update-note') {
+      return this._updateNote(data.projectId, data.filename, data.content);
+    }
+    if (eventName === 'cw:delete-note') {
+      return this._deleteNote(data.projectId, data.filename);
+    }
+    if (eventName === 'cw:get-notes-path') {
+      return this._getNotesPath(data.projectId);
     }
     return null;
   },
@@ -494,6 +647,241 @@ module.exports = {
 
     const project = cwDb.getProject(activeProjectId);
     return { success: true, docId, projectName: project?.name };
+  },
+
+  // ── Notes (disk-based .md files) ────────────────────────────
+
+  _getProjectDir(projectId) {
+    const os = require('os');
+    const path = require('path');
+    return path.join(os.homedir(), 'Documents', 'IIMAGINE', 'projects', projectId);
+  },
+
+  _getNotesDir(projectId) {
+    const path = require('path');
+    return path.join(this._getProjectDir(projectId), 'notes');
+  },
+
+  _ensureNotesDir(projectId) {
+    const fs = require('fs');
+    const dir = this._getNotesDir(projectId);
+    fs.mkdirSync(dir, { recursive: true });
+    return dir;
+  },
+
+  _getFilesDir(projectId) {
+    const path = require('path');
+    return path.join(this._getProjectDir(projectId), 'files');
+  },
+
+  _ensureFilesDir(projectId) {
+    const fs = require('fs');
+    const dir = this._getFilesDir(projectId);
+    fs.mkdirSync(dir, { recursive: true });
+    return dir;
+  },
+
+  _ensureProjectDirs(projectId) {
+    this._ensureNotesDir(projectId);
+    this._ensureFilesDir(projectId);
+  },
+
+  _listProjectFiles(projectId) {
+    const fs = require('fs');
+    const path = require('path');
+    const dir = this._getFilesDir(projectId);
+    if (!fs.existsSync(dir)) return [];
+    let entries;
+    try { entries = fs.readdirSync(dir, { withFileTypes: true }); } catch { return []; }
+    return entries
+      .filter(e => e.isFile() && !e.name.startsWith('.'))
+      .map(e => {
+        const fullPath = path.join(dir, e.name);
+        let stat;
+        try { stat = fs.statSync(fullPath); } catch { return null; }
+        return {
+          name: e.name,
+          ext: path.extname(e.name).toLowerCase(),
+          size: stat.size,
+          modified: stat.mtime.toISOString(),
+        };
+      })
+      .filter(Boolean)
+      .sort((a, b) => new Date(b.modified) - new Date(a.modified));
+  },
+
+  async _scanAndIndexFiles(projectId) {
+    const fs = require('fs');
+    const path = require('path');
+    const dir = this._ensureFilesDir(projectId);
+    const SUPPORTED = ['.txt', '.md', '.pdf', '.docx', '.csv'];
+
+    if (!fs.existsSync(dir)) return { success: false, error: 'Files directory not found' };
+
+    const collectionId = this._ensureProjectCollection(projectId);
+    let indexed = 0;
+
+    let entries;
+    try { entries = fs.readdirSync(dir, { withFileTypes: true }); } catch { return { success: false, error: 'Cannot read directory' }; }
+
+    for (const entry of entries) {
+      if (!entry.isFile() || entry.name.startsWith('.')) continue;
+      const ext = path.extname(entry.name).toLowerCase();
+      if (!SUPPORTED.includes(ext)) continue;
+
+      const fullPath = path.join(dir, entry.name);
+      let content = null;
+      try {
+        if (ext === '.txt' || ext === '.md' || ext === '.csv') {
+          content = fs.readFileSync(fullPath, 'utf-8');
+        } else if (ext === '.pdf') {
+          const pdfParse = require('pdf-parse');
+          const buffer = fs.readFileSync(fullPath);
+          const data = await pdfParse(buffer);
+          content = data.text || '';
+        } else if (ext === '.docx') {
+          const mammoth = require('mammoth');
+          const buffer = fs.readFileSync(fullPath);
+          const result = await mammoth.extractRawText({ buffer });
+          content = result.value || '';
+        }
+      } catch (err) {
+        console.warn(`[ClientWorkspace] Parse error for ${entry.name}:`, err.message);
+        continue;
+      }
+
+      if (!content || !content.trim()) continue;
+
+      const docId = `cw_file_${projectId}_${entry.name}`;
+      try { kbStorage.deleteDocument(docId); } catch (e) { /* ignore */ }
+      kbStorage.addDocument({
+        id: docId,
+        collectionId,
+        title: `File: ${entry.name}`,
+        sourceType: 'file',
+        originalFilename: entry.name,
+        content,
+      });
+      indexed++;
+    }
+
+    // Trigger auto-embed
+    if (autoEmbedCollection) {
+      autoEmbedCollection(collectionId).catch(err =>
+        console.warn(`[ClientWorkspace] Auto-embed after file scan failed:`, err.message)
+      );
+    }
+
+    const scanMeta = { time: new Date().toISOString(), count: indexed };
+    store.set(`client-workspace.lastScan.${projectId}`, scanMeta);
+
+    cwDb.addTimelineEntry(projectId, 'files_scanned', `Scanned & indexed ${indexed} file${indexed !== 1 ? 's' : ''}`);
+    return { success: true, indexed, total: entries.filter(e => e.isFile()).length };
+  },
+
+  _getNotes(projectId) {
+    const fs = require('fs');
+    const path = require('path');
+    const dir = this._getNotesDir(projectId);
+    if (!fs.existsSync(dir)) return [];
+    const files = fs.readdirSync(dir).filter(f => f.endsWith('.md'));
+    return files.map(f => {
+      const filePath = path.join(dir, f);
+      const stat = fs.statSync(filePath);
+      const content = fs.readFileSync(filePath, 'utf-8');
+      return {
+        filename: f,
+        title: f.replace(/\.md$/, ''),
+        modified: stat.mtime.toISOString(),
+        preview: content.substring(0, 150).replace(/\n/g, ' '),
+        size: content.length,
+      };
+    }).sort((a, b) => new Date(b.modified) - new Date(a.modified));
+  },
+
+  _getNote(projectId, filename) {
+    const fs = require('fs');
+    const path = require('path');
+    const filePath = path.join(this._getNotesDir(projectId), filename);
+    if (!fs.existsSync(filePath)) return null;
+    const content = fs.readFileSync(filePath, 'utf-8');
+    const stat = fs.statSync(filePath);
+    return { filename, title: filename.replace(/\.md$/, ''), content, modified: stat.mtime.toISOString() };
+  },
+
+  _createNote(projectId, title, content) {
+    const fs = require('fs');
+    const path = require('path');
+    const dir = this._ensureNotesDir(projectId);
+    const safeName = title.replace(/[^a-zA-Z0-9_\- ]/g, '').trim().replace(/\s+/g, '-').toLowerCase();
+    const filename = safeName + '.md';
+    const filePath = path.join(dir, filename);
+    if (fs.existsSync(filePath)) return { success: false, error: 'A note with this name already exists' };
+    fs.writeFileSync(filePath, content || '', 'utf-8');
+    const project = cwDb.getProject(projectId);
+    cpu.processAsync({
+      content: content || '',
+      source: 'note',
+      metadata: { projectId, projectName: project?.name, noteTitle: title },
+    });
+    this._indexNoteToKB(projectId, filename, content || '', title);
+    cwDb.addTimelineEntry(projectId, 'note_created', `Note created: "${title}"`);
+    return { success: true, filename };
+  },
+
+  _updateNote(projectId, filename, content) {
+    const fs = require('fs');
+    const path = require('path');
+    const filePath = path.join(this._getNotesDir(projectId), filename);
+    if (!fs.existsSync(filePath)) return { success: false, error: 'Note not found' };
+    fs.writeFileSync(filePath, content, 'utf-8');
+    const project = cwDb.getProject(projectId);
+    const title = filename.replace(/\.md$/, '');
+    cpu.processAsync({
+      content,
+      source: 'note',
+      metadata: { projectId, projectName: project?.name, noteTitle: title },
+    });
+    this._indexNoteToKB(projectId, filename, content, title);
+    return { success: true };
+  },
+
+  _deleteNote(projectId, filename) {
+    const fs = require('fs');
+    const path = require('path');
+    const filePath = path.join(this._getNotesDir(projectId), filename);
+    if (!fs.existsSync(filePath)) return { success: false, error: 'Note not found' };
+    fs.unlinkSync(filePath);
+    const docId = `cw_note_${projectId}_${filename}`;
+    try { kbStorage.deleteDocument(docId); } catch (e) { /* ignore */ }
+    const title = filename.replace(/\.md$/, '');
+    cwDb.addTimelineEntry(projectId, 'note_deleted', `Note deleted: "${title}"`);
+    return { success: true };
+  },
+
+  _getNotesPath(projectId) {
+    return this._getNotesDir(projectId);
+  },
+
+  _indexNoteToKB(projectId, filename, content, title) {
+    if (!kbStorage || !content) return;
+    const collectionId = this._ensureProjectCollection(projectId);
+    const docId = `cw_note_${projectId}_${filename}`;
+    try { kbStorage.deleteDocument(docId); } catch (e) { /* ignore */ }
+    kbStorage.addDocument({
+      id: docId,
+      collectionId,
+      title: `Note: ${title}`,
+      sourceType: 'note',
+      originalFilename: filename,
+      content,
+      description: `Project note: ${title}`,
+    });
+    if (autoEmbedCollection) {
+      autoEmbedCollection(collectionId).catch(err =>
+        console.warn(`${LOG} Auto-embed after note save failed:`, err.message)
+      );
+    }
   },
 
   // ── Sidebar Page ────────────────────────────────────────────

@@ -152,12 +152,12 @@ function getCommsScript() {
       const source = document.getElementById('cw-comm-source').value;
       const commDate = document.getElementById('cw-comm-date').value;
       await window.api.plugins.sendEvent('cw:add-comm', { projectId, source, content, commDate });
-      if (window.AppRouter) window.AppRouter.navigatePlugin('client-workspace');
+      if (window.AppRouter) window.AppRouter.navigatePlugin('client-workspace', 'comms');
     };
     window.cwDeleteComm = async function(id) {
       if (!confirm('Delete this communication entry?')) return;
       await window.api.plugins.sendEvent('cw:delete-comm', { id });
-      if (window.AppRouter) window.AppRouter.navigatePlugin('client-workspace');
+      if (window.AppRouter) window.AppRouter.navigatePlugin('client-workspace', 'comms');
     };
     window.cwViewComm = async function(id) {
       const comm = await window.api.plugins.sendEvent('cw:open-comm', { id });

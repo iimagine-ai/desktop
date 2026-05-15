@@ -25,7 +25,12 @@ function createTables() {
       mention_count INTEGER DEFAULT 1,
       last_mentioned TEXT DEFAULT (datetime('now')),
       created_at TEXT DEFAULT (datetime('now')),
-      UNIQUE(type, name COLLATE NOCASE)
+      project_id TEXT,
+      status TEXT,
+      amount REAL,
+      due_date TEXT,
+      raised_by TEXT,
+      UNIQUE(type, name COLLATE NOCASE, project_id)
     );
 
     CREATE INDEX IF NOT EXISTS idx_memory_entities_type
@@ -86,14 +91,29 @@ function createTables() {
   }
 
   console.log(`${LOG} Tables initialized`);
+
+  // Migration: add new columns if they don't exist (for existing databases)
+  const cols = db.prepare("PRAGMA table_info(memory_entities)").all().map(c => c.name);
+  if (!cols.includes('project_id')) {
+    db.exec(`ALTER TABLE memory_entities ADD COLUMN project_id TEXT`);
+    db.exec(`ALTER TABLE memory_entities ADD COLUMN status TEXT`);
+    db.exec(`ALTER TABLE memory_entities ADD COLUMN amount REAL`);
+    db.exec(`ALTER TABLE memory_entities ADD COLUMN due_date TEXT`);
+    db.exec(`ALTER TABLE memory_entities ADD COLUMN raised_by TEXT`);
+    console.log(`${LOG} Migrated memory_entities: added project_id, status, amount, due_date, raised_by`);
+  }
+
+  // Always ensure project indexes exist (safe for both fresh installs and migrated DBs)
+  db.exec(`CREATE INDEX IF NOT EXISTS idx_memory_entities_project ON memory_entities(project_id)`);
+  db.exec(`CREATE INDEX IF NOT EXISTS idx_memory_entities_project_type ON memory_entities(project_id, type)`);
 }
 
 // ── Entities ────────────────────────────────────────────────────
 
-function upsertEntity({ type, name, properties, confidence }) {
+function upsertEntity({ type, name, properties, confidence, projectId, status, amount, dueDate, raisedBy }) {
   const existing = db.prepare(
-    'SELECT id, mention_count, properties FROM memory_entities WHERE type = ? AND name = ? COLLATE NOCASE'
-  ).get(type, name);
+    'SELECT id, mention_count, properties FROM memory_entities WHERE type = ? AND name = ? COLLATE NOCASE AND (project_id IS ? OR project_id = ?)'
+  ).get(type, name, projectId || null, projectId || null);
 
   if (existing) {
     // Merge properties
@@ -108,18 +128,39 @@ function upsertEntity({ type, name, properties, confidence }) {
       SET mention_count = mention_count + 1,
           last_mentioned = datetime('now'),
           properties = ?,
-          confidence = MAX(confidence, ?)
+          confidence = MAX(confidence, ?),
+          status = COALESCE(?, status),
+          amount = COALESCE(?, amount),
+          due_date = COALESCE(?, due_date),
+          raised_by = COALESCE(?, raised_by)
       WHERE id = ?
-    `).run(JSON.stringify(merged), confidence || 1.0, existing.id);
+    `).run(
+      JSON.stringify(merged),
+      confidence || 1.0,
+      status || null,
+      amount !== undefined ? amount : null,
+      dueDate || null,
+      raisedBy || null,
+      existing.id
+    );
 
     return existing.id;
   }
 
   const id = crypto.randomUUID();
   db.prepare(`
-    INSERT INTO memory_entities (id, type, name, properties, confidence)
-    VALUES (?, ?, ?, ?, ?)
-  `).run(id, type, name, JSON.stringify(properties || {}), confidence || 1.0);
+    INSERT INTO memory_entities (id, type, name, properties, confidence, project_id, status, amount, due_date, raised_by)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(
+    id, type, name,
+    JSON.stringify(properties || {}),
+    confidence || 1.0,
+    projectId || null,
+    status || null,
+    amount !== undefined ? amount : null,
+    dueDate || null,
+    raisedBy || null
+  );
 
   return id;
 }
@@ -134,6 +175,31 @@ function getEntitiesByType(type) {
   return db.prepare(
     'SELECT * FROM memory_entities WHERE type = ? ORDER BY mention_count DESC'
   ).all(type);
+}
+
+// ── Project-scoped KG queries ────────────────────────────────────
+
+function getProjectEntitiesByType(projectId, type) {
+  return db.prepare(
+    'SELECT * FROM memory_entities WHERE project_id = ? AND type = ? ORDER BY created_at DESC'
+  ).all(projectId, type);
+}
+
+function getProjectEntitiesByStatus(projectId, type, status) {
+  return db.prepare(
+    'SELECT * FROM memory_entities WHERE project_id = ? AND type = ? AND status = ? ORDER BY created_at DESC'
+  ).all(projectId, type, status);
+}
+
+function getProjectEntities(projectId) {
+  return db.prepare(
+    'SELECT * FROM memory_entities WHERE project_id = ? ORDER BY type, created_at DESC'
+  ).all(projectId);
+}
+
+function updateProjectEntityStatus(id, status) {
+  db.prepare('UPDATE memory_entities SET status = ? WHERE id = ?').run(status, id);
+  return true;
 }
 
 function searchEntities(query) {
@@ -290,6 +356,11 @@ module.exports = {
   getEntitiesByType,
   searchEntities,
   deleteEntity,
+  // Project-scoped KG queries
+  getProjectEntitiesByType,
+  getProjectEntitiesByStatus,
+  getProjectEntities,
+  updateProjectEntityStatus,
   // Relationships
   upsertRelationship,
   getRelationshipsForEntity,

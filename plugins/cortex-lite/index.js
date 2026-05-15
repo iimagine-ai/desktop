@@ -45,7 +45,33 @@ module.exports = {
     // Configure modules
     const ollamaUrl = ctx.getOllamaUrl ? ctx.getOllamaUrl() : 'http://localhost:11434';
     embeddings.configure(ollamaUrl, embeddingModel);
-    extractor.configure(ollamaUrl, null); // null = auto-detect model
+
+    // Build cloud config so extraction uses the same model as chat
+    const PROVIDER_CONFIG = {
+      openai: { url: 'https://api.openai.com/v1/chat/completions', keyStore: 'openai.apiKey', authHeader: 'Bearer' },
+      anthropic: { url: 'https://api.anthropic.com/v1/messages', keyStore: 'anthropic.apiKey', isAnthropic: true },
+      google: { url: 'https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent', keyStore: 'gemini.apiKey', isGemini: true },
+      openrouter: { url: 'https://openrouter.ai/api/v1/chat/completions', keyStore: 'openrouter.apiKey', authHeader: 'Bearer' },
+    };
+    const vendor = store.get('gateway.vendor') || 'openai';
+    const providerCfg = PROVIDER_CONFIG[vendor];
+    const apiKey = providerCfg ? store.get(providerCfg.keyStore) : null;
+    const gatewayModel = store.get('gateway.model') || 'gpt-5.4-mini';
+
+    let cloudExtractConfig = null;
+    if (apiKey && providerCfg) {
+      cloudExtractConfig = {
+        vendor,
+        apiKey,
+        model: gatewayModel,
+        url: providerCfg.url,
+        authHeader: providerCfg.authHeader,
+        isAnthropic: providerCfg.isAnthropic || false,
+        isGemini: providerCfg.isGemini || false,
+      };
+    }
+
+    extractor.configure(ollamaUrl, null, cloudExtractConfig);
     summarizer.configure(ollamaUrl, null, summarizeAfter);
     retriever.configure({
       tokenBudget,
@@ -79,7 +105,9 @@ module.exports = {
     lastUserMessage = lastUserMsg.content || '';
 
     try {
-      const memoryContext = await retriever.buildContext(lastUserMsg.content);
+      // Pass active project ID so retriever can include project KG entities
+      const activeProjectId = store.get('client-workspace.activeProjectId', null);
+      const memoryContext = await retriever.buildContext(lastUserMsg.content, { projectId: activeProjectId });
       if (!memoryContext) return { messages, assistant };
 
       // Inject memory context as a system message at the start

@@ -18,6 +18,7 @@ const AppRouter = {
     knowledge: window.KnowledgePage,
     assistants: window.AssistantsPage,
     prompts: window.PromptsPage,
+    'rag-prompts': window.RagPromptsPage,
     personalization: window.PersonalizationPage,
     settings: window.SettingsPage,
   },
@@ -276,7 +277,7 @@ async function loadPluginSidebarItems() {
 }
 
 // Add plugin page navigation to router
-AppRouter.navigatePlugin = async function(pluginId) {
+AppRouter.navigatePlugin = async function(pluginId, activeTab) {
   // Destroy previous page
   const prev = this.pages[window.AppState.currentPage];
   if (prev?.destroy) prev.destroy();
@@ -285,7 +286,7 @@ AppRouter.navigatePlugin = async function(pluginId) {
   const container = document.querySelector('#mainContent');
 
   try {
-    const html = await window.api.plugins.renderPage(pluginId);
+    const html = await window.api.plugins.renderPage(pluginId, activeTab);
     if (html) {
       container.innerHTML = html;
       // Execute any script tags in the injected HTML
@@ -294,6 +295,10 @@ AppRouter.navigatePlugin = async function(pluginId) {
         newScript.textContent = oldScript.textContent;
         oldScript.parentNode.replaceChild(newScript, oldScript);
       });
+      // Auto-switch to the requested tab after render
+      if (activeTab && window.cwSwitchTab) {
+        window.cwSwitchTab(activeTab);
+      }
     } else {
       container.innerHTML = '<div class="p-6 text-neutral-500">Plugin page not available.</div>';
     }

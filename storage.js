@@ -113,22 +113,29 @@ function createTables() {
   } catch {
     try { db.exec("ALTER TABLE conversations ADD COLUMN kb_selections TEXT DEFAULT NULL"); } catch {}
   }
+
+  // Migration: add project_id to conversations for Client Workspace
+  try {
+    db.prepare("SELECT project_id FROM conversations LIMIT 1").get();
+  } catch {
+    try { db.exec("ALTER TABLE conversations ADD COLUMN project_id TEXT DEFAULT NULL"); } catch {}
+  }
 }
 
 // ── Conversations ───────────────────────────────────────────────
 
-function createConversation({ id, title, model, providerType, collectionId, kbSelections }) {
+function createConversation({ id, title, model, providerType, collectionId, kbSelections, projectId }) {
   const stmt = db.prepare(`
-    INSERT INTO conversations (id, title, model, provider_type, collection_id, kb_selections)
-    VALUES (?, ?, ?, ?, ?, ?)
+    INSERT INTO conversations (id, title, model, provider_type, collection_id, kb_selections, project_id)
+    VALUES (?, ?, ?, ?, ?, ?, ?)
   `);
-  stmt.run(id, title || 'New conversation', model || null, providerType || 'local', collectionId || null, kbSelections || null);
-  return { id, title, model, providerType, collectionId };
+  stmt.run(id, title || 'New conversation', model || null, providerType || 'local', collectionId || null, kbSelections || null, projectId || null);
+  return { id, title, model, providerType, collectionId, projectId };
 }
 
 function getConversations(limit = 50) {
   const stmt = db.prepare(`
-    SELECT id, title, model, provider_type, collection_id, kb_selections, created_at, updated_at
+    SELECT id, title, model, provider_type, collection_id, kb_selections, project_id, created_at, updated_at
     FROM conversations
     ORDER BY updated_at DESC
     LIMIT ?
@@ -138,10 +145,20 @@ function getConversations(limit = 50) {
 
 function getConversation(id) {
   const stmt = db.prepare(`
-    SELECT id, title, model, provider_type, collection_id, kb_selections, created_at, updated_at
+    SELECT id, title, model, provider_type, collection_id, kb_selections, project_id, created_at, updated_at
     FROM conversations WHERE id = ?
   `);
   return stmt.get(id) || null;
+}
+
+function getConversationsForProject(projectId, limit = 50) {
+  const stmt = db.prepare(`
+    SELECT id, title, model, provider_type, collection_id, kb_selections, project_id, created_at, updated_at
+    FROM conversations WHERE project_id = ?
+    ORDER BY updated_at DESC
+    LIMIT ?
+  `);
+  return stmt.all(projectId, limit);
 }
 
 function updateConversationTitle(id, title) {
@@ -357,6 +374,7 @@ module.exports = {
   createConversation,
   getConversations,
   getConversation,
+  getConversationsForProject,
   updateConversationTitle,
   updateConversationCollection,
   updateConversationKBSelections,

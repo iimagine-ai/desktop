@@ -15,6 +15,7 @@ const pluginManager = require('./plugin-manager');
 const streamAbort = require('./stream-abort');
 const folderConnect = require('./folder-connect');
 const promptStorage = require('./prompt-storage');
+const ragPromptStorage = require('./rag-prompt-storage');
 
 const store = new Store();
 
@@ -874,6 +875,11 @@ function setupIPC() {
     shell.openPath(modelsPath);
   });
 
+  // Shell — generic open path (for notes folder, etc.)
+  ipcMain.handle('shell:openPath', async (event, filePath) => {
+    if (filePath) shell.openPath(filePath);
+  });
+
   // Ollama — generate embeddings for text chunks (batch)
   ipcMain.handle('ollama:embedBatch', async (event, { model, texts }) => {
     const ollamaHost = store.get('local.ollamaHost') || OLLAMA_URL;
@@ -1108,6 +1114,7 @@ function setupIPC() {
   // Storage — Conversations
   ipcMain.handle('storage:createConversation', (event, data) => storage.createConversation(data));
   ipcMain.handle('storage:getConversations', (event, limit) => storage.getConversations(limit));
+  ipcMain.handle('storage:getConversationsForProject', (event, projectId, limit) => storage.getConversationsForProject(projectId, limit));
   ipcMain.handle('storage:getConversation', (event, id) => storage.getConversation(id));
   ipcMain.handle('storage:updateConversationTitle', (event, id, title) => storage.updateConversationTitle(id, title));
   ipcMain.handle('storage:updateConversationCollection', (event, id, collectionId) => storage.updateConversationCollection(id, collectionId));
@@ -1273,11 +1280,33 @@ function setupIPC() {
             if (queryVec) {
               console.log('[ChatRAG] Searching KB, vector dims:', queryVec.length, 'across', selections.length, 'source(s)');
               // Search across all selected collections/documents
-              const results = kbStorage.searchMultiple(new Float32Array(queryVec), selections, 15);
+              const results = kbStorage.searchMultiple(new Float32Array(queryVec), selections, 8);
               contextChunks = results.map(r => ({ content: r.content, docTitle: r.doc_title, distance: r.distance }));
+
+              // RECENCY WINDOW: Always include the 3 most recent chunks from the collection
+              // so that recent comms are never missed regardless of semantic similarity
+              try {
+                const db = storage.getDb();
+                for (const sel of selections) {
+                  const collId = sel.collectionId || sel.documentId;
+                  if (!collId || !db) continue;
+                  const recent = db.prepare(
+                    'SELECT c.content, d.title as doc_title FROM kb_chunks c JOIN kb_documents d ON c.document_id = d.id WHERE c.collection_id = ? ORDER BY c.rowid DESC LIMIT 3'
+                  ).all(collId);
+                  const existingKeys = new Set(contextChunks.map(c => c.content.slice(0, 80)));
+                  for (const r of recent) {
+                    if (!existingKeys.has(r.content.slice(0, 80))) {
+                      contextChunks.unshift({ content: r.content, docTitle: r.doc_title + ' (recent)', distance: null });
+                    }
+                  }
+                }
+              } catch (recErr) {
+                console.warn('[ChatRAG] Recency window failed:', recErr.message);
+              }
+
               console.log('[ChatRAG] Found', contextChunks.length, 'relevant chunks');
               contextChunks.forEach((c, i) => {
-                console.log(`[ChatRAG] Chunk ${i}: "${c.docTitle}" (distance: ${c.distance?.toFixed(4)}) — ${c.content.substring(0, 100)}...`);
+                console.log(`[ChatRAG] Chunk ${i}: "${c.docTitle}" (distance: ${c.distance?.toFixed(4) || 'recent'}) — ${c.content.substring(0, 100)}...`);
               });
             }
           }
@@ -1312,10 +1341,15 @@ ${kbContext}
 
 END OF DOCUMENT`;
         } else {
-          // RAG mode: standard instruction
-          systemContent = `You are a knowledge base assistant. Answer questions using BOTH the documents below AND any memory context provided in other system messages. Memory context contains facts from earlier in this conversation that may not be in the documents.
-
-If the answer is in the memory context (e.g. amounts, dates, or facts the user mentioned earlier), use it. If the answer is in the documents, use it and cite the source. If neither source has the answer, say so.
+          // RAG mode: use context-aware prompt from RAG prompt storage
+          const isCommsKB = selections.some(s => (s.collectionId || '').startsWith('cw_project_'));
+          const ragPromptContent = ragPromptStorage.getActivePromptContent({
+            isCommsKB,
+            isKBSelected: true,
+            isProjectActive: !!store.get('client-workspace.activeProjectId'),
+          });
+          const ragInstruction = ragPromptContent || 'You are a helpful assistant. Answer questions using the documents below. If the answer is in the documents, use it and cite the source. If the documents don\'t contain the answer, say so.';
+          systemContent = `${ragInstruction}
 
 DOCUMENTS FROM KNOWLEDGE BASE:
 
@@ -1425,11 +1459,15 @@ END OF DOCUMENTS`;
           const reader = res.body.getReader();
           const decoder = new TextDecoder();
           let fullResponse = '';
+          let buffer = '';
           while (true) {
             const { done, value } = await reader.read();
             if (done) break;
-            const chunk = decoder.decode(value);
-            for (const line of chunk.split('\n').filter(l => l.startsWith('data: '))) {
+            buffer += decoder.decode(value, { stream: true });
+            const lines = buffer.split('\n');
+            buffer = lines.pop() || '';
+            for (const line of lines) {
+              if (!line.startsWith('data: ')) continue;
               const data = line.slice(6);
               if (data === '[DONE]') break;
               try {
@@ -2136,6 +2174,19 @@ END OF DOCUMENTS`;
   ipcMain.handle('prompts:delete', (event, id) => promptStorage.deletePrompt(id));
   ipcMain.handle('prompts:search', (event, query) => promptStorage.searchPrompts(query));
 
+  // ── RAG Prompts (context-aware system prompts) ─────────────────
+  ipcMain.handle('rag-prompts:list', () => ragPromptStorage.getAll());
+  ipcMain.handle('rag-prompts:list-by-category', (event, category) => ragPromptStorage.getByCategory(category));
+  ipcMain.handle('rag-prompts:get', (event, id) => ragPromptStorage.getPrompt(id));
+  ipcMain.handle('rag-prompts:create', (event, data) => ragPromptStorage.createPrompt(data));
+  ipcMain.handle('rag-prompts:update', (event, id, data) => ragPromptStorage.updatePrompt(id, data));
+  ipcMain.handle('rag-prompts:delete', (event, id) => ragPromptStorage.deletePrompt(id));
+  ipcMain.handle('rag-prompts:get-active', (event, category) => ragPromptStorage.getActivePromptId(category));
+  ipcMain.handle('rag-prompts:set-active', (event, category, promptId) => {
+    ragPromptStorage.setActivePromptId(category, promptId);
+    return true;
+  });
+
   // ── Personas ────────────────────────────────────────────────────
   ipcMain.handle('persona:create', (event, data) => personaStorage.createPersona(data));
   ipcMain.handle('persona:list', () => personaStorage.getPersonas());
@@ -2204,6 +2255,7 @@ app.whenReady().then(async () => {
   personaStorage.init(storage.getDb());
   folderConnect.init(storage.getDb(), kbStorage);
   promptStorage.init(storage.getDb());
+  ragPromptStorage.init(storage.getDb(), store);
 
   // Initialize plugin system
   pluginManager.setContext({

@@ -66,6 +66,7 @@ contextBridge.exposeInMainWorld('api', {
     // Conversations
     createConversation: (data) => ipcRenderer.invoke('storage:createConversation', data),
     getConversations: (limit) => ipcRenderer.invoke('storage:getConversations', limit),
+    getConversationsForProject: (projectId, limit) => ipcRenderer.invoke('storage:getConversationsForProject', projectId, limit),
     getConversation: (id) => ipcRenderer.invoke('storage:getConversation', id),
     updateConversationTitle: (id, title) => ipcRenderer.invoke('storage:updateConversationTitle', id, title),
     updateConversationCollection: (id, collectionId) => ipcRenderer.invoke('storage:updateConversationCollection', id, collectionId),
@@ -198,6 +199,18 @@ contextBridge.exposeInMainWorld('api', {
     search: (query) => ipcRenderer.invoke('prompts:search', query),
   },
 
+  // RAG Prompts — context-aware system prompts for KB chat
+  ragPrompts: {
+    list: () => ipcRenderer.invoke('rag-prompts:list'),
+    listByCategory: (category) => ipcRenderer.invoke('rag-prompts:list-by-category', category),
+    get: (id) => ipcRenderer.invoke('rag-prompts:get', id),
+    create: (data) => ipcRenderer.invoke('rag-prompts:create', data),
+    update: (id, data) => ipcRenderer.invoke('rag-prompts:update', id, data),
+    delete: (id) => ipcRenderer.invoke('rag-prompts:delete', id),
+    getActive: (category) => ipcRenderer.invoke('rag-prompts:get-active', category),
+    setActive: (category, promptId) => ipcRenderer.invoke('rag-prompts:set-active', category, promptId),
+  },
+
   // Personas — AI persona management
   personas: {
     create: (data) => ipcRenderer.invoke('persona:create', data),
@@ -218,5 +231,10 @@ contextBridge.exposeInMainWorld('api', {
   agent: {
     plan: (messages) => ipcRenderer.invoke('agent:plan', messages),
     execute: (messages) => ipcRenderer.invoke('agent:execute', messages),
+  },
+
+  // Shell — open files/folders in system
+  shell: {
+    openPath: (filePath) => ipcRenderer.invoke('shell:openPath', filePath),
   },
 });
