@@ -85,13 +85,11 @@ const PromptsPage = {
           </div>
         `).join('')}
 
-        ${total > this.PAGE_SIZE ? `
-          <div class="flex items-center justify-center gap-2 pt-2">
-            <button id="pmPrev" class="px-3 py-1.5 rounded-lg text-xs font-medium ${this.page === 0 ? 'text-neutral-300 dark:text-neutral-600 cursor-default' : 'text-neutral-600 dark:text-neutral-400 hover:bg-white/60 dark:hover:bg-neutral-800/60'}">← Prev</button>
-            <span class="text-xs text-neutral-400">Page ${this.page + 1} of ${totalPages}</span>
-            <button id="pmNext" class="px-3 py-1.5 rounded-lg text-xs font-medium ${this.page >= totalPages - 1 ? 'text-neutral-300 dark:text-neutral-600 cursor-default' : 'text-neutral-600 dark:text-neutral-400 hover:bg-white/60 dark:hover:bg-neutral-800/60'}">Next →</button>
-          </div>
-        ` : ''}
+        <div class="flex items-center justify-center gap-2 pt-2">
+          <button id="pmPrev" class="px-3 py-1.5 rounded-lg text-xs font-medium ${this.page === 0 ? 'text-neutral-300 dark:text-neutral-600 cursor-default' : 'text-neutral-600 dark:text-neutral-400 hover:bg-white/60 dark:hover:bg-neutral-800/60'}">← Prev</button>
+          <span class="text-xs text-neutral-400">Page ${this.page + 1} of ${totalPages}</span>
+          <button id="pmNext" class="px-3 py-1.5 rounded-lg text-xs font-medium ${this.page >= totalPages - 1 ? 'text-neutral-300 dark:text-neutral-600 cursor-default' : 'text-neutral-600 dark:text-neutral-400 hover:bg-white/60 dark:hover:bg-neutral-800/60'}">Next →</button>
+        </div>
       </div>
     `;
 
