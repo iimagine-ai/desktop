@@ -19,7 +19,6 @@ const AppRouter = {
     assistants: window.AssistantsPage,
     prompts: window.PromptsPage,
 
-    personalization: window.PersonalizationPage,
     settings: window.SettingsPage,
   },
 

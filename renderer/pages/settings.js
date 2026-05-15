@@ -20,6 +20,10 @@ const SettingsPage = {
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10z"/><path d="M9 8v3M15 8v3M8 11h8v2a4 4 0 0 1-8 0v-2z"/></svg>
             Plugins
           </button>
+          <button data-settings-tab="personas" class="settings-tab-btn w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-sm font-medium transition-all text-left">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a5 5 0 0 1 5 5c0 1.63-.78 3.07-2 3.97V13h-6v-2.03A5 5 0 0 1 12 2z"/><path d="M9 13v2"/><path d="M15 13v2"/><rect x="9" y="15" width="6" height="4" rx="1"/><path d="M10 19v2"/><path d="M14 19v2"/></svg>
+            Personas
+          </button>
           <button data-settings-tab="memory" id="memoryTabBtn" class="settings-tab-btn w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-sm font-medium transition-all text-left hidden">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a7 7 0 0 1 7 7c0 2.38-1.19 4.47-3 5.74V17a2 2 0 0 1-2 2h-4a2 2 0 0 1-2-2v-2.26C6.19 13.47 5 11.38 5 9a7 7 0 0 1 7-7z"/><path d="M10 21h4"/></svg>
             Memory
@@ -87,6 +91,7 @@ const SettingsPage = {
     if (tab === 'profile') this._renderProfile(content);
     else if (tab === 'models') this._renderModelsTab(content);
     else if (tab === 'plugins') this._renderPluginsTab(content);
+    else if (tab === 'personas') this._renderPersonasTab(content);
     else if (tab === 'memory') this._renderMemoryTab(content);
   },
 
@@ -773,6 +778,15 @@ const SettingsPage = {
         }, 2000);
       }
     });
+  },
+
+  // ─── Personas Tab ──────────────────────────────────────────────────────────
+  _renderPersonasTab(content) {
+    if (window.PersonalizationPage) {
+      window.PersonalizationPage.render(content);
+    } else {
+      content.innerHTML = '<p class="text-sm text-neutral-500 p-4">Personas not available.</p>';
+    }
   },
 
   // ─── Memory Tab (Cortex Lite) ──────────────────────────────────────────────
