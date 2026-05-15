@@ -276,9 +276,8 @@ function createWindow() {
 }
 
 function createTray() {
-  const icon = nativeImage.createFromDataURL(
-    'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAAABHNCSVQICAgIfAhkiAAAAAlwSFlzAAAAbwAAAG8B8aLcQwAAABl0RVh0U29mdHdhcmUAd3d3Lmlua3NjYXBlLm9yZ5vuPBoAAADLSURBVDiNpZMxDoJAEEX/LBZewMbGxsLKA3gPj+BRPIIn8AYewMbGxoKCxAuwsXBNFnZZQPybyWTm/5nMZBZIkOQdwBnAFcCq7zMBcABwIrmStEnuSM5IziPJJckHyQ3JhGQ8lEByl2dNcgsgBbDoO0+y6CfJEsC2b0oyBnAiuQdQDCWQ3AB4BfACsOkKJJkCOAJ4A/DcF0jyBOCN5APminimum'
-  );
+  const iconPath = path.join(__dirname, 'assets', process.platform === 'win32' ? 'icon.ico' : 'icon.png');
+  const icon = nativeImage.createFromPath(iconPath).resize({ width: 16, height: 16 });
 
   tray = new Tray(icon);
 
