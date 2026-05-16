@@ -344,6 +344,15 @@ async function init() {
   window.AppState.currentUser = user || { email: 'Local User', isGuest: true };
   showDashboard();
 
+  // Show first-run setup wizard if not completed
+  if (await window.SetupWizard.shouldShow()) {
+    window.SetupWizard.show((choice) => {
+      if (choice === 'local' || choice === 'cloud') {
+        AppRouter.navigate('settings');
+      }
+    });
+  }
+
   await window.ProviderManager.refreshLocal();
   AppRouter.updateModelDropdown();
 
