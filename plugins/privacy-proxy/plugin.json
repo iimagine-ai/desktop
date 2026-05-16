@@ -1,0 +1,13 @@
+{
+  "id": "privacy-proxy",
+  "name": "Privacy Proxy",
+  "version": "1.0.0",
+  "description": "Redact PII and sensitive data locally before sending to cloud AI models. Get frontier-level intelligence without exposing private information.",
+  "author": "IIMAGINE",
+  "main": "index.js",
+  "hooks": {
+    "chatPreprocess": true,
+    "chatPostprocess": true,
+    "settings": true
+  }
+}

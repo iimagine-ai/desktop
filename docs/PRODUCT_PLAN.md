@@ -557,6 +557,59 @@ Web search inherently requires internet access. The UI must clearly indicate whe
 
 **Deliverable:** A plugin that turns the desktop app into a personalized business advisor.
 
+### Phase 3B: PWA Version (Browser-Based Distribution)
+
+**Goal:** Ship a Progressive Web App version of the desktop companion that runs in-browser with optional local AI via WebGPU.
+
+**Why:** Eliminates the download/install barrier. Users can access the app instantly from any device (desktop, tablet, mobile) via a URL. For local AI, Gemma 4 E2B (2B effective parameters) is explicitly designed for browser deployment via WebGPU — requiring only ~3.2GB memory at Q4 quantization.
+
+**Reference:** Google Gemma 4 model documentation confirms E2B and E4B are "built for ultra-mobile, edge, and browser deployment (e.g., Pixel, Chrome)" — see https://ai.google.dev/gemma/docs/core
+
+**Two AI modes in PWA:**
+- **Cloud mode (default):** Chat routes through IIMAGINE backend APIs (same as cloud providers in Electron). Zero setup, works immediately.
+- **Local mode (opt-in):** Downloads Gemma 4 E2B Q4 (~1.5-2GB) into browser Cache Storage on first use. Runs inference via WebGPU. Fully private — no data leaves the device. Requires Chrome/Edge with WebGPU support and 8GB+ device RAM.
+
+**Technical approach:**
+- Reuse the existing `renderer/` codebase (HTML + vanilla JS + Tailwind) — it's already browser-compatible
+- Create a `pwa-adapter.js` that implements the same `window.api` interface using `localStorage`/IndexedDB + `fetch` to cloud APIs (replaces Electron IPC)
+- Integrate `web-llm` (MLC-AI) or MediaPipe Web LLM for in-browser inference with Gemma 4 E2B
+- Add `manifest.json` + service worker for installability and offline caching
+- Host at `app.iimagine.ai/desktop` (or similar route on the existing Vercel deployment)
+
+**Tasks:**
+
+1. Build `pwa-adapter.js` — implements `window.api.settings`, `window.api.auth`, `window.api.chat`, `window.api.storage` using browser-native APIs (localStorage, IndexedDB, fetch)
+2. Add `manifest.json` (app name, icons, theme color, `display: standalone`) and service worker for offline shell caching
+3. Integrate WebLLM (web-llm library) for in-browser Gemma 4 E2B inference
+   - First-use model download flow with progress indicator
+   - Model stored in Cache Storage (persists across sessions)
+   - Fallback to cloud if WebGPU unavailable or device RAM insufficient
+4. Build downloads page configurator on web app — guided setup panel where users choose platform (Mac/Win/Linux/PWA/Mobile), AI mode (local/cloud/both), and model size. Shows requirements and consequences for each choice.
+5. Adapt chat streaming to work with both WebLLM (local) and fetch-based cloud API
+6. Handle storage: conversation history in IndexedDB, settings in localStorage, KB documents in IndexedDB (with size limits communicated to user)
+7. Test across Chrome, Edge, Safari (WebGPU support varies — graceful degradation to cloud-only on unsupported browsers)
+8. Deploy as a route on the existing Vercel app with proper caching headers
+
+**What's NOT included in PWA (Electron-only features):**
+- Plugin system (no Node.js runtime in browser)
+- Folder Connect (no filesystem access beyond File API drag-and-drop)
+- System tray
+- Ollama management (replaced by WebLLM)
+- SQLCipher encryption (browser storage is sandboxed per-origin instead)
+
+**Memory requirements for in-browser local AI:**
+
+| Model | Quantization | Download Size | Runtime RAM | Performance |
+|-------|-------------|---------------|-------------|-------------|
+| Gemma 4 E2B | Q4_0 | ~1.5 GB | ~3.2 GB | ~15-25 tok/s (desktop), ~8-15 tok/s (mobile) |
+| Gemma 4 E4B | Q4_0 | ~2.5 GB | ~5 GB | ~10-18 tok/s (desktop only) |
+
+**Privacy note:** In local mode, the PWA operates identically to the Electron app from a privacy perspective — all inference happens on-device, no data transmitted. In cloud mode, messages route through IIMAGINE APIs (same as the "Regional Cloud" tier in Electron).
+
+**Can run in parallel with Phase 2 and Phase 3.** The PWA shares the renderer codebase but doesn't depend on the plugin system or memory features (those remain Electron-exclusive initially).
+
+---
+
 ### Phase 4: Plugin Marketplace
 
 **Goal:** Enable discovery and installation of plugins from the web app.
@@ -602,27 +655,195 @@ Each vertical plugin follows the same pattern:
 
 ---
 
+### Phase 6: Core Enhancements & Professional Features
+
+**Goal:** Add missing features that strengthen personalization, professional utility, and daily-use stickiness.
+
+#### 6A. Privacy Proxy — Local PII Redaction for Frontier Models (HIGH PRIORITY)
+
+**Concept:** Use a local model to strip personally identifiable information and sensitive data from documents/conversations before sending to a frontier cloud model. The frontier model does the heavy reasoning on sanitized content, then the local model re-hydrates placeholders with real data in the response.
+
+**Why this matters:** Solves the "I need GPT-4 quality but can't send client data to OpenAI" problem. Creates a fourth privacy tier: cloud intelligence with local privacy. No competitor offers this.
+
+**How it works:**
+1. User sends a message or document that contains sensitive data
+2. Local model (fast, small — e.g. Gemma 2B) identifies and replaces: names → [Person A], addresses → [Address 1], account numbers → [Account X], dates of birth, case numbers, financial figures, medical terms tied to individuals
+3. Sanitized content is sent to the frontier model (GPT, Claude, Gemini)
+4. Frontier model responds with placeholders intact
+5. Local model maps placeholders back to real values before displaying to user
+6. A mapping table is stored locally (never transmitted) so multi-turn conversations maintain consistency
+
+**Use cases:**
+- Lawyer: "Analyze this contract for liability risks" — client names, deal values, and parties stripped before reaching Claude
+- Accountant: "What tax strategies apply here?" — actual revenue figures replaced with proportional placeholders
+- Healthcare: "Summarize this patient history" — all PHI removed before reaching the cloud
+- Personal: "Help me draft a response to this email" — names and context stripped
+
+**Tasks:**
+1. Build PII detection prompt for local model (entity types: names, addresses, phone numbers, emails, dates, financial figures, case/account numbers, medical identifiers)
+2. Build placeholder mapping system (consistent across conversation turns, stored in SQLite)
+3. Build re-hydration layer that maps placeholders back to real values in responses
+4. Add UI toggle: "Privacy Proxy: ON/OFF" with clear explanation of what it does
+5. Add visual indicator showing which parts were redacted before cloud transmission
+6. Handle edge cases: when the frontier model asks clarifying questions about redacted content
+7. Allow user to review redacted version before sending (optional confirmation step)
+
+#### 6B. Conversation Summarization & Compression
+
+**Goal:** Compress old conversations into retrievable summaries that fit in context windows.
+
+**Tasks:**
+1. After N messages (configurable, default 20), auto-generate a structured summary using the local model
+2. Store summaries in SQLite with timestamps, topics, and entity references
+3. When context is needed, retrieve relevant summaries instead of raw conversation history
+4. Summaries feed into the memory system (Phase 2) as a primary data source
+5. User can view/edit summaries in a "Memory" panel
+
+#### 6C. Export & Sharing
+
+**Goal:** Let users get AI output out of the app in useful formats.
+
+**Tasks:**
+1. Export conversation as Markdown, PDF, or Word document
+2. Export selected messages (not just full conversations)
+3. Export knowledge base content (individual documents or collections)
+4. Copy-to-clipboard with formatting preserved
+5. Email integration (compose and send directly from the app — optional, requires account)
+
+#### 6D. Voice Input/Output
+
+**Goal:** Enable natural spoken interaction for companion/coach personas and accessibility.
+
+**Tasks:**
+1. Local speech-to-text via Whisper (whisper.cpp or Ollama whisper model) — fully private
+2. Text-to-speech for AI responses (local TTS engine or optional cloud TTS)
+3. Push-to-talk button in chat UI
+4. Auto-detect when user prefers voice vs text per persona
+5. Accessibility: screen reader compatibility for all UI elements
+
+#### 6E. Multi-Modal Input (Images & Files in Chat)
+
+**Goal:** Let users paste screenshots, drag images, or attach files directly into chat for analysis.
+
+**Tasks:**
+1. Image paste/drag-drop into chat input
+2. Route to vision-capable model (LLaVA, Gemma 4 E2B with vision support)
+3. File attachment (PDF, DOCX) — extract text and include in context
+4. Screenshot capture tool (system shortcut → paste into chat)
+5. Display image thumbnails in conversation history
+
+#### 6F. Conversation Branching
+
+**Goal:** Let users explore multiple directions from the same point without losing the original thread.
+
+**Tasks:**
+1. "Branch from here" button on any message
+2. Branch creates a new conversation thread starting from that point
+3. Visual tree view showing conversation branches
+4. Easy navigation between branches
+5. Merge insights from branches back into main thread (optional)
+
+#### 6G. Proactive Check-ins & Notifications
+
+**Goal:** Make the AI feel like a partner that initiates, not just a tool that responds.
+
+**Tasks:**
+1. Scheduled check-ins based on user goals/deadlines (from memory/KG)
+2. Desktop notifications (non-intrusive, configurable frequency)
+3. "Morning briefing" option — summary of pending items, upcoming deadlines, suggested focus
+4. Pattern detection: "You mentioned X three times this week — want to discuss it?"
+5. User controls: per-persona notification settings, quiet hours, disable entirely
+
+#### 6H. Local Backup & Restore
+
+**Goal:** Protect user data against hardware failure without compromising privacy.
+
+**Tasks:**
+1. One-click encrypted backup to a local file (ZIP with AES-256)
+2. Backup includes: conversations, KG, settings, KB collections, prompts, personas
+3. Restore from backup file (with conflict resolution for existing data)
+4. Optional scheduled auto-backup (daily/weekly to user-specified location)
+5. Backup file is portable — works across Mac/Windows/Linux
+
+#### 6I. Conversation Search
+
+**Goal:** Find anything across all historical conversations instantly.
+
+**Tasks:**
+1. Full-text search index (FTS5 in SQLite — already available)
+2. Search UI with filters: date range, persona, project, keyword
+3. Search results show message previews with highlighted matches
+4. Click result → jump to that point in the conversation
+5. Semantic search option (using embeddings) for "find conversations about X concept"
+
+#### 6J. Structured Output & Templates
+
+**Goal:** Generate formatted artifacts beyond prose — reports, forms, checklists, tables.
+
+**Tasks:**
+1. Output format selector: prose, markdown table, checklist, JSON, CSV
+2. Template library: client intake form, meeting notes, project status report, invoice summary
+3. User-created templates with variable placeholders
+4. "Generate report from this conversation" — one-click structured summary
+5. Export structured output directly to file
+
+#### 6K. Privacy Audit Log
+
+**Goal:** Give regulated professionals a compliance record of all outbound data.
+
+**Tasks:**
+1. Log every outbound request: timestamp, destination (provider), data type, size
+2. Log what privacy tier was used per message
+3. Viewable in Settings → Privacy → Audit Log
+4. Export audit log as CSV for compliance documentation
+5. Retention settings: keep forever, 90 days, 30 days (user choice)
+6. If Privacy Proxy (6A) is used, log what was redacted and what was sent
+
+#### 6L. Multi-Device Encrypted Sync (Optional)
+
+**Goal:** Let users access their data across multiple machines without compromising privacy.
+
+**Tasks:**
+1. End-to-end encrypted sync — data encrypted client-side before transmission
+2. Sync via IIMAGINE backend (server stores encrypted blobs, cannot read content)
+3. Conflict resolution for simultaneous edits
+4. Selective sync: choose what syncs (conversations, KB, memory, settings)
+5. Requires IIMAGINE account (ties into existing auth system)
+
+---
+
 ## Dependencies Between Phases
 
 ```
 Phase 1 (Core Cleanup)
   └── Phase 2 (Cortex Lite) — needs plugin system + auth-optional
-        └── Phase 3 (Business Advisor) — needs memory system
-        └── Phase 5 (Verticals) — needs memory system
+        ├── Phase 3 (Business Advisor) — needs memory system
+        ├── Phase 5 (Verticals) — needs memory system
+        └── Phase 6B (Summarization) — enhances memory system
+  └── Phase 3B (PWA) — needs renderer codebase stable (Phase 1 complete)
   └── Phase 4 (Marketplace) — needs plugin system + web app integration
+  └── Phase 6 (Enhancements) — most items only need Phase 1 complete
+        └── Phase 6A (Privacy Proxy) — needs local + cloud providers working (Phase 1)
+        └── Phase 6G (Proactive) — needs memory system (Phase 2)
+        └── Phase 6L (Sync) — needs auth + web app integration
 ```
 
-Phase 3 and Phase 4 can run in parallel.
-Phase 5 plugins can start development once Phase 2 is stable.
+Phase 3, Phase 3B, Phase 4, and Phase 6 can largely run in parallel.
+Phase 6A (Privacy Proxy) is independent — only needs Phase 1's provider system.
+Phase 6B (Summarization) and 6G (Proactive) depend on Phase 2's memory system.
+Phase 6L (Sync) depends on auth and web app backend.
+All other Phase 6 items (Export, Voice, Multi-modal, Branching, Search, Templates, Backup, Audit Log) only depend on Phase 1.
 
 ---
 
 ## What Makes This Defensible
 
 1. **Memory system** — No desktop AI competitor has this. It's the core technical moat.
-2. **Guided business setup** — Structured data collection is dramatically more useful than hoping users mention things in chat. This is domain expertise encoded into software.
-3. **Plugin ecosystem** — Network effects. Once third-party developers build plugins, the platform becomes harder to replicate.
-4. **Privacy positioning** — Not just "we don't collect data" but "here's a visual indicator showing exactly where your data goes for every message." Trust through transparency.
+2. **Privacy Proxy (PII redaction)** — Use frontier model intelligence without sending sensitive data to the cloud. Local model strips identifying information, cloud model does the reasoning, local model re-hydrates. No one else offers this.
+3. **Guided business setup** — Structured data collection is dramatically more useful than hoping users mention things in chat. This is domain expertise encoded into software.
+4. **Plugin ecosystem** — Network effects. Once third-party developers build plugins, the platform becomes harder to replicate.
+5. **Privacy positioning** — Not just "we don't collect data" but "here's a visual indicator showing exactly where your data goes for every message." Trust through transparency.
+6. **Vertical depth** — Generic AI chat is a commodity. Industry-specific workflows with memory are not.
 5. **Vertical depth** — Generic AI chat is a commodity. Industry-specific workflows with memory are not.
 
 ---
