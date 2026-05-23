@@ -100,6 +100,11 @@ const ProviderManager = {
         type: found.type,
         model: found.modelId || found.name,
       });
+
+      // Trigger instant model swap for local models
+      if (found.type === 'local' && window.api.modelSwap) {
+        window.api.modelSwap.switch(found.name);
+      }
     }
   },
 

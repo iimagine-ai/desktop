@@ -229,53 +229,7 @@ const SettingsPage = {
         </div>
 
         <!-- Model Recommendation Wizard -->
-        <div id="wizardSection" class="mb-4">
-          <button id="wizardToggle" class="w-full flex items-center justify-between px-3 py-2.5 rounded-xl bg-white/50 dark:bg-neutral-800/50 border border-neutral-200/40 dark:border-neutral-700/40 hover:bg-white/70 dark:hover:bg-neutral-700/70 transition-all text-left group">
-            <div class="flex items-center gap-2.5">
-              <div class="p-1.5 bg-white dark:bg-neutral-800 rounded-lg border border-neutral-100 dark:border-neutral-800 shadow-sm text-neutral-600 dark:text-neutral-400">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76"/></svg>
-              </div>
-              <div>
-                <span class="text-sm font-medium text-neutral-900 dark:text-neutral-100">Find the right model for you</span>
-                <p class="text-[11px] text-neutral-500 dark:text-neutral-400">Tell us about your computer and we'll recommend the best model</p>
-              </div>
-            </div>
-            <svg id="wizardChevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-neutral-400 transition-transform"><polyline points="6 9 12 15 18 9"/></svg>
-          </button>
-
-          <div id="wizardPanel" class="hidden mt-3 space-y-4">
-            <!-- Step 1: RAM -->
-            <div>
-              <label class="text-xs font-medium text-neutral-500 uppercase tracking-wider mb-1.5 block">How much RAM does your computer have?</label>
-              <select id="wizardRAM" class="w-full bg-white/60 dark:bg-neutral-800/60 border border-neutral-200/50 dark:border-neutral-700/50 rounded-xl px-3 py-2.5 text-sm text-neutral-700 dark:text-neutral-300 focus:bg-white/90 dark:focus:bg-neutral-800/90 focus:outline-none transition-all shadow-sm">
-                <option value="">Select...</option>
-              </select>
-              <p class="text-[10px] text-neutral-400 mt-1">Mac: Apple menu → About This Mac. Windows: Settings → System → About.</p>
-            </div>
-
-            <!-- Step 2: GPU -->
-            <div>
-              <label class="text-xs font-medium text-neutral-500 uppercase tracking-wider mb-1.5 block">What GPU do you have?</label>
-              <select id="wizardGPU" class="w-full bg-white/60 dark:bg-neutral-800/60 border border-neutral-200/50 dark:border-neutral-700/50 rounded-xl px-3 py-2.5 text-sm text-neutral-700 dark:text-neutral-300 focus:bg-white/90 dark:focus:bg-neutral-800/90 focus:outline-none transition-all shadow-sm">
-                <option value="">Select...</option>
-              </select>
-            </div>
-
-            <!-- Step 3: Use cases -->
-            <div>
-              <label class="text-xs font-medium text-neutral-500 uppercase tracking-wider mb-1.5 block">What will you use AI for? (select all that apply)</label>
-              <div id="wizardUseCases" class="flex flex-wrap gap-2"></div>
-            </div>
-
-            <!-- Get Recommendation button -->
-            <button id="wizardRecommendBtn" class="w-full px-4 py-2.5 rounded-lg bg-neutral-900 dark:bg-neutral-100 text-sm font-medium text-white dark:text-neutral-900 hover:bg-neutral-800 dark:hover:bg-neutral-200 transition-all shadow-sm disabled:opacity-40 disabled:cursor-not-allowed" disabled>
-              Get Recommendation
-            </button>
-
-            <!-- Results -->
-            <div id="wizardResults" class="hidden space-y-3"></div>
-          </div>
-        </div>
+        <div id="modelBrowserMount" class="mb-4"></div>
 
         <!-- Advanced Options -->
         <div id="localAdvancedSection" class="mb-4">
@@ -318,6 +272,20 @@ const SettingsPage = {
                 <option value="32768">32K tokens (large context)</option>
                 <option value="65536">64K tokens (very large)</option>
                 <option value="131072">128K tokens (maximum — requires 16GB+ RAM)</option>
+              </select>
+            </div>
+
+            <!-- Network Connection -->
+            <div>
+              <label class="text-xs font-medium text-neutral-500 uppercase tracking-wider mb-1.5 block">Memory Unload Timer</label>
+              <p class="text-[10px] text-neutral-400 mb-2">Automatically unload the model from memory after this period of inactivity to free RAM.</p>
+              <select id="keepAliveSelect" class="w-full bg-white/60 dark:bg-neutral-800/60 border border-neutral-200/50 dark:border-neutral-700/50 rounded-xl px-3 py-2.5 text-sm text-neutral-700 dark:text-neutral-300 focus:bg-white/90 dark:focus:bg-neutral-800/90 focus:outline-none transition-all shadow-sm">
+                <option value="1m">1 minute</option>
+                <option value="2m">2 minutes (default)</option>
+                <option value="5m">5 minutes</option>
+                <option value="10m">10 minutes</option>
+                <option value="30m">30 minutes</option>
+                <option value="-1">Never (keep loaded until app closes)</option>
               </select>
             </div>
 
@@ -371,7 +339,6 @@ const SettingsPage = {
         <div id="modelSection" class="hidden">
           <div class="flex items-center justify-between mb-2">
             <span class="text-sm text-neutral-600 dark:text-neutral-400">Models</span>
-            <span class="text-[10px] text-neutral-400">Use "Find the right model" below to download</span>
           </div>
 
           <!-- Download progress (shown during model pull) -->
@@ -487,8 +454,27 @@ const SettingsPage = {
     const pullProgressText = content.querySelector('#pullProgressText');
     const modelList = content.querySelector('#modelList');
 
-    // ── Model Recommendation Wizard ──────────────────────────────
-    this._bindWizard(content);
+    // ── Model Browser (guided wizard + advanced browser) ────────
+    const modelBrowserMount = content.querySelector('#modelBrowserMount');
+    if (modelBrowserMount && window.ModelBrowser) {
+      window.ModelBrowser.mount(modelBrowserMount);
+
+      // Check for manifest updates and show notification
+      const updateInfo = await window.api.manifest.checkUpdate();
+      if (updateInfo.hasUpdate && updateInfo.newModelCount > 0) {
+        const banner = document.createElement('div');
+        banner.className = 'mb-3 p-3 rounded-xl bg-blue-50/80 dark:bg-blue-900/20 border border-blue-200/60 dark:border-blue-800/40 flex items-center justify-between';
+        banner.innerHTML = `
+          <p class="text-xs text-blue-700 dark:text-blue-300">${updateInfo.newModelCount} new model${updateInfo.newModelCount > 1 ? 's' : ''} available in the registry</p>
+          <button id="mbDismissUpdate" class="text-[10px] text-blue-400 hover:text-blue-600">Dismiss</button>
+        `;
+        modelBrowserMount.parentNode.insertBefore(banner, modelBrowserMount);
+        banner.querySelector('#mbDismissUpdate').addEventListener('click', () => {
+          banner.remove();
+          window.api.manifest.dismissUpdate();
+        });
+      }
+    }
 
     // ── Advanced Options ─────────────────────────────────────────
     this._bindAdvancedOptions(content);
@@ -762,6 +748,11 @@ const SettingsPage = {
           pullProgress.classList.add('hidden');
         }, 2000);
       }
+
+      // Reset custom download button state
+      if (window.ModelBrowser) {
+        // Re-render model browser to reflect new installed state
+      }
     });
   },
 
@@ -957,6 +948,7 @@ const SettingsPage = {
     const webSearchToggle = container.querySelector('#webSearchToggle');
     const webSearchDot = container.querySelector('#webSearchDot');
     const contextWindowSelect = container.querySelector('#contextWindowSelect');
+    const keepAliveSelect = container.querySelector('#keepAliveSelect');
     const ollamaHostInput = container.querySelector('#ollamaHostInput');
     const testConnectionBtn = container.querySelector('#testConnectionBtn');
     const connectionStatus = container.querySelector('#connectionStatus');
@@ -1005,6 +997,10 @@ const SettingsPage = {
       contextWindowSelect.value = '4096';
     }
 
+    // Keep alive (memory unload timer)
+    const savedKeepAlive = await window.api.settings.get('ollama.keepAlive');
+    keepAliveSelect.value = savedKeepAlive || '2m';
+
     // Ollama host
     ollamaHostInput.value = savedOllamaHost || 'http://localhost:11434';
 
@@ -1052,258 +1048,17 @@ const SettingsPage = {
     saveAdvancedBtn.addEventListener('click', async () => {
       const host = ollamaHostInput.value.trim() || 'http://localhost:11434';
       const ctxWindow = parseInt(contextWindowSelect.value);
+      const keepAlive = keepAliveSelect.value;
 
       await window.api.settings.set('local.webSearchEnabled', webSearchEnabled);
       await window.api.settings.set('local.contextWindow', ctxWindow);
       await window.api.settings.set('local.ollamaHost', host);
+      await window.api.settings.set('ollama.keepAlive', keepAlive);
 
       advancedSaveStatus.classList.remove('hidden');
       setTimeout(() => advancedSaveStatus.classList.add('hidden'), 2000);
     });
   },
-
-  _bindWizard(container) {
-    const toggle = container.querySelector('#wizardToggle');
-    const panel = container.querySelector('#wizardPanel');
-    const chevron = container.querySelector('#wizardChevron');
-    const ramSelect = container.querySelector('#wizardRAM');
-    const gpuSelect = container.querySelector('#wizardGPU');
-    const useCasesDiv = container.querySelector('#wizardUseCases');
-    const recommendBtn = container.querySelector('#wizardRecommendBtn');
-    const resultsDiv = container.querySelector('#wizardResults');
-
-    // Toggle panel
-    toggle.addEventListener('click', () => {
-      panel.classList.toggle('hidden');
-      chevron.style.transform = panel.classList.contains('hidden') ? '' : 'rotate(180deg)';
-    });
-
-    // Populate RAM options
-    window.ModelAdvisor.RAM_OPTIONS.forEach(opt => {
-      const el = document.createElement('option');
-      el.value = opt.value;
-      el.textContent = opt.label;
-      ramSelect.appendChild(el);
-    });
-
-    // Populate GPU options
-    window.ModelAdvisor.GPU_OPTIONS.forEach(opt => {
-      const el = document.createElement('option');
-      el.value = opt.value;
-      el.textContent = opt.label;
-      gpuSelect.appendChild(el);
-    });
-
-    // Populate use case toggles
-    const selectedCases = new Set();
-    window.ModelAdvisor.USE_CASES.forEach(uc => {
-      const btn = document.createElement('button');
-      btn.type = 'button';
-      btn.className = 'px-3 py-2 rounded-xl border text-sm transition-all flex items-center gap-1.5 border-neutral-200/50 bg-white/60 text-neutral-600 hover:bg-white/90';
-      btn.innerHTML = `<span class="flex-shrink-0">${uc.icon}</span><span>${uc.label}</span>`;
-      btn.title = uc.description;
-      btn.addEventListener('click', () => {
-        if (selectedCases.has(uc.id)) {
-          selectedCases.delete(uc.id);
-          btn.className = 'px-3 py-2 rounded-xl border text-sm transition-all flex items-center gap-1.5 border-neutral-200/50 bg-white/60 text-neutral-600 hover:bg-white/90';
-        } else {
-          selectedCases.add(uc.id);
-          btn.className = 'px-3 py-2 rounded-xl border text-sm transition-all flex items-center gap-1.5 border-neutral-900 bg-neutral-900 text-white';
-        }
-        updateRecommendBtn();
-      });
-      useCasesDiv.appendChild(btn);
-    });
-
-    const updateRecommendBtn = () => {
-      recommendBtn.disabled = !ramSelect.value || !gpuSelect.value;
-    };
-    ramSelect.addEventListener('change', updateRecommendBtn);
-    gpuSelect.addEventListener('change', updateRecommendBtn);
-
-    // Generate recommendation
-    recommendBtn.addEventListener('click', async () => {
-      const ramGB = parseInt(ramSelect.value);
-      const gpu = gpuSelect.value;
-      const useCases = [...selectedCases];
-
-      // Get currently installed models
-      const status = await window.api.ollama.status();
-      const installedModels = status.running ? (status.models || []) : [];
-      const installedNames = installedModels.map(m => m.name);
-      const installedTotalGB = installedModels.reduce((sum, m) => sum + (m.size || 0), 0) / 1e9;
-
-      const result = window.ModelAdvisor.getRecommendations(ramGB, gpu, useCases);
-      resultsDiv.classList.remove('hidden');
-
-      if (!result.primary) {
-        resultsDiv.innerHTML = `
-          <div class="p-4 rounded-xl bg-amber-50/80 border border-amber-100 text-sm text-amber-800">
-            ${result.message}
-          </div>`;
-        return;
-      }
-
-      const primaryPerf = window.ModelAdvisor.getPerformanceEstimate(result.primary, ramGB, gpu);
-      const altPerf = result.alternative ? window.ModelAdvisor.getPerformanceEstimate(result.alternative, ramGB, gpu) : null;
-
-      // Check if models are already installed
-      const primaryInstalled = installedNames.some(n => n === result.primary.id || n.startsWith(result.primary.id + ':'));
-      const altInstalled = result.alternative ? installedNames.some(n => n === result.alternative.id || n.startsWith(result.alternative.id + ':')) : false;
-      const embeddingInstalled = result.embedding ? installedNames.some(n => n === result.embedding.id || n.startsWith(result.embedding.id + ':')) : false;
-
-      // Disk space warning: if new model + existing > reasonable threshold
-      const newModelGB = result.primary.sizeGB || 0;
-      const wouldUseGB = installedTotalGB + newModelGB;
-      const diskWarning = (!primaryInstalled && wouldUseGB > 20) ?
-        `<p class="text-[10px] text-amber-600 mt-2">You currently have ${installedTotalGB.toFixed(1)} GB of models installed. Consider deleting unused models in the list above to free space.</p>` : '';
-
-      // Installed models summary
-      const installedSummary = installedModels.length > 0 ?
-        `<div class="p-3 rounded-xl bg-neutral-50/80 dark:bg-neutral-800/50 border border-neutral-200/40 dark:border-neutral-700/40 mb-3">
-          <p class="text-[10px] font-medium text-neutral-500 uppercase tracking-wider mb-1">Currently installed (${installedTotalGB.toFixed(1)} GB total)</p>
-          <p class="text-xs text-neutral-600 dark:text-neutral-400">${installedNames.join(', ')}</p>
-        </div>` : '';
-
-      let html = installedSummary;
-
-      html += `<div class="p-4 rounded-xl bg-emerald-50/80 border border-emerald-100">
-        <p class="text-xs font-medium text-emerald-700 uppercase tracking-wider mb-2">Recommended</p>
-        <div class="flex items-start justify-between gap-3">
-          <div class="flex-1 min-w-0">
-            <p class="text-sm font-semibold text-neutral-900">${result.primary.name} <span class="font-normal text-neutral-500">(${result.primary.params})</span></p>
-            <p class="text-xs text-neutral-600 mt-0.5">${result.primary.description}</p>
-            <div class="flex items-center gap-3 mt-2 text-xs">
-              <span class="text-neutral-500">Download: ${result.primary.sizeGB} GB</span>
-              <span class="${primaryPerf.speedColor} font-medium">${primaryPerf.speedLabel} (~${primaryPerf.tokensPerSec} tok/s)</span>
-            </div>
-            <p class="text-[10px] text-neutral-400 mt-1">~${primaryPerf.wordsPerMin.toLocaleString()} words/min output</p>
-            ${diskWarning}
-          </div>
-          ${primaryInstalled
-            ? '<span class="px-3 py-1.5 rounded-lg bg-emerald-100 text-xs font-medium text-emerald-700 flex-shrink-0">Installed ✓</span>'
-            : `<button class="wizard-install-btn px-3 py-1.5 rounded-lg bg-neutral-900 text-xs font-medium text-white hover:bg-neutral-800 transition-all shadow-sm flex-shrink-0" data-model="${result.primary.id}">Install</button>`
-          }
-        </div>
-      </div>`;
-
-      if (result.alternative) {
-        html += `<div class="p-4 rounded-xl bg-white/60 border border-neutral-200/40">
-          <p class="text-xs font-medium text-neutral-500 uppercase tracking-wider mb-2">Alternative</p>
-          <div class="flex items-start justify-between gap-3">
-            <div class="flex-1 min-w-0">
-              <p class="text-sm font-semibold text-neutral-900">${result.alternative.name} <span class="font-normal text-neutral-500">(${result.alternative.params})</span></p>
-              <p class="text-xs text-neutral-600 mt-0.5">${result.alternative.description}</p>
-              <div class="flex items-center gap-3 mt-2 text-xs">
-                <span class="text-neutral-500">Download: ${result.alternative.sizeGB} GB</span>
-                <span class="${altPerf.speedColor} font-medium">${altPerf.speedLabel} (~${altPerf.tokensPerSec} tok/s)</span>
-              </div>
-            </div>
-            ${altInstalled
-              ? '<span class="px-3 py-1.5 rounded-lg bg-emerald-100 text-xs font-medium text-emerald-700 flex-shrink-0">Installed ✓</span>'
-              : `<button class="wizard-install-btn px-3 py-1.5 rounded-lg bg-white border border-neutral-200 text-xs font-medium text-neutral-700 hover:bg-neutral-50 transition-all shadow-sm flex-shrink-0" data-model="${result.alternative.id}">Install</button>`
-            }
-          </div>
-        </div>`;
-      }
-
-      if (result.embedding) {
-        html += `<div class="p-3 rounded-xl bg-white/50 border border-neutral-200/40 flex items-center justify-between">
-          <div>
-            <p class="text-xs font-medium text-neutral-700">Also recommended: ${result.embedding.name}</p>
-            <p class="text-[10px] text-neutral-500">${result.embedding.description} (${result.embedding.sizeGB} GB)</p>
-          </div>
-          ${embeddingInstalled
-            ? '<span class="px-3 py-1.5 rounded-lg bg-emerald-100 text-xs font-medium text-emerald-700 flex-shrink-0">Installed ✓</span>'
-            : `<button class="wizard-install-btn px-3 py-1.5 rounded-lg bg-white border border-neutral-200 text-xs font-medium text-neutral-700 hover:bg-neutral-50 transition-all shadow-sm flex-shrink-0" data-model="${result.embedding.id}">Install</button>`
-          }
-        </div>`;
-      }
-
-      resultsDiv.innerHTML = html;
-
-      // Bind install buttons
-      resultsDiv.querySelectorAll('.wizard-install-btn').forEach(btn => {
-        btn.addEventListener('click', async () => {
-          const modelId = btn.dataset.model;
-
-          const status = await window.api.ollama.status();
-          if (!status.running) {
-            btn.textContent = 'Start Ollama first';
-            setTimeout(() => { btn.textContent = 'Install'; }, 2000);
-            return;
-          }
-
-          resultsDiv.querySelectorAll('.wizard-install-btn').forEach(b => b.disabled = true);
-
-          // Replace the Install button with a progress bar inside the same card
-          const cardDiv = btn.closest('.flex.items-start');
-          btn.outerHTML = `
-            <div class="flex-shrink-0 w-48" id="wizardCardProgress">
-              <div class="w-full bg-neutral-200 dark:bg-neutral-700 rounded-full h-3 shadow-inner mb-1.5">
-                <div id="wizardProgressBar" class="bg-blue-500 h-3 rounded-full transition-all" style="width: 0%"></div>
-              </div>
-              <p id="wizardProgressText" class="text-[11px] text-neutral-500 mb-1">Starting download...</p>
-              <button id="wizardCancelBtn" class="px-3 py-1 rounded-md bg-rose-100 dark:bg-rose-900/30 text-rose-600 dark:text-rose-400 text-xs font-medium hover:bg-rose-200 dark:hover:bg-rose-900/50 transition-colors w-full">Cancel Download</button>
-            </div>
-          `;
-
-          // Bind cancel — this truly aborts the fetch stream, not just pauses
-          const cancelBtn = resultsDiv.querySelector('#wizardCancelBtn');
-          cancelBtn.addEventListener('click', async () => {
-            cancelBtn.textContent = 'Cancelling...';
-            cancelBtn.disabled = true;
-            await window.api.ollama.cancelPull();
-            // AbortController.abort() kills the fetch stream immediately
-            // The pullModel function catches AbortError and sends pull-done with error
-          });
-
-          // Show progress bar in the model section too (for visibility when scrolled)
-          const pullProgress = container.querySelector('#pullProgress');
-          if (pullProgress) pullProgress.classList.remove('hidden');
-
-          // Listen for progress updates
-          window.api.ollama.onPullProgress((data) => {
-            const bar = resultsDiv.querySelector('#wizardProgressBar');
-            const text = resultsDiv.querySelector('#wizardProgressText');
-            if (bar && text && data.total && data.completed) {
-              const pct = Math.round((data.completed / data.total) * 100);
-              bar.style.width = pct + '%';
-              const downloadedMB = (data.completed / 1e6).toFixed(0);
-              const totalMB = (data.total / 1e6).toFixed(0);
-              text.textContent = `${downloadedMB} / ${totalMB} MB (${pct}%)`;
-            } else if (text) {
-              text.textContent = data.status || 'Processing...';
-            }
-          });
-
-          // Listen for pull done (success or cancel)
-          window.api.ollama.onPullDone(async (data) => {
-            const progressEl = resultsDiv.querySelector('#wizardCardProgress');
-            if (data.success) {
-              if (progressEl) progressEl.innerHTML = '<span class="px-3 py-1.5 rounded-lg bg-emerald-100 text-xs font-medium text-emerald-700">Installed ✓</span>';
-              resultsDiv.querySelectorAll('.wizard-install-btn').forEach(b => b.disabled = false);
-              await window.ProviderManager.refreshLocal();
-              window.AppRouter?.updateModelDropdown();
-            } else {
-              if (progressEl) progressEl.innerHTML = `<span class="text-xs text-neutral-400">${data.error === 'Download cancelled' ? 'Download cancelled' : 'Error — try again'}</span>`;
-              resultsDiv.querySelectorAll('.wizard-install-btn').forEach(b => b.disabled = false);
-            }
-            if (pullProgress) pullProgress.classList.add('hidden');
-          });
-
-          try {
-            await window.api.ollama.pull(modelId);
-          } catch (err) {
-            const progressEl = resultsDiv.querySelector('#wizardCardProgress');
-            if (progressEl) progressEl.innerHTML = '<span class="text-xs text-rose-500">Error — try again</span>';
-            resultsDiv.querySelectorAll('.wizard-install-btn').forEach(b => b.disabled = false);
-          }
-        });
-      });
-    });
-  },
-
   async _loadPlugins(container) {
     const pluginsList = container.querySelector('#pluginsList');
     const pluginsDir = container.querySelector('#pluginsDir');

@@ -79,6 +79,36 @@
     }
     .progress-bar { transition: width 0.3s ease; }
 
+    /* Model Swap Indicator — inline in model selector */
+    .model-swap-progress-bar {
+      position: absolute;
+      bottom: -2px;
+      left: 0;
+      right: 0;
+      height: 2px;
+      background: rgba(0,0,0,0.06);
+      border-radius: 1px;
+      overflow: hidden;
+    }
+    .dark .model-swap-progress-bar { background: rgba(255,255,255,0.06); }
+    .model-swap-progress-fill {
+      height: 100%;
+      background: #6366f1;
+      border-radius: 1px;
+      transition: width 0.4s ease;
+      width: 0%;
+    }
+    .model-swap-progress-fill.animating {
+      animation: progressPulse 2s ease-in-out infinite;
+    }
+    .model-swap-spinner { animation: spin 1s linear infinite; }
+    @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+    @keyframes progressPulse {
+      0% { opacity: 1; }
+      50% { opacity: 0.6; }
+      100% { opacity: 1; }
+    }
+
     /* Ambient gradient blobs */
     @keyframes float1 {
       0% { transform: translate(0, 0) scale(1) rotate(0deg); }
@@ -255,7 +285,10 @@
   <script src="components/prompt-picker.js"></script>
   <script src="components/web-search.js"></script>
   <script src="components/advanced-ollama-settings.js"></script>
+  <script src="components/model-browser.js"></script>
   <script src="components/runtime-monitor.js"></script>
+  <script src="components/model-swap-indicator.js"></script>
+  <script src="components/model-browser.js"></script>
   <script src="pages/chat.js"></script>
   <script src="pages/recent.js"></script>
   <script src="pages/images.js"></script>

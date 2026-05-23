@@ -204,7 +204,7 @@ function buildOllamaOptions() {
  * @returns {string} keep_alive value for Ollama
  */
 function getKeepAlive() {
-  return store.get('ollama.keepAlive', '5m');
+  return store.get('ollama.keepAlive', '2m');
 }
 
 module.exports = {

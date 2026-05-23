@@ -37,6 +37,7 @@ const path = require('path');
 const fs = require('fs');
 const { app } = require('electron');
 const Store = require('electron-store');
+const licenseChecker = require('./license-checker');
 
 const store = new Store();
 
@@ -160,6 +161,18 @@ class PluginManager {
     } else {
       this._deactivate(pluginId);
     }
+  }
+
+  // Check license for a paid plugin (async, called from IPC)
+  async checkLicense(pluginId) {
+    const plugin = this.plugins.get(pluginId);
+    if (!plugin) return { valid: false, reason: 'not_found' };
+    return await licenseChecker.check(pluginId, plugin.manifest);
+  }
+
+  // Get license checker instance (for IPC handlers)
+  getLicenseChecker() {
+    return licenseChecker;
   }
 
   // Get list of all plugins with status

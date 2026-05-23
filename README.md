@@ -1,80 +1,122 @@
-# IIMAGINE Desktop Companion
+# IIMAGINE Desktop
 
-Local LLM chat app that uses your IIMAGINE account for authentication and Ollama for private, on-device AI inference.
+A privacy-first, open-source AI desktop app. Run AI locally with full privacy, or connect your own API keys. No account required.
 
-## Prerequisites
+## Features (Free)
 
-1. **Ollama** - Install from [ollama.com/download](https://ollama.com/download)
-2. **Node.js 18+** - Required for development
-3. **An IIMAGINE account** - Sign up at [app.iimagine.ai](https://app.iimagine.ai)
+- **Local AI** — Chat with Ollama models, fully private, no data leaves your machine
+- **API Key Support** — Connect OpenAI, Anthropic, Google, or OpenRouter keys
+- **Knowledge Base** — Chat with your documents (PDF, Word, CSV, Markdown)
+- **Folder Connect** — Auto-index any folder on your machine
+- **Custom Personas** — Create and switch between system prompts
+- **Prompt Manager** — Save and reuse prompt templates
+- **Web Search** — Opt-in web search for current information
+- **Tool Calling** — AI automatically searches web or documents when needed
+- **Hardware Auto-Detection** — Recommends the best model for your hardware
+- **Encrypted Storage** — AES-256 encryption via SQLCipher
+- **Plugin System** — Install community plugins to extend functionality
 
 ## Quick Start
 
 ```bash
-# Install dependencies
-cd desktop-companion
+# Install Ollama first: https://ollama.com/download
+
+# Clone and run
+git clone https://github.com/delreyrunner/iimagine-ai-desktop.git
+cd iimagine-ai-desktop
 npm install
-
-# Pull a model (if you haven't already)
-ollama pull gemma2:2b
-
-# Start the app
 npm start
 ```
 
-## How It Works
+## Prerequisites
 
-### Authentication Flow
-1. Click "Sign in with IIMAGINE" in the desktop app
-2. Your browser opens to the IIMAGINE login page
-3. After login, a one-time code is generated
-4. The code is passed back to the desktop app via `iimagine-desktop://` protocol
-5. The app exchanges the code for a long-lived token (30 days)
-6. Token is stored securely on your machine
-
-### Chat Flow
-- All chat messages go directly to Ollama on `localhost:11434`
-- No data leaves your computer during chat
-- The IIMAGINE token is only used to verify you have an active account
+- **Node.js 18+**
+- **Ollama** — Install from [ollama.com/download](https://ollama.com/download)
 
 ## Recommended Models
 
-| Model | Size | Best For |
-|-------|------|----------|
-| `gemma2:2b` | 1.6GB | Fast responses, light tasks |
-| `gemma2:9b` | 5.4GB | Good balance of speed and quality |
-| `llama3.1:8b` | 4.7GB | General purpose |
-| `mistral:7b` | 4.1GB | Coding and reasoning |
-| `phi3:mini` | 2.3GB | Compact, fast |
+The app includes a Model Advisor that recommends models based on your hardware. Here are some starting points:
 
-Pull any model with: `ollama pull <model-name>`
+| Available RAM | Recommended Model | Why |
+|--------------|-------------------|-----|
+| 4GB | Gemma 4 E2B | Lightweight, fast responses |
+| 8GB | Gemma 4 E4B (MoE) | Good quality at low resource cost |
+| 16GB | Gemma 4 26B MoE | Best quality-to-resource ratio |
+| 32GB+ | Gemma 4 31B Dense | Maximum quality |
 
-## Development
-
-```bash
-# Run in dev mode (points to localhost:3000 for auth)
-npm run dev
-
-# Build for macOS
-npm run build:mac
-```
+Pull any model: `ollama pull <model-name>`
 
 ## Architecture
 
 ```
-desktop-companion/
-├── main.js          # Electron main process (auth, Ollama, IPC)
-├── preload.js       # Secure bridge between main and renderer
+├── main.js                 # Electron main process
+├── preload.js              # Secure IPC bridge
 ├── renderer/
-│   ├── index.html   # Chat UI
-│   └── app.js       # UI logic
-├── package.json     # Electron + build config
-└── README.md
+│   ├── index.html          # App shell
+│   ├── app.js              # Core UI logic
+│   ├── pages/              # Page components (chat, knowledge, settings, etc.)
+│   ├── components/         # Reusable UI components
+│   └── providers.js        # AI provider management
+├── plugins/
+│   ├── word-count/         # Example: free plugin
+│   └── privacy-proxy/      # Example: PII redaction for cloud models
+├── storage.js              # SQLite conversation storage
+├── kb-storage.js           # Knowledge base with vector search
+├── plugin-manager.js       # WordPress-style plugin system
+├── license-checker.js      # License validation (open source, auditable)
+├── tool-calling.js         # Built-in tool calling (web search, RAG)
+└── docs/                   # Documentation
 ```
 
-## Future Phases
+## Plugin System
 
-- **Phase 2**: Sync chat history to IIMAGINE cloud
-- **Phase 3**: Hybrid mode (local for private, cloud for complex)
-- **Phase 4**: Access Cortex features (KG, My Life, actions)
-- **Phase 5**: Offline mode with local SQLite cache
+Plugins extend the app with new capabilities. The plugin system uses hooks:
+
+- `chatPreprocess` — Modify messages before sending to the LLM
+- `chatPostprocess` — Process responses after the LLM
+- `sidebar` — Add pages to the sidebar
+- `settings` — Add settings panels
+- `mention` — Respond to @mentions in chat
+- `commands` — Register slash commands
+
+### Writing a Plugin
+
+See `docs/plugin-docs/` for the full plugin development guide.
+
+### Paid Plugins
+
+Premium plugins (memory, client management, industry tools) are available from the [IIMAGINE Plugin Marketplace](https://app.iimagine.ai/desktop/plugins). They are distributed separately and require a subscription.
+
+## Privacy
+
+- **No account required** — The app works fully offline with local models
+- **No telemetry** — Zero usage data collected
+- **Encrypted storage** — All local data encrypted with AES-256
+- **Open source license validation** — The networking code is in this repo for anyone to audit
+- **Privacy indicator** — Every message shows whether it stayed local or went to cloud
+
+## Development
+
+```bash
+# Dev mode (hot reload)
+npm run dev
+
+# Build for macOS
+npm run build:mac
+
+# Build for Windows
+npm run build:win
+
+# Build for Linux
+npm run build:linux
+```
+
+## License
+
+MIT — see [LICENSE](LICENSE)
+
+## Links
+
+- [Plugin Marketplace](https://app.iimagine.ai/desktop/plugins)
+- [Documentation](https://app.iimagine.ai/desktop/docs)
+- [Developer Guide](https://app.iimagine.ai/desktop/developers)

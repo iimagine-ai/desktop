@@ -73,7 +73,7 @@
     "electron-store": "^8.2.0",
     "keytar": "^7.9.0",
     "mammoth": "^1.9.1",
-    "pdf-parse": "^1.1.1",
+    "pdf-parse": "^1.1.4",
     "sqlite-vec": "^0.1.9"
   },
   "devDependencies": {

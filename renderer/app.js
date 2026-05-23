@@ -50,6 +50,9 @@ const AppRouter = {
   },
 
   updateModelDropdown() {
+    // Don't overwrite if model swap is in progress
+    if (window.ModelSwapIndicator && window.ModelSwapIndicator.isLoading()) return;
+
     const btn = $('#modelDropdownBtn');
     const list = $('#modelDropdownList');
     const providers = window.ProviderManager.getReady();
@@ -355,6 +358,11 @@ async function init() {
 
   await window.ProviderManager.refreshLocal();
   AppRouter.updateModelDropdown();
+
+  // Initialize model swap indicator
+  if (window.ModelSwapIndicator) {
+    window.ModelSwapIndicator.init();
+  }
 
   // Load plugin sidebar items
   await loadPluginSidebarItems();

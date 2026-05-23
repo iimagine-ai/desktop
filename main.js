@@ -16,6 +16,9 @@ const streamAbort = require('./stream-abort');
 const folderConnect = require('./folder-connect');
 const promptStorage = require('./prompt-storage');
 const ragPromptStorage = require('./rag-prompt-storage');
+const { scanHardware } = require('./hardware-scanner');
+const manifestManager = require('./manifest-manager');
+const modelOrchestrator = require('./model-orchestrator');
 
 const store = new Store();
 
@@ -877,6 +880,48 @@ function setupIPC() {
   // Shell — generic open path (for notes folder, etc.)
   ipcMain.handle('shell:openPath', async (event, filePath) => {
     if (filePath) shell.openPath(filePath);
+  });
+
+  // Shell — open external URL in default browser
+  ipcMain.handle('shell:openExternal', async (event, url) => {
+    if (url && (url.startsWith('https://') || url.startsWith('http://'))) {
+      shell.openExternal(url);
+    }
+  });
+
+  // Hardware scanner
+  ipcMain.handle('hardware:scan', async () => await scanHardware());
+
+  // Model registry manifest
+  ipcMain.handle('manifest:get', () => manifestManager.getManifest());
+  ipcMain.handle('manifest:checkUpdate', () => manifestManager.checkUpdate());
+  ipcMain.handle('manifest:dismissUpdate', () => manifestManager.dismissUpdate());
+
+  // ── Model Orchestrator — instant swap & preloading ────────────
+  const sendModelEvent = (channel, data) => {
+    mainWindow?.webContents.send(channel, data);
+  };
+
+  ipcMain.handle('model:switch', async (event, targetModel) => {
+    return await modelOrchestrator.switchModel(targetModel, sendModelEvent);
+  });
+
+  ipcMain.handle('model:preload', async (event, targetModel) => {
+    modelOrchestrator.preloadModel(targetModel, sendModelEvent);
+    return { success: true };
+  });
+
+  ipcMain.handle('model:keepAlive', async (event, modelName) => {
+    await modelOrchestrator.keepAlive(modelName);
+    return { success: true };
+  });
+
+  ipcMain.handle('model:getState', async () => {
+    return await modelOrchestrator.syncState();
+  });
+
+  ipcMain.handle('model:getLoadedModels', async () => {
+    return await modelOrchestrator.getLoadedModels();
   });
 
   // Ollama — generate embeddings for text chunks (batch)
@@ -1760,6 +1805,12 @@ END OF DOCUMENTS`;
   });
   ipcMain.handle('plugins:getDir', () => pluginManager.getPluginsDir());
   ipcMain.handle('plugins:uninstall', (event, id) => pluginManager.uninstall(id));
+  ipcMain.handle('plugins:checkLicense', async (event, pluginId) => {
+    return await pluginManager.checkLicense(pluginId);
+  });
+  ipcMain.handle('plugins:getAllLicenses', () => {
+    return pluginManager.getLicenseChecker().getAllCached();
+  });
 
   // Plugin chat hooks
   ipcMain.handle('plugins:chatPreprocess', async (event, data) => {
@@ -2255,6 +2306,11 @@ app.whenReady().then(async () => {
   folderConnect.init(storage.getDb(), kbStorage);
   promptStorage.init(storage.getDb());
   ragPromptStorage.init(storage.getDb(), store);
+
+  // Initialize model registry manifest (non-blocking remote fetch)
+  manifestManager.initialize().catch(err => {
+    console.warn('[App] Manifest init warning:', err.message);
+  });
 
   // Initialize plugin system
   pluginManager.setContext({

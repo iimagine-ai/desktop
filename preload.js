@@ -39,6 +39,21 @@ contextBridge.exposeInMainWorld('api', {
     onPullDone: (cb) => ipcRenderer.on('ollama:pull-done', (_, data) => cb(data)),
   },
 
+  // Model Orchestrator — instant swap & preloading
+  modelSwap: {
+    switch: (modelName) => ipcRenderer.invoke('model:switch', modelName),
+    preload: (modelName) => ipcRenderer.invoke('model:preload', modelName),
+    keepAlive: (modelName) => ipcRenderer.invoke('model:keepAlive', modelName),
+    getState: () => ipcRenderer.invoke('model:getState'),
+    getLoadedModels: () => ipcRenderer.invoke('model:getLoadedModels'),
+    onSwitchStart: (cb) => ipcRenderer.on('model:switch-start', (_, data) => cb(data)),
+    onSwitchProgress: (cb) => ipcRenderer.on('model:switch-progress', (_, data) => cb(data)),
+    onSwitchComplete: (cb) => ipcRenderer.on('model:switch-complete', (_, data) => cb(data)),
+    onSwitchError: (cb) => ipcRenderer.on('model:switch-error', (_, data) => cb(data)),
+    onPreloadStart: (cb) => ipcRenderer.on('model:preload-start', (_, data) => cb(data)),
+    onPreloadComplete: (cb) => ipcRenderer.on('model:preload-complete', (_, data) => cb(data)),
+  },
+
   // Vertex AI (regional cloud)
   vertex: {
     chat: (messages, model, region) => ipcRenderer.invoke('vertex:chat', { messages, model, region }),
@@ -178,6 +193,8 @@ contextBridge.exposeInMainWorld('api', {
     chatPostprocess: (data) => ipcRenderer.invoke('plugins:chatPostprocess', data),
     getCommands: () => ipcRenderer.invoke('plugins:getCommands'),
     getMentions: () => ipcRenderer.invoke('plugins:getMentions'),
+    checkLicense: (pluginId) => ipcRenderer.invoke('plugins:checkLicense', pluginId),
+    getAllLicenses: () => ipcRenderer.invoke('plugins:getAllLicenses'),
   },
 
   // Folders — connect local folders to KB
@@ -236,5 +253,18 @@ contextBridge.exposeInMainWorld('api', {
   // Shell — open files/folders in system
   shell: {
     openPath: (filePath) => ipcRenderer.invoke('shell:openPath', filePath),
+    openExternal: (url) => ipcRenderer.invoke('shell:openExternal', url),
+  },
+
+  // Hardware scanner
+  hardware: {
+    scan: () => ipcRenderer.invoke('hardware:scan'),
+  },
+
+  // Model registry manifest
+  manifest: {
+    get: () => ipcRenderer.invoke('manifest:get'),
+    checkUpdate: () => ipcRenderer.invoke('manifest:checkUpdate'),
+    dismissUpdate: () => ipcRenderer.invoke('manifest:dismissUpdate'),
   },
 });

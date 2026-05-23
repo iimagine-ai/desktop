@@ -1,0 +1,520 @@
+{
+  "version": "2026-05-17",
+  "manifest_url": "https://raw.githubusercontent.com/iimagine-ai/model-registry/main/model-registry.json",
+  "categories": [
+    "text",
+    "code",
+    "multimodal",
+    "image",
+    "audio",
+    "video",
+    "embedding"
+  ],
+  "models": [
+    {
+      "id": "gemma4-e2b",
+      "name": "Gemma 4 E 2b",
+      "family": "gemma4",
+      "categories": [
+        "text",
+        "multimodal"
+      ],
+      "is_moe": true,
+      "active_params": "2B",
+      "total_params": "9B",
+      "description": "Google's edge MoE model. Multimodal at minimal compute.",
+      "leaderboard_rank": 8,
+      "quality_tier": "good",
+      "pull_method": "ollama_native",
+      "ollama_id": "gemma4:e2b",
+      "hf_pull": null,
+      "variants": [
+        {
+          "quant": "Q4_K_M",
+          "size_gb": 7.2,
+          "ram_required_gb": 9.7,
+          "is_default": true
+        }
+      ],
+      "supersedes": "gemma3:4b",
+      "released": "2026-04-01"
+    },
+    {
+      "id": "gemma4-e4b",
+      "name": "Gemma 4 E 4b",
+      "family": "gemma4",
+      "categories": [
+        "text",
+        "code",
+        "multimodal"
+      ],
+      "is_moe": true,
+      "active_params": "4B",
+      "total_params": "9B",
+      "description": "Best balance of quality and speed for 12-16GB machines. 128K context.",
+      "leaderboard_rank": 4,
+      "quality_tier": "very-good",
+      "pull_method": "ollama_native",
+      "ollama_id": "gemma4:e4b",
+      "hf_pull": null,
+      "variants": [
+        {
+          "quant": "Q4_K_M",
+          "size_gb": 9.6,
+          "ram_required_gb": 12.1,
+          "is_default": true
+        }
+      ],
+      "supersedes": "gemma3:12b",
+      "released": "2026-04-01"
+    },
+    {
+      "id": "gemma4-26b",
+      "name": "Gemma 4  2 6b",
+      "family": "gemma4",
+      "categories": [
+        "text",
+        "code",
+        "multimodal"
+      ],
+      "is_moe": true,
+      "active_params": "3.8B",
+      "total_params": "26B",
+      "description": "MoE — 27B intelligence at 4B compute cost. 256K context.",
+      "leaderboard_rank": 2,
+      "quality_tier": "excellent",
+      "pull_method": "ollama_native",
+      "ollama_id": "gemma4:26b",
+      "hf_pull": null,
+      "variants": [
+        {
+          "quant": "Q4_K_M",
+          "size_gb": 18,
+          "ram_required_gb": 20.5,
+          "is_default": true
+        }
+      ],
+      "supersedes": null,
+      "released": "2026-04-01"
+    },
+    {
+      "id": "gemma4-31b",
+      "name": "Gemma 4  3 1b",
+      "family": "gemma4",
+      "categories": [
+        "text",
+        "code",
+        "multimodal"
+      ],
+      "is_moe": false,
+      "active_params": "31B",
+      "total_params": "31B",
+      "description": "Google's strongest open model. Dense, 256K context.",
+      "leaderboard_rank": 1,
+      "quality_tier": "excellent",
+      "pull_method": "ollama_native",
+      "ollama_id": "gemma4:31b",
+      "hf_pull": null,
+      "variants": [
+        {
+          "quant": "Q4_K_M",
+          "size_gb": 20,
+          "ram_required_gb": 22.5,
+          "is_default": true
+        }
+      ],
+      "supersedes": null,
+      "released": "2026-04-01"
+    },
+    {
+      "id": "gpt-oss-20b",
+      "name": "Gpt-Oss  2 0b",
+      "family": "gpt-oss",
+      "categories": [
+        "text",
+        "code"
+      ],
+      "is_moe": false,
+      "active_params": "20B",
+      "total_params": "20B",
+      "description": "OpenAI's open-weight model. Strong reasoning. 128K context.",
+      "leaderboard_rank": 3,
+      "quality_tier": "excellent",
+      "pull_method": "ollama_native",
+      "ollama_id": "gpt-oss:20b",
+      "hf_pull": null,
+      "variants": [
+        {
+          "quant": "Q4_K_M",
+          "size_gb": 14,
+          "ram_required_gb": 16.5,
+          "is_default": true
+        }
+      ],
+      "supersedes": null,
+      "released": "2025-11-01"
+    },
+    {
+      "id": "qwen3-4b",
+      "name": "Qwen 3  4b",
+      "family": "qwen3",
+      "categories": [
+        "text",
+        "code"
+      ],
+      "is_moe": false,
+      "active_params": "4B",
+      "total_params": "4B",
+      "description": "Alibaba's compact model. Strong at coding and multilingual.",
+      "leaderboard_rank": 12,
+      "quality_tier": "good",
+      "pull_method": "ollama_native",
+      "ollama_id": "qwen3:4b",
+      "hf_pull": null,
+      "variants": [
+        {
+          "quant": "Q4_K_M",
+          "size_gb": 2.6,
+          "ram_required_gb": 5.1,
+          "is_default": true
+        }
+      ],
+      "supersedes": null,
+      "released": "2025-09-01"
+    },
+    {
+      "id": "qwen3-8b",
+      "name": "Qwen 3  8b",
+      "family": "qwen3",
+      "categories": [
+        "text",
+        "code"
+      ],
+      "is_moe": false,
+      "active_params": "8B",
+      "total_params": "8B",
+      "description": "Excellent for coding and analysis. 128K context.",
+      "leaderboard_rank": 7,
+      "quality_tier": "very-good",
+      "pull_method": "ollama_native",
+      "ollama_id": "qwen3:8b",
+      "hf_pull": null,
+      "variants": [
+        {
+          "quant": "Q4_K_M",
+          "size_gb": 5.2,
+          "ram_required_gb": 7.7,
+          "is_default": true
+        }
+      ],
+      "supersedes": null,
+      "released": "2025-09-01"
+    },
+    {
+      "id": "qwen3-30b",
+      "name": "Qwen 3  3 0b",
+      "family": "qwen3",
+      "categories": [
+        "text",
+        "code"
+      ],
+      "is_moe": true,
+      "active_params": "5B",
+      "total_params": "30B",
+      "description": "MoE. Best all-round local model for coding in 2026.",
+      "leaderboard_rank": 5,
+      "quality_tier": "excellent",
+      "pull_method": "ollama_native",
+      "ollama_id": "qwen3:30b",
+      "hf_pull": null,
+      "variants": [
+        {
+          "quant": "Q4_K_M",
+          "size_gb": 18,
+          "ram_required_gb": 20.5,
+          "is_default": true
+        }
+      ],
+      "supersedes": null,
+      "released": "2025-09-01"
+    },
+    {
+      "id": "qwen3-32b",
+      "name": "Qwen 3  3 2b",
+      "family": "qwen3",
+      "categories": [
+        "text",
+        "code"
+      ],
+      "is_moe": false,
+      "active_params": "32B",
+      "total_params": "32B",
+      "description": "Top-tier dense model for powerful machines.",
+      "leaderboard_rank": 6,
+      "quality_tier": "excellent",
+      "pull_method": "ollama_native",
+      "ollama_id": "qwen3:32b",
+      "hf_pull": null,
+      "variants": [
+        {
+          "quant": "Q4_K_M",
+          "size_gb": 20,
+          "ram_required_gb": 22.5,
+          "is_default": true
+        }
+      ],
+      "supersedes": null,
+      "released": "2025-09-01"
+    },
+    {
+      "id": "gemma3-4b",
+      "name": "Gemma 3  4b",
+      "family": "gemma3",
+      "categories": [
+        "text"
+      ],
+      "is_moe": false,
+      "active_params": "4B",
+      "total_params": "4B",
+      "description": "Previous-gen, still capable. Good for 8GB machines.",
+      "leaderboard_rank": 14,
+      "quality_tier": "good",
+      "pull_method": "ollama_native",
+      "ollama_id": "gemma3:4b",
+      "hf_pull": null,
+      "variants": [
+        {
+          "quant": "Q4_K_M",
+          "size_gb": 3,
+          "ram_required_gb": 5.5,
+          "is_default": true
+        }
+      ],
+      "supersedes": null,
+      "released": "2025-03-01"
+    },
+    {
+      "id": "gemma3-12b",
+      "name": "Gemma 3  1 2b",
+      "family": "gemma3",
+      "categories": [
+        "text",
+        "code",
+        "multimodal"
+      ],
+      "is_moe": false,
+      "active_params": "12B",
+      "total_params": "12B",
+      "description": "High quality across all tasks. 128K context.",
+      "leaderboard_rank": 9,
+      "quality_tier": "very-good",
+      "pull_method": "ollama_native",
+      "ollama_id": "gemma3:12b",
+      "hf_pull": null,
+      "variants": [
+        {
+          "quant": "Q4_K_M",
+          "size_gb": 8.1,
+          "ram_required_gb": 10.6,
+          "is_default": true
+        }
+      ],
+      "supersedes": null,
+      "released": "2025-03-01"
+    },
+    {
+      "id": "llama3.2-3b",
+      "name": "Llama 3. 2  3b",
+      "family": "llama",
+      "categories": [
+        "text"
+      ],
+      "is_moe": false,
+      "active_params": "3B",
+      "total_params": "3B",
+      "description": "Meta's compact model. Strong conversational ability.",
+      "leaderboard_rank": 15,
+      "quality_tier": "good",
+      "pull_method": "ollama_native",
+      "ollama_id": "llama3.2:3b",
+      "hf_pull": null,
+      "variants": [
+        {
+          "quant": "Q4_K_M",
+          "size_gb": 2,
+          "ram_required_gb": 4.5,
+          "is_default": true
+        }
+      ],
+      "supersedes": null,
+      "released": "2024-09-01"
+    },
+    {
+      "id": "llama3.1-8b",
+      "name": "Llama 3. 1  8b",
+      "family": "llama",
+      "categories": [
+        "text",
+        "code"
+      ],
+      "is_moe": false,
+      "active_params": "8B",
+      "total_params": "8B",
+      "description": "Meta's workhorse. Reliable across all tasks. 128K context.",
+      "leaderboard_rank": 10,
+      "quality_tier": "very-good",
+      "pull_method": "ollama_native",
+      "ollama_id": "llama3.1:8b",
+      "hf_pull": null,
+      "variants": [
+        {
+          "quant": "Q4_K_M",
+          "size_gb": 4.7,
+          "ram_required_gb": 7.2,
+          "is_default": true
+        }
+      ],
+      "supersedes": null,
+      "released": "2024-07-01"
+    },
+    {
+      "id": "llama3.3-70b",
+      "name": "Llama 3. 3  7 0b",
+      "family": "llama",
+      "categories": [
+        "text",
+        "code"
+      ],
+      "is_moe": false,
+      "active_params": "70B",
+      "total_params": "70B",
+      "description": "Near frontier quality. Requires 48GB+ RAM.",
+      "leaderboard_rank": 3,
+      "quality_tier": "excellent",
+      "pull_method": "ollama_native",
+      "ollama_id": "llama3.3:70b",
+      "hf_pull": null,
+      "variants": [
+        {
+          "quant": "Q4_K_M",
+          "size_gb": 43,
+          "ram_required_gb": 45.5,
+          "is_default": true
+        }
+      ],
+      "supersedes": null,
+      "released": "2024-12-01"
+    },
+    {
+      "id": "phi4-mini",
+      "name": "Phi 4-Mini",
+      "family": "phi",
+      "categories": [
+        "text",
+        "code"
+      ],
+      "is_moe": false,
+      "active_params": "3.8B",
+      "total_params": "3.8B",
+      "description": "Microsoft's compact model. Strong for coding/reasoning.",
+      "leaderboard_rank": 13,
+      "quality_tier": "good",
+      "pull_method": "ollama_native",
+      "ollama_id": "phi4-mini",
+      "hf_pull": null,
+      "variants": [
+        {
+          "quant": "Q4_K_M",
+          "size_gb": 2.5,
+          "ram_required_gb": 5,
+          "is_default": true
+        }
+      ],
+      "supersedes": null,
+      "released": "2025-01-01"
+    },
+    {
+      "id": "phi4",
+      "name": "Phi 4",
+      "family": "phi",
+      "categories": [
+        "text",
+        "code"
+      ],
+      "is_moe": false,
+      "active_params": "14B",
+      "total_params": "14B",
+      "description": "Microsoft's best compact text model. Strong reasoning.",
+      "leaderboard_rank": 8,
+      "quality_tier": "very-good",
+      "pull_method": "ollama_native",
+      "ollama_id": "phi4",
+      "hf_pull": null,
+      "variants": [
+        {
+          "quant": "Q4_K_M",
+          "size_gb": 9.1,
+          "ram_required_gb": 11.6,
+          "is_default": true
+        }
+      ],
+      "supersedes": null,
+      "released": "2025-01-01"
+    },
+    {
+      "id": "mistral-7b",
+      "name": "Mistral  7b",
+      "family": "mistral",
+      "categories": [
+        "text",
+        "code"
+      ],
+      "is_moe": false,
+      "active_params": "7B",
+      "total_params": "7B",
+      "description": "Mistral's flagship small model. Efficient and capable.",
+      "leaderboard_rank": 11,
+      "quality_tier": "very-good",
+      "pull_method": "ollama_native",
+      "ollama_id": "mistral:7b",
+      "hf_pull": null,
+      "variants": [
+        {
+          "quant": "Q4_K_M",
+          "size_gb": 4.1,
+          "ram_required_gb": 6.6,
+          "is_default": true
+        }
+      ],
+      "supersedes": null,
+      "released": "2024-03-01"
+    },
+    {
+      "id": "nomic-embed-text",
+      "name": "Nomic-Embed-Text",
+      "family": "nomic",
+      "categories": [
+        "embedding"
+      ],
+      "is_moe": false,
+      "active_params": "137M",
+      "total_params": "137M",
+      "description": "Required for Knowledge Base search. Tiny footprint.",
+      "leaderboard_rank": 1,
+      "quality_tier": "excellent",
+      "pull_method": "ollama_native",
+      "ollama_id": "nomic-embed-text",
+      "hf_pull": null,
+      "variants": [
+        {
+          "quant": "Q4_K_M",
+          "size_gb": 0.3,
+          "ram_required_gb": 2.8,
+          "is_default": true
+        }
+      ],
+      "supersedes": null,
+      "released": "2024-02-01"
+    }
+  ]
+}

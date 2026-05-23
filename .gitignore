@@ -7,3 +7,8 @@ out/
 .DS_Store
 config.json
 docs/client-coms-example.md
+
+# Paid plugins (distributed via marketplace, not open source)
+plugins/client-workspace/
+plugins/cortex-lite/
+plugins/legal-companion/
