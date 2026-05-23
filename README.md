@@ -22,8 +22,8 @@ A privacy-first, open-source AI desktop app. Run AI locally with full privacy, o
 # Install Ollama first: https://ollama.com/download
 
 # Clone and run
-git clone https://github.com/delreyrunner/iimagine-ai-desktop.git
-cd iimagine-ai-desktop
+git clone https://github.com/iimagine-ai/desktop.git
+cd desktop
 npm install
 npm start
 ```
