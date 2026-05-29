@@ -867,3 +867,53 @@ All other Phase 6 items (Export, Voice, Multi-modal, Branching, Search, Template
 **Phase 3:** Business Advisor plugin generates measurable recurring revenue. Users complete setup wizard at >60% rate.
 **Phase 4:** 3+ third-party plugins submitted within 3 months of marketplace launch.
 **Phase 5:** First vertical plugin (Legal) reaches 100 paying subscribers within 6 months.
+
+---
+
+## Pre-Launch Checklist (Before First Paid Plugin Ships)
+
+### Code Protection — V8 Bytecode Compilation
+
+Paid plugins are distributed as compiled V8 bytecode (`.jsc` files) instead of readable JavaScript. This prevents casual code theft while maintaining full offline functionality.
+
+**Tool:** `bytenode` (compiles JS → V8 bytecode that runs in Node.js/Electron)
+
+**What to build:**
+
+1. Install `bytenode` as a dev dependency: `npm install -D bytenode`
+2. Create `scripts/build-plugins.js` that:
+   - Takes each paid plugin directory (cortex-lite, client-workspace, legal-companion)
+   - Bundles all `.js` files into a single entry point using webpack/esbuild
+   - Compiles the bundle to `.jsc` using `bytenode.compileFile()`
+   - Outputs to a `dist/` folder: `dist/cortex-lite/index.jsc` + `plugin.json`
+3. Update `plugin-manager.js` to support `.jsc` loading:
+   - If `plugin.json` has `"compiled": true`, use `require('bytenode'); require('./index.jsc')`
+   - Otherwise fall back to `require('./index.js')` (for development and free plugins)
+4. Add `bytenode` as a production dependency in the desktop app's `package.json`
+5. Document the build command: `npm run build:plugins`
+
+**Distribution flow:**
+- Develop plugins in plain JS (as now)
+- Before distributing: run `npm run build:plugins`
+- Upload compiled `.jsc` + `plugin.json` to the download server
+- Users receive bytecode only — no source JS files
+
+**Important notes:**
+- Bytecode is tied to the Electron/Node.js version. Rebuild when upgrading Electron.
+- The `plugin.json` manifest remains readable (it's just metadata)
+- Free plugins (word-count, privacy-proxy) are NOT compiled — they stay as readable JS examples
+- This is a ~30 minute implementation task when ready to ship
+
+**Protection level:** Equivalent to a compiled C binary. Not impossible to reverse-engineer, but requires deep V8 internals knowledge and days-to-weeks of effort — far exceeding the value of a $9-29/mo plugin subscription.
+
+### Other Pre-Launch Items
+
+| Task | Status |
+|------|--------|
+| Stripe webhook configured in production | ✅ Done |
+| Plugin download mechanism (authenticated download after purchase) | ⬜ Not started |
+| V8 bytecode build pipeline for paid plugins | ⬜ Not started |
+| Signed Mac builds (Apple Developer certificate) | ⬜ Not started |
+| Windows code signing | ⬜ Not started |
+| Auto-updater (electron-updater) | ⬜ Not started |
+| Plugin marketplace UI in desktop app (browse, purchase, install) | ⬜ Not started |

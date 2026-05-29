@@ -1,6 +1,7 @@
 // IIMAGINE Desktop Companion - Main Process
 // Electron app with provider-based AI chat
-// Iteration 1: Local AI via Ollama
+// Local AI via bundled iimagine-engine (llama.cpp) — shows as "iimagine-engine" in Activity Monitor
+// Legacy Ollama support maintained for backward compatibility
 
 const { app, BrowserWindow, Tray, Menu, shell, ipcMain, nativeImage } = require('electron');
 const path = require('path');
@@ -19,6 +20,8 @@ const ragPromptStorage = require('./rag-prompt-storage');
 const { scanHardware } = require('./hardware-scanner');
 const manifestManager = require('./manifest-manager');
 const modelOrchestrator = require('./model-orchestrator');
+const engineManager = require('./engine-manager');
+const modelRegistry = require('./model-registry');
 
 const store = new Store();
 
@@ -133,13 +136,21 @@ async function validateToken() {
 }
 
 // ── Ollama Helpers ──────────────────────────────────────────────
+// NOTE: These are kept for backward compatibility. New code should use engine-manager.
 async function checkOllama() {
+  // First check if iimagine-engine is running (preferred)
+  const engineStatus = await engineManager.getStatus();
+  if (engineStatus.running) {
+    return { running: true, models: engineStatus.models, engine: 'iimagine' };
+  }
+
+  // Fallback: check if Ollama is running (legacy)
   try {
     const ollamaHost = store.get('local.ollamaHost') || OLLAMA_URL;
     const res = await fetch(`${ollamaHost}/api/tags`);
     if (res.ok) {
       const data = await res.json();
-      return { running: true, models: data.models || [] };
+      return { running: true, models: data.models || [], engine: 'ollama' };
     }
     return { running: false, models: [] };
   } catch {
@@ -279,8 +290,19 @@ function createWindow() {
 }
 
 function createTray() {
-  const iconPath = path.join(__dirname, 'assets', process.platform === 'win32' ? 'icon.ico' : 'icon.png');
-  const icon = nativeImage.createFromPath(iconPath).resize({ width: 16, height: 16 });
+  // Use dedicated tray icons for crisp menu bar rendering
+  const trayIconPath = path.join(__dirname, 'assets', process.platform === 'win32' ? 'icon.ico' : 'trayIcon.png');
+  const trayIcon2xPath = path.join(__dirname, 'assets', 'trayIcon@2x.png');
+
+  let icon;
+  if (process.platform !== 'win32' && fs.existsSync(trayIcon2xPath)) {
+    // Load @2x for Retina displays, Electron picks the right one
+    icon = nativeImage.createFromPath(trayIconPath);
+    const icon2x = nativeImage.createFromPath(trayIcon2xPath);
+    icon.addRepresentation({ scaleFactor: 2.0, buffer: icon2x.toPNG() });
+  } else {
+    icon = nativeImage.createFromPath(trayIconPath).resize({ width: 22, height: 22 });
+  }
 
   tray = new Tray(icon);
 
@@ -1009,6 +1031,192 @@ function setupIPC() {
     } catch {
       return { models: [] };
     }
+  });
+
+  // ── IIMAGINE Engine (llama.cpp) — replaces Ollama ─────────────
+  // These handlers use the bundled iimagine-engine binary.
+  // Shows as "iimagine-engine" in Activity Monitor instead of "ollama".
+
+  ipcMain.handle('engine:status', async () => {
+    return await engineManager.getStatus();
+  });
+
+  ipcMain.handle('engine:start', async (event, { modelPath, options }) => {
+    const result = await engineManager.startEngine(modelPath, options);
+    if (result.success) {
+      mainWindow?.webContents.send('engine:started', { model: modelPath });
+    }
+    return result;
+  });
+
+  ipcMain.handle('engine:stop', async () => {
+    return await engineManager.stopEngine();
+  });
+
+  ipcMain.handle('engine:switch', async (event, { modelPath, options }) => {
+    mainWindow?.webContents.send('engine:switching', { model: modelPath });
+    const result = await engineManager.switchModel(modelPath, options);
+    if (result.success) {
+      mainWindow?.webContents.send('engine:started', { model: modelPath });
+    }
+    return result;
+  });
+
+  ipcMain.handle('engine:getModelsDir', () => {
+    return engineManager.getModelsDir();
+  });
+
+  ipcMain.handle('engine:getInstalledModels', () => {
+    return engineManager.getInstalledModels();
+  });
+
+  ipcMain.handle('engine:deleteModel', (event, filename) => {
+    return engineManager.deleteModel(filename);
+  });
+
+  ipcMain.handle('engine:getRegistry', () => {
+    return modelRegistry.getAllModels();
+  });
+
+  // Engine — download model from HuggingFace
+  let activeDownloadController = null;
+
+  ipcMain.handle('engine:downloadModel', async (event, { url, filename }) => {
+    activeDownloadController = new AbortController();
+
+    const onProgress = (downloaded, total) => {
+      mainWindow?.webContents.send('engine:download-progress', {
+        filename,
+        downloaded,
+        total,
+        percent: total > 0 ? Math.round((downloaded / total) * 100) : 0,
+      });
+    };
+
+    const result = await engineManager.downloadModel(url, filename, onProgress, activeDownloadController.signal);
+    activeDownloadController = null;
+
+    mainWindow?.webContents.send('engine:download-done', {
+      filename,
+      success: result.success,
+      error: result.error,
+    });
+
+    return result;
+  });
+
+  ipcMain.handle('engine:cancelDownload', () => {
+    if (activeDownloadController) {
+      activeDownloadController.abort();
+      activeDownloadController = null;
+      return { success: true };
+    }
+    return { success: false };
+  });
+
+  // Engine — streaming chat (OpenAI-compatible)
+  ipcMain.handle('engine:chatStream', async (event, { messages }) => {
+    const controller = new AbortController();
+    streamAbort.setActiveStreamController(controller);
+
+    try {
+      // Inject active persona
+      const activePersona = personaStorage.getActivePersona();
+      if (activePersona && activePersona.custom_instructions) {
+        const hasSystem = messages.some(m => m.role === 'system');
+        if (!hasSystem) {
+          messages.unshift({ role: 'system', content: activePersona.custom_instructions });
+        } else {
+          const sysIdx = messages.findIndex(m => m.role === 'system');
+          messages[sysIdx].content = activePersona.custom_instructions + '\n\n' + messages[sysIdx].content;
+        }
+      }
+
+      const numCtx = store.get('ollama.numCtx', '4096');
+      const result = await engineManager.chat({
+        messages,
+        stream: true,
+        options: {
+          max_tokens: parseInt(numCtx) || 4096,
+          signal: controller.signal,
+        },
+      });
+
+      if (!result.success) {
+        return { success: false, error: result.error };
+      }
+
+      // Stream the response (OpenAI SSE format)
+      const reader = result.response.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n');
+        buffer = lines.pop() || '';
+
+        for (const line of lines) {
+          if (!line.startsWith('data: ')) continue;
+          const data = line.slice(6).trim();
+          if (data === '[DONE]') {
+            mainWindow?.webContents.send('ollama:stream-done');
+            break;
+          }
+          try {
+            const parsed = JSON.parse(data);
+            const content = parsed.choices?.[0]?.delta?.content || '';
+            if (content) {
+              // Send in same format as existing ollama:stream-chunk for compatibility
+              mainWindow?.webContents.send('ollama:stream-chunk', {
+                message: { content },
+              });
+            }
+          } catch {}
+        }
+      }
+
+      mainWindow?.webContents.send('ollama:stream-done');
+      return { success: true };
+    } catch (err) {
+      if (err.name === 'AbortError') {
+        mainWindow?.webContents.send('ollama:stream-done');
+        return { success: false, error: 'Stream aborted by user' };
+      }
+      return { success: false, error: err.message };
+    } finally {
+      streamAbort.clearActiveStreamController();
+    }
+  });
+
+  // Engine — embeddings
+  ipcMain.handle('engine:embed', async (event, { text }) => {
+    return await engineManager.embed(text);
+  });
+
+  ipcMain.handle('engine:embedBatch', async (event, { texts }) => {
+    const results = [];
+    let processed = 0;
+
+    for (const text of texts) {
+      const result = await engineManager.embed(text);
+      results.push(result);
+      processed++;
+      mainWindow?.webContents.send('kb:embed-progress', { processed, total: texts.length });
+    }
+
+    return results;
+  });
+
+  ipcMain.handle('engine:isInstalled', () => {
+    return engineManager.isEngineInstalled();
+  });
+
+  ipcMain.handle('engine:health', async () => {
+    return await engineManager.healthCheck();
   });
 
   // Ollama — streaming chat
@@ -2368,6 +2576,13 @@ app.whenReady().then(async () => {
 
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') app.quit();
+});
+
+// Ensure engine is stopped when app quits
+app.on('will-quit', async (event) => {
+  event.preventDefault();
+  await engineManager.stopEngine();
+  app.exit(0);
 });
 
 app.on('activate', () => {

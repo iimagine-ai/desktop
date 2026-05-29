@@ -8,6 +8,14 @@ out/
 config.json
 docs/client-coms-example.md
 
+# Engine binary and libraries (downloaded via scripts/setup-engine.sh)
+bin/iimagine-engine
+bin/iimagine-engine.exe
+bin/*.dylib
+bin/*.so
+bin/*.so.*
+bin/*.dll
+
 # Paid plugins (distributed via marketplace, not open source)
 plugins/client-workspace/
 plugins/cortex-lite/
