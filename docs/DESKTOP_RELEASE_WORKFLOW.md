@@ -34,8 +34,8 @@ Current required files (check this is up to date):
 main.js, preload.js, storage.js, kb-storage.js, assistant-storage.js,
 persona-storage.js, folder-connect.js, prompt-storage.js, rag-prompt-storage.js,
 tool-calling.js, plugin-manager.js, stream-abort.js, engine-manager.js,
-model-registry.js, license-checker.js, hardware-scanner.js, manifest-manager.js,
-model-orchestrator.js, model-registry-bundled.json
+model-registry.js, local-ai-adapter.js, license-checker.js, hardware-scanner.js,
+manifest-manager.js, model-orchestrator.js, model-registry-bundled.json
 ```
 
 ### 3. Sync code to the public repo
