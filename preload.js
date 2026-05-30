@@ -54,6 +54,54 @@ contextBridge.exposeInMainWorld('api', {
     onPreloadComplete: (cb) => ipcRenderer.on('model:preload-complete', (_, data) => cb(data)),
   },
 
+  // IIMAGINE Engine (bundled llama.cpp — shows as "iimagine-engine" in Activity Monitor)
+  engine: {
+    status: () => ipcRenderer.invoke('engine:status'),
+    start: (modelPath, options) => ipcRenderer.invoke('engine:start', { modelPath, options }),
+    stop: () => ipcRenderer.invoke('engine:stop'),
+    switch: (modelPath, options) => ipcRenderer.invoke('engine:switch', { modelPath, options }),
+    getModelsDir: () => ipcRenderer.invoke('engine:getModelsDir'),
+    getInstalledModels: () => ipcRenderer.invoke('engine:getInstalledModels'),
+    deleteModel: (filename) => ipcRenderer.invoke('engine:deleteModel', filename),
+    getRegistry: () => ipcRenderer.invoke('engine:getRegistry'),
+    downloadModel: (url, filename) => ipcRenderer.invoke('engine:downloadModel', { url, filename }),
+    cancelDownload: () => ipcRenderer.invoke('engine:cancelDownload'),
+    chatStream: (messages) => ipcRenderer.invoke('engine:chatStream', { messages }),
+    embed: (text) => ipcRenderer.invoke('engine:embed', { text }),
+    embedBatch: (texts) => ipcRenderer.invoke('engine:embedBatch', { texts }),
+    isInstalled: () => ipcRenderer.invoke('engine:isInstalled'),
+    health: () => ipcRenderer.invoke('engine:health'),
+    onDownloadProgress: (cb) => ipcRenderer.on('engine:download-progress', (_, data) => cb(data)),
+    onDownloadDone: (cb) => ipcRenderer.on('engine:download-done', (_, data) => cb(data)),
+    onStarted: (cb) => ipcRenderer.on('engine:started', (_, data) => cb(data)),
+    onSwitching: (cb) => ipcRenderer.on('engine:switching', (_, data) => cb(data)),
+  },
+
+  // Local AI — unified interface (preferred for new code)
+  // Routes through iimagine-engine first, falls back to Ollama.
+  // Use this instead of window.api.ollama for new features.
+  localAI: {
+    status: () => ipcRenderer.invoke('localAI:status'),
+    ensureRunning: () => ipcRenderer.invoke('localAI:ensureRunning'),
+    embed: (text, model) => ipcRenderer.invoke('localAI:embed', { text, model }),
+    chat: (model, messages, options) => ipcRenderer.invoke('localAI:chat', { model, messages, options }),
+    hasModel: (modelName) => ipcRenderer.invoke('localAI:hasModel', modelName),
+    getBestChatModel: () => ipcRenderer.invoke('localAI:getBestChatModel'),
+    // Streaming still uses the existing channels for compatibility
+    chatStream: (messages) => ipcRenderer.invoke('engine:chatStream', { messages }),
+    onStreamChunk: (cb) => ipcRenderer.on('ollama:stream-chunk', (_, chunk) => cb(chunk)),
+    onStreamDone: (cb) => ipcRenderer.on('ollama:stream-done', () => cb()),
+    // Model management (delegates to engine)
+    getModelsDir: () => ipcRenderer.invoke('engine:getModelsDir'),
+    getInstalledModels: () => ipcRenderer.invoke('engine:getInstalledModels'),
+    getRegistry: () => ipcRenderer.invoke('engine:getRegistry'),
+    downloadModel: (url, filename) => ipcRenderer.invoke('engine:downloadModel', { url, filename }),
+    cancelDownload: () => ipcRenderer.invoke('engine:cancelDownload'),
+    deleteModel: (filename) => ipcRenderer.invoke('engine:deleteModel', filename),
+    onDownloadProgress: (cb) => ipcRenderer.on('engine:download-progress', (_, data) => cb(data)),
+    onDownloadDone: (cb) => ipcRenderer.on('engine:download-done', (_, data) => cb(data)),
+  },
+
   // Vertex AI (regional cloud)
   vertex: {
     chat: (messages, model, region) => ipcRenderer.invoke('vertex:chat', { messages, model, region }),

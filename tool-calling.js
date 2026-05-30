@@ -124,26 +124,21 @@ function parseDuckDuckGoResults(html) {
 
 async function executeRagSearch(query, context) {
   if (!query) return 'No search query provided.';
-  const { kbStorage, ollamaHost } = context;
+  const { kbStorage } = context;
+  const localAI = require('./local-ai-adapter');
 
   if (!kbStorage || !kbStorage.isVecLoaded()) {
     return 'Knowledge base vector search is not available.';
   }
 
-  // Generate embedding for the query
+  // Generate embedding for the query via local-ai-adapter
   try {
-    const embedRes = await fetch(`${ollamaHost}/api/embed`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ model: 'nomic-embed-text', input: query }),
-    });
+    const embedResult = await localAI.embed(query);
+    if (!embedResult.success || !embedResult.embedding) {
+      return 'Failed to generate embedding for search query.';
+    }
 
-    if (!embedRes.ok) return 'Failed to generate embedding for search query.';
-    const embedData = await embedRes.json();
-    const embedding = embedData.embeddings?.[0] || embedData.embedding;
-    if (!embedding) return 'Failed to generate embedding.';
-
-    const queryVec = new Float32Array(embedding);
+    const queryVec = new Float32Array(embedResult.embedding);
     const results = kbStorage.searchSimilar(queryVec, null, 5);
 
     if (!results.length) return `No relevant documents found for: "${query}"`;

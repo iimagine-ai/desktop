@@ -1,15 +1,16 @@
 {
   "name": "iimagine-desktop",
-  "version": "0.6.0",
+  "version": "0.7.1",
   "description": "IIMAGINE Desktop Companion - Local LLM chat with your IIMAGINE account",
   "main": "main.js",
   "scripts": {
     "start": "electron .",
     "dev": "NODE_ENV=development electron .",
+    "setup-engine": "./scripts/setup-engine.sh",
     "build:renderer": "npx tailwindcss -i ./renderer/styles.css -o ./renderer/output.css --minify",
-    "build:mac": "electron-builder --mac",
+    "build:mac": "./scripts/setup-engine.sh && electron-builder --mac",
     "build:win": "electron-builder --win",
-    "build:linux": "electron-builder --linux"
+    "build:linux": "./scripts/setup-engine.sh && electron-builder --linux"
   },
   "build": {
     "appId": "ai.iimagine.desktop",
@@ -47,6 +48,14 @@
       "tool-calling.js",
       "plugin-manager.js",
       "stream-abort.js",
+      "engine-manager.js",
+      "model-registry.js",
+      "license-checker.js",
+      "hardware-scanner.js",
+      "manifest-manager.js",
+      "model-orchestrator.js",
+      "local-ai-adapter.js",
+      "model-registry-bundled.json",
       "renderer/**/*",
       "plugins/**/*",
       "assets/**/*",
@@ -57,6 +66,16 @@
       "node_modules/better-sqlite3/**",
       "node_modules/sqlite-vec/**",
       "node_modules/keytar/**"
+    ],
+    "extraResources": [
+      {
+        "from": "bin/",
+        "to": "bin/",
+        "filter": [
+          "**/*",
+          "!.gitkeep"
+        ]
+      }
     ],
     "protocols": [
       {

@@ -1,0 +1,26 @@
+{
+  "version": "b9415",
+  "release_tag": "b9415",
+  "release_date": "2026-05-29",
+  "source": "https://github.com/ggml-org/llama.cpp/releases",
+  "binaries": {
+    "darwin-arm64": "https://github.com/ggml-org/llama.cpp/releases/download/b9415/llama-b9415-bin-macos-arm64.tar.gz",
+    "darwin-x64": "https://github.com/ggml-org/llama.cpp/releases/download/b9415/llama-b9415-bin-macos-x64.tar.gz",
+    "win32-x64": "https://github.com/ggml-org/llama.cpp/releases/download/b9415/llama-b9415-bin-win-cpu-x64.zip",
+    "linux-x64": "https://github.com/ggml-org/llama.cpp/releases/download/b9415/llama-b9415-bin-ubuntu-x64.tar.gz"
+  },
+  "sha256": {
+    "darwin-arm64": "edf417cd8dd148fd423ea758953caa43376df98d8f027b7748ea0399a9a8023f",
+    "darwin-x64": "",
+    "win32-x64": "",
+    "linux-x64": ""
+  },
+  "binary_name_in_archive": "llama-server",
+  "renamed_to": "iimagine-engine",
+  "notes": "Latest release as of 2026-05-30. OpenAI-compat API verified stable.",
+  "api_endpoints": {
+    "chat": "POST /v1/chat/completions",
+    "embeddings": "POST /v1/embeddings",
+    "health": "GET /health"
+  }
+}

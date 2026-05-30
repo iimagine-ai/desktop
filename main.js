@@ -1,6 +1,7 @@
 // IIMAGINE Desktop Companion - Main Process
 // Electron app with provider-based AI chat
-// Iteration 1: Local AI via Ollama
+// Local AI via bundled iimagine-engine (llama.cpp) — shows as "iimagine-engine" in Activity Monitor
+// Legacy Ollama support maintained for backward compatibility
 
 const { app, BrowserWindow, Tray, Menu, shell, ipcMain, nativeImage } = require('electron');
 const path = require('path');
@@ -19,6 +20,9 @@ const ragPromptStorage = require('./rag-prompt-storage');
 const { scanHardware } = require('./hardware-scanner');
 const manifestManager = require('./manifest-manager');
 const modelOrchestrator = require('./model-orchestrator');
+const engineManager = require('./engine-manager');
+const modelRegistry = require('./model-registry');
+const localAI = require('./local-ai-adapter');
 
 const store = new Store();
 
@@ -133,18 +137,13 @@ async function validateToken() {
 }
 
 // ── Ollama Helpers ──────────────────────────────────────────────
+// NOTE: These now route through local-ai-adapter (engine-manager first, Ollama fallback).
 async function checkOllama() {
-  try {
-    const ollamaHost = store.get('local.ollamaHost') || OLLAMA_URL;
-    const res = await fetch(`${ollamaHost}/api/tags`);
-    if (res.ok) {
-      const data = await res.json();
-      return { running: true, models: data.models || [] };
-    }
-    return { running: false, models: [] };
-  } catch {
-    return { running: false, models: [] };
+  const status = await localAI.getStatus();
+  if (status.running) {
+    return { running: true, models: status.models, engine: status.engine };
   }
+  return { running: false, models: [] };
 }
 
 async function installOllama() {
@@ -279,8 +278,19 @@ function createWindow() {
 }
 
 function createTray() {
-  const iconPath = path.join(__dirname, 'assets', process.platform === 'win32' ? 'icon.ico' : 'icon.png');
-  const icon = nativeImage.createFromPath(iconPath).resize({ width: 16, height: 16 });
+  // Use dedicated tray icons for crisp menu bar rendering
+  const trayIconPath = path.join(__dirname, 'assets', process.platform === 'win32' ? 'icon.ico' : 'trayIcon.png');
+  const trayIcon2xPath = path.join(__dirname, 'assets', 'trayIcon@2x.png');
+
+  let icon;
+  if (process.platform !== 'win32' && fs.existsSync(trayIcon2xPath)) {
+    // Load @2x for Retina displays, Electron picks the right one
+    icon = nativeImage.createFromPath(trayIconPath);
+    const icon2x = nativeImage.createFromPath(trayIcon2xPath);
+    icon.addRepresentation({ scaleFactor: 2.0, buffer: icon2x.toPNG() });
+  } else {
+    icon = nativeImage.createFromPath(trayIconPath).resize({ width: 22, height: 22 });
+  }
 
   tray = new Tray(icon);
 
@@ -798,15 +808,7 @@ function setupIPC() {
 
   // Ollama — check if a specific model is available
   ipcMain.handle('ollama:hasModel', async (event, modelName) => {
-    try {
-      const ollamaHost = store.get('local.ollamaHost') || OLLAMA_URL;
-      const res = await fetch(`${ollamaHost}/api/tags`);
-      if (!res.ok) return false;
-      const data = await res.json();
-      return (data.models || []).some(m => m.name === modelName || m.name.startsWith(modelName + ':'));
-    } catch {
-      return false;
-    }
+    return await localAI.hasModel(modelName);
   });
 
   // Ollama — delete a model
@@ -826,7 +828,14 @@ function setupIPC() {
   });
 
   // Ollama — unload a model from memory (frees RAM/VRAM)
+  // For iimagine-engine: stops the engine process entirely
   ipcMain.handle('ollama:unload', async (event, modelName) => {
+    // If engine is running, stop it (equivalent of unloading)
+    const engineStatus = await engineManager.getStatus();
+    if (engineStatus.running) {
+      return await engineManager.stopEngine();
+    }
+    // Fallback: Ollama keep_alive: 0
     try {
       const ollamaHost = store.get('local.ollamaHost') || OLLAMA_URL;
       const res = await fetch(`${ollamaHost}/api/generate`, {
@@ -835,7 +844,6 @@ function setupIPC() {
         body: JSON.stringify({ model: modelName, keep_alive: 0 }),
       });
       if (!res.ok) return { success: false, error: `HTTP ${res.status}` };
-      // Consume the response body to complete the request
       await res.text();
       return { success: true };
     } catch (err) {
@@ -856,24 +864,15 @@ function setupIPC() {
     }
   });
 
-  // Ollama — get model storage location
+  // Ollama — get model storage location (now returns engine models dir as primary)
   ipcMain.handle('ollama:getModelLocation', async () => {
-    const { homedir } = require('os');
-    const home = homedir();
-    // Ollama stores models in different locations per OS
-    if (process.platform === 'darwin') {
-      return path.join(home, '.ollama', 'models');
-    } else if (process.platform === 'win32') {
-      return path.join(home, '.ollama', 'models');
-    } else {
-      return path.join(home, '.ollama', 'models');
-    }
+    // Primary: iimagine-engine models directory
+    return engineManager.getModelsDir();
   });
 
   // Ollama — open model storage location in file explorer
   ipcMain.handle('ollama:openModelLocation', async () => {
-    const { homedir } = require('os');
-    const modelsPath = path.join(homedir(), '.ollama', 'models');
+    const modelsPath = engineManager.getModelsDir();
     shell.openPath(modelsPath);
   });
 
@@ -925,55 +924,18 @@ function setupIPC() {
   });
 
   // Ollama — generate embeddings for text chunks (batch)
+  // Now routes through local-ai-adapter (engine-manager first, Ollama fallback)
   ipcMain.handle('ollama:embedBatch', async (event, { model, texts }) => {
-    const ollamaHost = store.get('local.ollamaHost') || OLLAMA_URL;
-    const results = [];
-    let processed = 0;
-
-    for (const text of texts) {
-      try {
-        const res = await fetch(`${ollamaHost}/api/embed`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ model, input: text }),
-        });
-
-        if (!res.ok) {
-          const errText = await res.text().catch(() => `HTTP ${res.status}`);
-          results.push({ success: false, error: errText });
-        } else {
-          const data = await res.json();
-          // Ollama returns { embeddings: [[...]] } for single input
-          const embedding = data.embeddings?.[0] || data.embedding || null;
-          results.push({ success: true, embedding });
-        }
-      } catch (err) {
-        results.push({ success: false, error: err.message });
-      }
-
-      processed++;
-      mainWindow?.webContents.send('kb:embed-progress', { processed, total: texts.length });
-    }
-
+    const results = await localAI.embedBatch(texts, model, (processed, total) => {
+      mainWindow?.webContents.send('kb:embed-progress', { processed, total });
+    });
     return results;
   });
 
   // Ollama — non-streaming chat
+  // Now routes through local-ai-adapter (engine-manager first, Ollama fallback)
   ipcMain.handle('ollama:chat', async (event, { model, messages }) => {
-    try {
-      const ollamaHost = store.get('local.ollamaHost') || OLLAMA_URL;
-      const numCtx = store.get('local.contextWindow') || 4096;
-      const res = await fetch(`${ollamaHost}/api/chat`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ model, messages, stream: false, options: { num_ctx: numCtx } }),
-      });
-      if (!res.ok) throw new Error(`Ollama error: ${res.status}`);
-      const data = await res.json();
-      return { success: true, message: data.message };
-    } catch (err) {
-      return { success: false, error: err.message };
-    }
+    return await localAI.chat({ model, messages });
   });
 
   // Ollama — Advanced Settings (stored for use by chatStream and other Ollama calls)
@@ -998,8 +960,15 @@ function setupIPC() {
     return { success: true };
   });
 
-  // Ollama — Runtime Monitoring (query running models via /api/ps)
+  // Ollama — Runtime Monitoring (query running models)
+  // Now routes through local-ai-adapter
   ipcMain.handle('ollama:getRunningModels', async () => {
+    const engineStatus = await engineManager.getStatus();
+    if (engineStatus.running) {
+      // Engine only runs one model at a time
+      return { models: engineStatus.currentModel ? [{ name: engineStatus.currentModel, engine: 'iimagine' }] : [] };
+    }
+    // Fallback: Ollama
     try {
       const ollamaHost = store.get('local.ollamaHost') || OLLAMA_URL;
       const res = await fetch(`${ollamaHost}/api/ps`);
@@ -1009,6 +978,218 @@ function setupIPC() {
     } catch {
       return { models: [] };
     }
+  });
+
+  // ── IIMAGINE Engine (llama.cpp) — replaces Ollama ─────────────
+  // These handlers use the bundled iimagine-engine binary.
+  // Shows as "iimagine-engine" in Activity Monitor instead of "ollama".
+
+  ipcMain.handle('engine:status', async () => {
+    return await engineManager.getStatus();
+  });
+
+  ipcMain.handle('engine:start', async (event, { modelPath, options }) => {
+    const result = await engineManager.startEngine(modelPath, options);
+    if (result.success) {
+      mainWindow?.webContents.send('engine:started', { model: modelPath });
+    }
+    return result;
+  });
+
+  ipcMain.handle('engine:stop', async () => {
+    return await engineManager.stopEngine();
+  });
+
+  ipcMain.handle('engine:switch', async (event, { modelPath, options }) => {
+    mainWindow?.webContents.send('engine:switching', { model: modelPath });
+    const result = await engineManager.switchModel(modelPath, options);
+    if (result.success) {
+      mainWindow?.webContents.send('engine:started', { model: modelPath });
+    }
+    return result;
+  });
+
+  ipcMain.handle('engine:getModelsDir', () => {
+    return engineManager.getModelsDir();
+  });
+
+  ipcMain.handle('engine:getInstalledModels', () => {
+    return engineManager.getInstalledModels();
+  });
+
+  ipcMain.handle('engine:deleteModel', (event, filename) => {
+    return engineManager.deleteModel(filename);
+  });
+
+  ipcMain.handle('engine:getRegistry', () => {
+    return modelRegistry.getAllModels();
+  });
+
+  // Engine — download model from HuggingFace
+  let activeDownloadController = null;
+
+  ipcMain.handle('engine:downloadModel', async (event, { url, filename }) => {
+    activeDownloadController = new AbortController();
+
+    const onProgress = (downloaded, total) => {
+      mainWindow?.webContents.send('engine:download-progress', {
+        filename,
+        downloaded,
+        total,
+        percent: total > 0 ? Math.round((downloaded / total) * 100) : 0,
+      });
+    };
+
+    const result = await engineManager.downloadModel(url, filename, onProgress, activeDownloadController.signal);
+    activeDownloadController = null;
+
+    mainWindow?.webContents.send('engine:download-done', {
+      filename,
+      success: result.success,
+      error: result.error,
+    });
+
+    return result;
+  });
+
+  ipcMain.handle('engine:cancelDownload', () => {
+    if (activeDownloadController) {
+      activeDownloadController.abort();
+      activeDownloadController = null;
+      return { success: true };
+    }
+    return { success: false };
+  });
+
+  // Engine — streaming chat (OpenAI-compatible)
+  ipcMain.handle('engine:chatStream', async (event, { messages }) => {
+    const controller = new AbortController();
+    streamAbort.setActiveStreamController(controller);
+
+    try {
+      // Inject active persona
+      const activePersona = personaStorage.getActivePersona();
+      if (activePersona && activePersona.custom_instructions) {
+        const hasSystem = messages.some(m => m.role === 'system');
+        if (!hasSystem) {
+          messages.unshift({ role: 'system', content: activePersona.custom_instructions });
+        } else {
+          const sysIdx = messages.findIndex(m => m.role === 'system');
+          messages[sysIdx].content = activePersona.custom_instructions + '\n\n' + messages[sysIdx].content;
+        }
+      }
+
+      const numCtx = store.get('ollama.numCtx', '4096');
+      const result = await engineManager.chat({
+        messages,
+        stream: true,
+        options: {
+          max_tokens: parseInt(numCtx) || 4096,
+          signal: controller.signal,
+        },
+      });
+
+      if (!result.success) {
+        return { success: false, error: result.error };
+      }
+
+      // Stream the response (OpenAI SSE format)
+      const reader = result.response.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n');
+        buffer = lines.pop() || '';
+
+        for (const line of lines) {
+          if (!line.startsWith('data: ')) continue;
+          const data = line.slice(6).trim();
+          if (data === '[DONE]') {
+            mainWindow?.webContents.send('ollama:stream-done');
+            break;
+          }
+          try {
+            const parsed = JSON.parse(data);
+            const content = parsed.choices?.[0]?.delta?.content || '';
+            if (content) {
+              // Send in same format as existing ollama:stream-chunk for compatibility
+              mainWindow?.webContents.send('ollama:stream-chunk', {
+                message: { content },
+              });
+            }
+          } catch {}
+        }
+      }
+
+      mainWindow?.webContents.send('ollama:stream-done');
+      return { success: true };
+    } catch (err) {
+      if (err.name === 'AbortError') {
+        mainWindow?.webContents.send('ollama:stream-done');
+        return { success: false, error: 'Stream aborted by user' };
+      }
+      return { success: false, error: err.message };
+    } finally {
+      streamAbort.clearActiveStreamController();
+    }
+  });
+
+  // Engine — embeddings
+  ipcMain.handle('engine:embed', async (event, { text }) => {
+    return await engineManager.embed(text);
+  });
+
+  ipcMain.handle('engine:embedBatch', async (event, { texts }) => {
+    const results = [];
+    let processed = 0;
+
+    for (const text of texts) {
+      const result = await engineManager.embed(text);
+      results.push(result);
+      processed++;
+      mainWindow?.webContents.send('kb:embed-progress', { processed, total: texts.length });
+    }
+
+    return results;
+  });
+
+  ipcMain.handle('engine:isInstalled', () => {
+    return engineManager.isEngineInstalled();
+  });
+
+  ipcMain.handle('engine:health', async () => {
+    return await engineManager.healthCheck();
+  });
+
+  // ── Local AI — unified interface (engine-first, Ollama fallback) ──
+  // This is the preferred API for new renderer code.
+  ipcMain.handle('localAI:status', async () => {
+    return await localAI.getStatus();
+  });
+
+  ipcMain.handle('localAI:ensureRunning', async () => {
+    return await localAI.ensureRunning();
+  });
+
+  ipcMain.handle('localAI:embed', async (event, { text, model }) => {
+    return await localAI.embed(text, model);
+  });
+
+  ipcMain.handle('localAI:chat', async (event, { model, messages, options }) => {
+    return await localAI.chat({ model, messages, options });
+  });
+
+  ipcMain.handle('localAI:hasModel', async (event, modelName) => {
+    return await localAI.hasModel(modelName);
+  });
+
+  ipcMain.handle('localAI:getBestChatModel', async () => {
+    return await localAI.getBestChatModel();
   });
 
   // Ollama — streaming chat
@@ -2368,6 +2549,13 @@ app.whenReady().then(async () => {
 
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') app.quit();
+});
+
+// Ensure engine is stopped when app quits
+app.on('will-quit', async (event) => {
+  event.preventDefault();
+  await engineManager.stopEngine();
+  app.exit(0);
 });
 
 app.on('activate', () => {
