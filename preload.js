@@ -171,6 +171,8 @@ contextBridge.exposeInMainWorld('api', {
   chat: {
     stop: () => ipcRenderer.invoke('chat:stop'),
     onStreamStopped: (cb) => ipcRenderer.on('chat:stream-stopped', () => cb()),
+    readFile: (filePath) => ipcRenderer.invoke('chat:readFile', filePath),
+    pickFile: () => ipcRenderer.invoke('chat:pickFile'),
   },
 
   // Knowledge Base — local vector-enabled KB
@@ -193,6 +195,7 @@ contextBridge.exposeInMainWorld('api', {
     searchSimilar: (data) => ipcRenderer.invoke('kb:searchSimilar', data),
     getStats: () => ipcRenderer.invoke('kb:getStats'),
     isVecLoaded: () => ipcRenderer.invoke('kb:isVecLoaded'),
+    hasEmbedModel: () => ipcRenderer.invoke('kb:hasEmbedModel'),
     // File dialog
     openFileDialog: () => ipcRenderer.invoke('kb:openFileDialog'),
     readDroppedFiles: (filePaths) => ipcRenderer.invoke('kb:readDroppedFiles', filePaths),

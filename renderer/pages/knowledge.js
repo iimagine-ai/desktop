@@ -44,6 +44,27 @@ const KnowledgePage = {
   folderSearch: '',
   folderPage: 0,
 
+  // ── Embed Model Warning Banner ──────────────────────────────
+  async _renderEmbedWarning(container) {
+    const hasModel = await window.api.kb.hasEmbedModel();
+    if (hasModel) return;
+    const existing = document.querySelector('#kbEmbedWarning');
+    if (existing) return; // already shown
+    const banner = document.createElement('div');
+    banner.id = 'kbEmbedWarning';
+    banner.className = 'mx-6 mt-4 flex items-start gap-2.5 px-4 py-3 bg-amber-50 dark:bg-amber-900/20 border border-amber-200/60 dark:border-amber-700/40 rounded-xl';
+    banner.innerHTML = `
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-amber-500 shrink-0 mt-0.5"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+      <div class="text-xs text-amber-800 dark:text-amber-200">
+        <span class="font-medium">Embedding model required.</span> Download "Nomic Embed Text" from <span class="font-medium">Settings → Models</span> to enable AI search across your knowledge base. Without it, your data is stored but can't be searched.
+      </div>
+    `;
+    const content = document.querySelector('#kbContent');
+    if (content && content.firstChild) {
+      content.firstChild.prepend(banner);
+    }
+  },
+
   // ── Connected Folders Tab ───────────────────────────────────
   async _showFolders() {
     const el = document.querySelector('#kbContent');
@@ -116,8 +137,9 @@ const KnowledgePage = {
     document.querySelectorAll('.fc-reindex').forEach(btn => {
       btn.addEventListener('click', async () => {
         btn.disabled = true;
+        btn.innerHTML = `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="animate-spin"><path d="M21 2v6h-6"/><path d="M3 12a9 9 0 0 1 15-6.7L21 8"/><path d="M3 22v-6h6"/><path d="M21 12a9 9 0 0 1-15 6.7L3 16"/></svg>`;
         await window.api.folders.reindex(btn.dataset.id);
-        this._showFolders();
+        // Progress listener will handle the rest
       });
     });
 
@@ -134,16 +156,36 @@ const KnowledgePage = {
       if (!data.folderId) return;
       const el = document.querySelector(`#fc-progress-${data.folderId}`);
       if (!el) return;
-      if (data.done) { this._showFolders(); return; }
+      if (data.done) {
+        // Show a brief success message before refreshing
+        el.classList.remove('hidden');
+        el.innerHTML = `
+          <div class="flex items-center gap-1.5 text-[11px] text-emerald-600 dark:text-emerald-400">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+            <span>Synced — ${data.indexed || data.total || 0} file${(data.indexed || data.total || 0) !== 1 ? 's' : ''} indexed</span>
+          </div>
+        `;
+        setTimeout(() => this._showFolders(), 2500);
+        return;
+      }
       el.classList.remove('hidden');
+      el.innerHTML = `
+        <div class="flex items-center gap-2">
+          <div class="flex-1 bg-neutral-100 dark:bg-neutral-700 rounded-full h-1.5">
+            <div class="fc-bar bg-neutral-900 dark:bg-neutral-100 h-1.5 rounded-full transition-all" style="width: 0%"></div>
+          </div>
+          <span class="fc-count text-[10px] text-neutral-400 tabular-nums"></span>
+        </div>
+      `;
       const bar = el.querySelector('.fc-bar');
       const count = el.querySelector('.fc-count');
       if (bar && data.total > 0) bar.style.width = Math.round((data.indexed / data.total) * 100) + '%';
       if (count) count.textContent = `${data.indexed || 0}/${data.total || 0}`;
     });
-  },
 
-  // ── Collections List ────────────────────────────────────────
+    // Show embed model warning if needed
+    this._renderEmbedWarning(document.querySelector('#kbPage'));
+  },
   async _showCollections() {
     this.currentView = 'collections';
     this.currentCollection = null;
@@ -280,9 +322,10 @@ const KnowledgePage = {
     document.querySelector('#kbCollNext')?.addEventListener('click', () => {
       this.collPage++; this._showCollections();
     });
-  },
 
-  // ── Documents List ──────────────────────────────────────────
+    // Show embed model warning if needed
+    this._renderEmbedWarning(document.querySelector('#kbPage'));
+  },
   async _showDocuments(collectionId) {
     this.currentView = 'documents';
     const collection = await window.api.kb.getCollection(collectionId);

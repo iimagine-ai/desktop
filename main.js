@@ -1635,6 +1635,11 @@ function setupIPC() {
   });
   ipcMain.handle('kb:getStats', () => kbStorage.getKBStats());
   ipcMain.handle('kb:isVecLoaded', () => kbStorage.isVecLoaded());
+  ipcMain.handle('kb:hasEmbedModel', () => {
+    const modelsDir = engineManager.getModelsDir();
+    const embedModelPath = path.join(modelsDir, EMBED_MODEL_FILENAME);
+    return fs.existsSync(embedModelPath);
+  });
 
   // Assistants
   ipcMain.handle('asst:create', (event, data) => assistantStorage.createAssistant(data));

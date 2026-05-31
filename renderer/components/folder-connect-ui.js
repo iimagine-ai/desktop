@@ -116,13 +116,31 @@ const FolderConnectUI = {
       if (!el) return;
 
       if (data.done) {
-        el.classList.add('hidden');
-        const container = document.querySelector('#fcContainer');
-        if (container) this.render(container);
+        // Show a brief success message before hiding
+        el.classList.remove('hidden');
+        el.innerHTML = `
+          <div class="flex items-center gap-1.5 text-[11px] text-emerald-600 dark:text-emerald-400 pl-0">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+            <span>Synced — ${data.indexed || data.total || 0} file${(data.indexed || data.total || 0) !== 1 ? 's' : ''} indexed</span>
+          </div>
+        `;
+        setTimeout(() => {
+          el.classList.add('hidden');
+          const container = document.querySelector('#fcContainer');
+          if (container) this.render(container);
+        }, 2500);
         return;
       }
 
       el.classList.remove('hidden');
+      el.innerHTML = `
+        <div class="flex items-center gap-2">
+          <div class="flex-1 bg-neutral-100 dark:bg-neutral-700 rounded-full h-1.5">
+            <div class="fc-bar bg-neutral-900 dark:bg-neutral-100 h-1.5 rounded-full transition-all" style="width: 0%"></div>
+          </div>
+          <span class="fc-count text-[10px] text-neutral-400 tabular-nums"></span>
+        </div>
+      `;
       const bar = el.querySelector('.fc-bar');
       const count = el.querySelector('.fc-count');
       if (bar && data.total > 0) {
