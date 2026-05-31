@@ -73,7 +73,7 @@ const AdvancedOllamaSettings = {
         </button>
 
         <div id="advOllamaPanel" class="hidden mt-3 space-y-4 px-1">
-          <p class="text-[11px] text-neutral-500 dark:text-neutral-400 italic">These settings control how Ollama uses your hardware. Most users should leave these on Auto.</p>
+          <p class="text-[11px] text-neutral-500 dark:text-neutral-400 italic">These settings control how the local AI engine uses your hardware. Changes take effect when the engine restarts (next chat message with a local model).</p>
 
           <!-- GPU Layers -->
           <div>
@@ -99,8 +99,9 @@ const AdvancedOllamaSettings = {
           <!-- Context Window -->
           <div>
             <label class="text-xs font-medium text-neutral-500 dark:text-neutral-400 uppercase tracking-wider mb-1.5 block">Context Window</label>
-            <p class="text-[10px] text-neutral-400 dark:text-neutral-500 mb-1.5">Token limit for conversation context. Larger values use more memory.</p>
+            <p class="text-[10px] text-neutral-400 dark:text-neutral-500 mb-1.5">Maximum tokens the model can process per request (system prompt + chat history + response). Lower values save RAM; higher values let the model see more conversation history. Setting this above the model's trained limit wastes memory without improving quality. Takes effect on next engine start.</p>
             <select id="advNumCtx" class="w-full bg-white/60 dark:bg-neutral-800/60 border border-neutral-200/50 dark:border-neutral-700/50 rounded-xl px-3 py-2.5 text-sm text-neutral-700 dark:text-neutral-300 focus:outline-none transition-all shadow-sm"></select>
+            <p id="advCtxNote" class="text-[10px] text-amber-600 dark:text-amber-400 mt-1 hidden"></p>
           </div>
 
           <!-- Reset button -->
@@ -132,6 +133,7 @@ const AdvancedOllamaSettings = {
       this._setSelectValue('advNumThread', settings.numThread);
       this._setSelectValue('advKeepAlive', settings.keepAlive);
       this._setSelectValue('advNumCtx', settings.numCtx);
+      this._updateCtxNote(settings.numCtx);
     } catch (err) {
       console.warn('[AdvancedOllamaSettings] Failed to load:', err);
     }
@@ -170,11 +172,39 @@ const AdvancedOllamaSettings = {
       keepAlive: this._container.querySelector('#advKeepAlive')?.value || '5m',
       numCtx: this._container.querySelector('#advNumCtx')?.value || 'auto',
     };
+
+    // Show context window guidance
+    this._updateCtxNote(settings.numCtx);
+
     try {
       await window.api.ollama.setAdvancedSettings(settings);
       this._flashStatus('Settings saved');
     } catch (err) {
       console.warn('[AdvancedOllamaSettings] Save failed:', err);
+    }
+  },
+
+  _updateCtxNote(numCtx) {
+    const note = this._container.querySelector('#advCtxNote');
+    if (!note) return;
+
+    const val = parseInt(numCtx);
+    if (isNaN(val) || numCtx === 'auto') {
+      note.classList.add('hidden');
+      return;
+    }
+
+    if (val >= 65536) {
+      note.textContent = '⚠️ Very large context window. Requires significant RAM (~4-8GB extra). Most small models (8B) are trained for 8K-32K context.';
+      note.classList.remove('hidden');
+    } else if (val >= 32768) {
+      note.textContent = 'Large context window. Uses more RAM. Good for models trained with 32K+ context (Qwen 3, Gemma 4).';
+      note.classList.remove('hidden');
+    } else if (val <= 2048) {
+      note.textContent = 'Small context window. Saves RAM but limits how much conversation history the model can see.';
+      note.classList.remove('hidden');
+    } else {
+      note.classList.add('hidden');
     }
   },
 

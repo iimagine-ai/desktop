@@ -31,7 +31,7 @@ class LocalProvider {
   }
 
   async chat(messages) {
-    return window.api.ollama.chatStream(this.name, messages);
+    return window.api.engine.chatStream(messages);
   }
 }
 
@@ -42,14 +42,14 @@ const ProviderManager = {
   providers: [],
   activeProvider: null,
 
-  // Refresh local providers from Ollama model list
+  // Refresh local providers from engine model list
   async refreshLocal() {
     await this.loadHiddenModels();
-    const status = await window.api.ollama.status();
+    const status = await window.api.localAI.status();
     // Remove old local providers
     this.providers = this.providers.filter(p => p.type !== 'local');
 
-    if (status.running && status.models?.length) {
+    if (status.models?.length) {
       for (const m of status.models) {
         // Skip embedding-only models — they can't chat
         if (isEmbeddingModel(m.name)) continue;
@@ -132,8 +132,10 @@ const ProviderManager = {
     return (this._hiddenModels || []).includes(modelName);
   },
 
-  getOllamaStatus() {
-    return window.api.ollama.status();
+  async getOllamaStatus() {
+    // Now routes through localAI which checks engine first
+    const status = await window.api.localAI.status();
+    return { running: status.running, models: status.models || [] };
   }
 };
 

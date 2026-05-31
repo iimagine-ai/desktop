@@ -1,135 +1,371 @@
 // Model Registry — maps model names to HuggingFace GGUF download URLs
-// Replaces Ollama's model registry. All models are GGUF format from HuggingFace.
+// All models are GGUF format from bartowski on HuggingFace.
+// Last updated: 2026-05-31
 
 /**
  * Registry of recommended models with direct GGUF download URLs.
  * Each model has variants (quantization levels) for different hardware.
+ *
+ * Source: https://huggingface.co/bartowski (trusted GGUF quantizer)
+ * URL pattern: https://huggingface.co/bartowski/{repo}/resolve/main/{filename}
  */
 const MODEL_REGISTRY = {
-  // ─── Chat Models ──────────────────────────────────────────────
-  'llama-3.2-3b': {
-    name: 'Llama 3.2 3B',
-    description: 'Fast, capable small model. Great for most tasks on any hardware.',
-    categories: ['text', 'code'],
+  // ─── Gemma 4 (Google) — Latest, multimodal MoE architecture ───
+  'gemma-4-e2b': {
+    name: 'Gemma 4 E2B',
+    description: 'Google\'s edge MoE model. 2B active params from 9B total. Fast and efficient.',
+    categories: ['text', 'multimodal'],
+    family: 'gemma',
     variants: [
       {
         quantization: 'Q4_K_M',
-        filename: 'llama-3.2-3b-instruct-q4_k_m.gguf',
-        url: 'https://huggingface.co/bartowski/Llama-3.2-3B-Instruct-GGUF/resolve/main/Llama-3.2-3B-Instruct-Q4_K_M.gguf',
-        sizeGB: 2.0,
+        filename: 'google_gemma-4-E2B-it-Q4_K_M.gguf',
+        url: 'https://huggingface.co/bartowski/google_gemma-4-E2B-it-GGUF/resolve/main/google_gemma-4-E2B-it-Q4_K_M.gguf',
+        sizeGB: 3.46,
+        ramRequired: 6,
+        isDefault: true,
+      },
+      {
+        quantization: 'Q8_0',
+        filename: 'google_gemma-4-E2B-it-Q8_0.gguf',
+        url: 'https://huggingface.co/bartowski/google_gemma-4-E2B-it-GGUF/resolve/main/google_gemma-4-E2B-it-Q8_0.gguf',
+        sizeGB: 4.97,
+        ramRequired: 8,
+      },
+    ],
+  },
+
+  'gemma-4-e4b': {
+    name: 'Gemma 4 E4B',
+    description: 'Google\'s mid-range MoE. 4B active params from 9B total. Great quality/speed balance.',
+    categories: ['text', 'multimodal'],
+    family: 'gemma',
+    variants: [
+      {
+        quantization: 'Q4_K_M',
+        filename: 'google_gemma-4-E4B-it-Q4_K_M.gguf',
+        url: 'https://huggingface.co/bartowski/google_gemma-4-E4B-it-GGUF/resolve/main/google_gemma-4-E4B-it-Q4_K_M.gguf',
+        sizeGB: 5.41,
+        ramRequired: 8,
+        isDefault: true,
+      },
+      {
+        quantization: 'Q8_0',
+        filename: 'google_gemma-4-E4B-it-Q8_0.gguf',
+        url: 'https://huggingface.co/bartowski/google_gemma-4-E4B-it-GGUF/resolve/main/google_gemma-4-E4B-it-Q8_0.gguf',
+        sizeGB: 8.03,
+        ramRequired: 12,
+      },
+    ],
+  },
+
+  'gemma-4-27b-a4b': {
+    name: 'Gemma 4 27B-A4B',
+    description: 'Google\'s large MoE. 4B active from 26B total. High quality with MoE efficiency.',
+    categories: ['text', 'multimodal'],
+    family: 'gemma',
+    variants: [
+      {
+        quantization: 'Q4_K_M',
+        filename: 'google_gemma-4-26B-A4B-it-Q4_K_M.gguf',
+        url: 'https://huggingface.co/bartowski/google_gemma-4-26B-A4B-it-GGUF/resolve/main/google_gemma-4-26B-A4B-it-Q4_K_M.gguf',
+        sizeGB: 17.04,
+        ramRequired: 20,
+        isDefault: true,
+      },
+      {
+        quantization: 'Q8_0',
+        filename: 'google_gemma-4-26B-A4B-it-Q8_0.gguf',
+        url: 'https://huggingface.co/bartowski/google_gemma-4-26B-A4B-it-GGUF/resolve/main/google_gemma-4-26B-A4B-it-Q8_0.gguf',
+        sizeGB: 26.86,
+        ramRequired: 32,
+      },
+    ],
+  },
+
+  'gemma-4-31b': {
+    name: 'Gemma 4 31B',
+    description: 'Google\'s dense 31B model. Maximum quality, needs 24GB+ RAM.',
+    categories: ['text', 'multimodal'],
+    family: 'gemma',
+    variants: [
+      {
+        quantization: 'Q4_K_M',
+        filename: 'google_gemma-4-31B-it-Q4_K_M.gguf',
+        url: 'https://huggingface.co/bartowski/google_gemma-4-31B-it-GGUF/resolve/main/google_gemma-4-31B-it-Q4_K_M.gguf',
+        sizeGB: 19.60,
+        ramRequired: 24,
+        isDefault: true,
+      },
+      {
+        quantization: 'Q8_0',
+        filename: 'google_gemma-4-31B-it-Q8_0.gguf',
+        url: 'https://huggingface.co/bartowski/google_gemma-4-31B-it-GGUF/resolve/main/google_gemma-4-31B-it-Q8_0.gguf',
+        sizeGB: 32.64,
+        ramRequired: 36,
+      },
+    ],
+  },
+
+  // ─── Qwen 3 (Alibaba) — Strong multilingual, reasoning, code ──
+  'qwen3-8b': {
+    name: 'Qwen 3 8B',
+    description: 'Alibaba\'s latest 8B. Excellent reasoning and multilingual support.',
+    categories: ['text', 'code'],
+    family: 'qwen',
+    variants: [
+      {
+        quantization: 'Q4_K_M',
+        filename: 'Qwen_Qwen3-8B-Q4_K_M.gguf',
+        url: 'https://huggingface.co/bartowski/Qwen_Qwen3-8B-GGUF/resolve/main/Qwen_Qwen3-8B-Q4_K_M.gguf',
+        sizeGB: 5.03,
+        ramRequired: 8,
+        isDefault: true,
+      },
+      {
+        quantization: 'Q8_0',
+        filename: 'Qwen_Qwen3-8B-Q8_0.gguf',
+        url: 'https://huggingface.co/bartowski/Qwen_Qwen3-8B-GGUF/resolve/main/Qwen_Qwen3-8B-Q8_0.gguf',
+        sizeGB: 8.71,
+        ramRequired: 12,
+      },
+    ],
+  },
+
+  'qwen3-14b': {
+    name: 'Qwen 3 14B',
+    description: 'Alibaba\'s mid-size model. Strong at complex reasoning and code.',
+    categories: ['text', 'code'],
+    family: 'qwen',
+    variants: [
+      {
+        quantization: 'Q4_K_M',
+        filename: 'Qwen_Qwen3-14B-Q4_K_M.gguf',
+        url: 'https://huggingface.co/bartowski/Qwen_Qwen3-14B-GGUF/resolve/main/Qwen_Qwen3-14B-Q4_K_M.gguf',
+        sizeGB: 9.00,
+        ramRequired: 12,
+        isDefault: true,
+      },
+      {
+        quantization: 'Q8_0',
+        filename: 'Qwen_Qwen3-14B-Q8_0.gguf',
+        url: 'https://huggingface.co/bartowski/Qwen_Qwen3-14B-GGUF/resolve/main/Qwen_Qwen3-14B-Q8_0.gguf',
+        sizeGB: 15.70,
+        ramRequired: 20,
+      },
+    ],
+  },
+
+  'qwen3.6-35b-a3b': {
+    name: 'Qwen 3.6 35B-A3B',
+    description: 'Alibaba\'s MoE powerhouse. 3B active from 35B total. Top-tier quality with MoE speed.',
+    categories: ['text', 'code', 'multimodal'],
+    family: 'qwen',
+    variants: [
+      {
+        quantization: 'Q4_K_M',
+        filename: 'Qwen_Qwen3.6-35B-A3B-Q4_K_M.gguf',
+        url: 'https://huggingface.co/bartowski/Qwen_Qwen3.6-35B-A3B-GGUF/resolve/main/Qwen_Qwen3.6-35B-A3B-Q4_K_M.gguf',
+        sizeGB: 22.29,
+        ramRequired: 26,
+        isDefault: true,
+      },
+      {
+        quantization: 'Q8_0',
+        filename: 'Qwen_Qwen3.6-35B-A3B-Q8_0.gguf',
+        url: 'https://huggingface.co/bartowski/Qwen_Qwen3.6-35B-A3B-GGUF/resolve/main/Qwen_Qwen3.6-35B-A3B-Q8_0.gguf',
+        sizeGB: 37.81,
+        ramRequired: 42,
+      },
+    ],
+  },
+
+  // ─── Llama (Meta) — Industry standard open models ─────────────
+  'llama-3.1-8b': {
+    name: 'Llama 3.1 8B',
+    description: 'Meta\'s workhorse model. Excellent balance of quality and speed.',
+    categories: ['text', 'code'],
+    family: 'llama',
+    variants: [
+      {
+        quantization: 'Q4_K_M',
+        filename: 'Meta-Llama-3.1-8B-Instruct-Q4_K_M.gguf',
+        url: 'https://huggingface.co/bartowski/Meta-Llama-3.1-8B-Instruct-GGUF/resolve/main/Meta-Llama-3.1-8B-Instruct-Q4_K_M.gguf',
+        sizeGB: 4.92,
+        ramRequired: 8,
+        isDefault: true,
+      },
+      {
+        quantization: 'Q8_0',
+        filename: 'Meta-Llama-3.1-8B-Instruct-Q8_0.gguf',
+        url: 'https://huggingface.co/bartowski/Meta-Llama-3.1-8B-Instruct-GGUF/resolve/main/Meta-Llama-3.1-8B-Instruct-Q8_0.gguf',
+        sizeGB: 8.54,
+        ramRequired: 12,
+      },
+    ],
+  },
+
+  'llama-3.3-70b': {
+    name: 'Llama 3.3 70B',
+    description: 'Meta\'s flagship. Near-GPT-4 quality. Needs 48GB+ RAM.',
+    categories: ['text', 'code'],
+    family: 'llama',
+    variants: [
+      {
+        quantization: 'Q4_K_M',
+        filename: 'Llama-3.3-70B-Instruct-Q4_K_M.gguf',
+        url: 'https://huggingface.co/bartowski/Llama-3.3-70B-Instruct-GGUF/resolve/main/Llama-3.3-70B-Instruct-Q4_K_M.gguf',
+        sizeGB: 42.52,
+        ramRequired: 48,
+        isDefault: true,
+      },
+    ],
+  },
+
+  // ─── Mistral (Mistral AI) — Fast, efficient European models ───
+  'mistral-small-3.1-24b': {
+    name: 'Mistral Small 3.1 24B',
+    description: 'Mistral\'s latest small model. Multimodal, fast, strong at instruction following.',
+    categories: ['text', 'multimodal'],
+    family: 'mistral',
+    variants: [
+      {
+        quantization: 'Q4_K_M',
+        filename: 'mistralai_Mistral-Small-3.1-24B-Instruct-2503-Q4_K_M.gguf',
+        url: 'https://huggingface.co/bartowski/mistralai_Mistral-Small-3.1-24B-Instruct-2503-GGUF/resolve/main/mistralai_Mistral-Small-3.1-24B-Instruct-2503-Q4_K_M.gguf',
+        sizeGB: 14.33,
+        ramRequired: 18,
+        isDefault: true,
+      },
+      {
+        quantization: 'Q8_0',
+        filename: 'mistralai_Mistral-Small-3.1-24B-Instruct-2503-Q8_0.gguf',
+        url: 'https://huggingface.co/bartowski/mistralai_Mistral-Small-3.1-24B-Instruct-2503-GGUF/resolve/main/mistralai_Mistral-Small-3.1-24B-Instruct-2503-Q8_0.gguf',
+        sizeGB: 25.05,
+        ramRequired: 30,
+      },
+    ],
+  },
+
+  // ─── DeepSeek (DeepSeek AI) — Reasoning specialists ───────────
+  'deepseek-r1-distill-8b': {
+    name: 'DeepSeek R1 Distill 8B',
+    description: 'DeepSeek R1 reasoning distilled into Llama 8B. Chain-of-thought built in.',
+    categories: ['text', 'reasoning'],
+    family: 'deepseek',
+    variants: [
+      {
+        quantization: 'Q4_K_M',
+        filename: 'DeepSeek-R1-Distill-Llama-8B-Q4_K_M.gguf',
+        url: 'https://huggingface.co/bartowski/DeepSeek-R1-Distill-Llama-8B-GGUF/resolve/main/DeepSeek-R1-Distill-Llama-8B-Q4_K_M.gguf',
+        sizeGB: 4.92,
+        ramRequired: 8,
+        isDefault: true,
+      },
+      {
+        quantization: 'Q8_0',
+        filename: 'DeepSeek-R1-Distill-Llama-8B-Q8_0.gguf',
+        url: 'https://huggingface.co/bartowski/DeepSeek-R1-Distill-Llama-8B-GGUF/resolve/main/DeepSeek-R1-Distill-Llama-8B-Q8_0.gguf',
+        sizeGB: 8.54,
+        ramRequired: 12,
+      },
+    ],
+  },
+
+  'deepseek-r1-distill-14b': {
+    name: 'DeepSeek R1 Distill 14B',
+    description: 'DeepSeek R1 reasoning distilled into Qwen 14B. Excellent for complex problems.',
+    categories: ['text', 'reasoning'],
+    family: 'deepseek',
+    variants: [
+      {
+        quantization: 'Q4_K_M',
+        filename: 'DeepSeek-R1-Distill-Qwen-14B-Q4_K_M.gguf',
+        url: 'https://huggingface.co/bartowski/DeepSeek-R1-Distill-Qwen-14B-GGUF/resolve/main/DeepSeek-R1-Distill-Qwen-14B-Q4_K_M.gguf',
+        sizeGB: 8.99,
+        ramRequired: 12,
+        isDefault: true,
+      },
+      {
+        quantization: 'Q8_0',
+        filename: 'DeepSeek-R1-Distill-Qwen-14B-Q8_0.gguf',
+        url: 'https://huggingface.co/bartowski/DeepSeek-R1-Distill-Qwen-14B-GGUF/resolve/main/DeepSeek-R1-Distill-Qwen-14B-Q8_0.gguf',
+        sizeGB: 15.70,
+        ramRequired: 20,
+      },
+    ],
+  },
+
+  // ─── Phi (Microsoft) — Compact, efficient models ──────────────
+  'phi-4': {
+    name: 'Phi 4 (14B)',
+    description: 'Microsoft\'s latest. Punches well above its weight at reasoning and code.',
+    categories: ['text', 'code'],
+    family: 'phi',
+    variants: [
+      {
+        quantization: 'Q4_K_M',
+        filename: 'phi-4-Q4_K_M.gguf',
+        url: 'https://huggingface.co/bartowski/phi-4-GGUF/resolve/main/phi-4-Q4_K_M.gguf',
+        sizeGB: 9.05,
+        ramRequired: 12,
+        isDefault: true,
+      },
+      {
+        quantization: 'Q8_0',
+        filename: 'phi-4-Q8_0.gguf',
+        url: 'https://huggingface.co/bartowski/phi-4-GGUF/resolve/main/phi-4-Q8_0.gguf',
+        sizeGB: 15.58,
+        ramRequired: 20,
+      },
+    ],
+  },
+
+  'phi-4-mini': {
+    name: 'Phi 4 Mini (3.8B)',
+    description: 'Microsoft\'s tiny powerhouse. Surprisingly capable for 4GB RAM machines.',
+    categories: ['text', 'code'],
+    family: 'phi',
+    variants: [
+      {
+        quantization: 'Q4_K_M',
+        filename: 'microsoft_Phi-4-mini-instruct-Q4_K_M.gguf',
+        url: 'https://huggingface.co/bartowski/microsoft_Phi-4-mini-instruct-GGUF/resolve/main/microsoft_Phi-4-mini-instruct-Q4_K_M.gguf',
+        sizeGB: 2.49,
         ramRequired: 4,
         isDefault: true,
       },
       {
         quantization: 'Q8_0',
-        filename: 'llama-3.2-3b-instruct-q8_0.gguf',
-        url: 'https://huggingface.co/bartowski/Llama-3.2-3B-Instruct-GGUF/resolve/main/Llama-3.2-3B-Instruct-Q8_0.gguf',
-        sizeGB: 3.4,
+        filename: 'microsoft_Phi-4-mini-instruct-Q8_0.gguf',
+        url: 'https://huggingface.co/bartowski/microsoft_Phi-4-mini-instruct-GGUF/resolve/main/microsoft_Phi-4-mini-instruct-Q8_0.gguf',
+        sizeGB: 4.08,
         ramRequired: 6,
       },
     ],
   },
 
-  'llama-3.1-8b': {
-    name: 'Llama 3.1 8B',
-    description: 'Excellent balance of quality and speed. Recommended for 16GB+ RAM.',
+  // ─── Qwen 3 30B MoE — Efficient large model ──────────────────
+  'qwen3-30b-a3b': {
+    name: 'Qwen 3 30B-A3B',
+    description: 'Alibaba\'s MoE model. 3B active from 30B total. High quality with low RAM usage.',
     categories: ['text', 'code'],
+    family: 'qwen',
     variants: [
       {
         quantization: 'Q4_K_M',
-        filename: 'llama-3.1-8b-instruct-q4_k_m.gguf',
-        url: 'https://huggingface.co/bartowski/Meta-Llama-3.1-8B-Instruct-GGUF/resolve/main/Meta-Llama-3.1-8B-Instruct-Q4_K_M.gguf',
-        sizeGB: 4.9,
-        ramRequired: 8,
+        filename: 'Qwen_Qwen3-30B-A3B-Q4_K_M.gguf',
+        url: 'https://huggingface.co/bartowski/Qwen_Qwen3-30B-A3B-GGUF/resolve/main/Qwen_Qwen3-30B-A3B-Q4_K_M.gguf',
+        sizeGB: 18.63,
+        ramRequired: 22,
         isDefault: true,
       },
       {
         quantization: 'Q8_0',
-        filename: 'llama-3.1-8b-instruct-q8_0.gguf',
-        url: 'https://huggingface.co/bartowski/Meta-Llama-3.1-8B-Instruct-GGUF/resolve/main/Meta-Llama-3.1-8B-Instruct-Q8_0.gguf',
-        sizeGB: 8.5,
-        ramRequired: 12,
-      },
-    ],
-  },
-
-  'qwen-2.5-7b': {
-    name: 'Qwen 2.5 7B',
-    description: 'Strong multilingual model with excellent reasoning.',
-    categories: ['text', 'code'],
-    variants: [
-      {
-        quantization: 'Q4_K_M',
-        filename: 'qwen-2.5-7b-instruct-q4_k_m.gguf',
-        url: 'https://huggingface.co/bartowski/Qwen2.5-7B-Instruct-GGUF/resolve/main/Qwen2.5-7B-Instruct-Q4_K_M.gguf',
-        sizeGB: 4.7,
-        ramRequired: 8,
-        isDefault: true,
-      },
-    ],
-  },
-
-  'mistral-7b': {
-    name: 'Mistral 7B',
-    description: 'Fast and efficient. Good for general conversation.',
-    categories: ['text'],
-    variants: [
-      {
-        quantization: 'Q4_K_M',
-        filename: 'mistral-7b-instruct-v0.3-q4_k_m.gguf',
-        url: 'https://huggingface.co/bartowski/Mistral-7B-Instruct-v0.3-GGUF/resolve/main/Mistral-7B-Instruct-v0.3-Q4_K_M.gguf',
-        sizeGB: 4.4,
-        ramRequired: 8,
-        isDefault: true,
-      },
-    ],
-  },
-
-  'phi-3-mini': {
-    name: 'Phi 3 Mini (3.8B)',
-    description: 'Microsoft\'s compact model. Surprisingly capable for its size.',
-    categories: ['text', 'code'],
-    variants: [
-      {
-        quantization: 'Q4_K_M',
-        filename: 'phi-3-mini-4k-instruct-q4_k_m.gguf',
-        url: 'https://huggingface.co/bartowski/Phi-3-mini-4k-instruct-GGUF/resolve/main/Phi-3-mini-4k-instruct-Q4_K_M.gguf',
-        sizeGB: 2.4,
-        ramRequired: 4,
-        isDefault: true,
-      },
-    ],
-  },
-
-  'gemma-2-9b': {
-    name: 'Gemma 2 9B',
-    description: 'Google\'s open model. Strong at reasoning and instruction following.',
-    categories: ['text', 'code'],
-    variants: [
-      {
-        quantization: 'Q4_K_M',
-        filename: 'gemma-2-9b-it-q4_k_m.gguf',
-        url: 'https://huggingface.co/bartowski/gemma-2-9b-it-GGUF/resolve/main/gemma-2-9b-it-Q4_K_M.gguf',
-        sizeGB: 5.8,
-        ramRequired: 10,
-        isDefault: true,
-      },
-    ],
-  },
-
-  // ─── Code Models ──────────────────────────────────────────────
-  'deepseek-coder-v2-lite': {
-    name: 'DeepSeek Coder V2 Lite',
-    description: 'Specialized for code generation and understanding.',
-    categories: ['code'],
-    variants: [
-      {
-        quantization: 'Q4_K_M',
-        filename: 'deepseek-coder-v2-lite-instruct-q4_k_m.gguf',
-        url: 'https://huggingface.co/bartowski/DeepSeek-Coder-V2-Lite-Instruct-GGUF/resolve/main/DeepSeek-Coder-V2-Lite-Instruct-Q4_K_M.gguf',
-        sizeGB: 9.0,
-        ramRequired: 12,
-        isDefault: true,
+        filename: 'Qwen_Qwen3-30B-A3B-Q8_0.gguf',
+        url: 'https://huggingface.co/bartowski/Qwen_Qwen3-30B-A3B-GGUF/resolve/main/Qwen_Qwen3-30B-A3B-Q8_0.gguf',
+        sizeGB: 32.48,
+        ramRequired: 36,
       },
     ],
   },
@@ -139,6 +375,7 @@ const MODEL_REGISTRY = {
     name: 'Nomic Embed Text',
     description: 'High-quality text embeddings for knowledge base search.',
     categories: ['embedding'],
+    family: 'embedding',
     variants: [
       {
         quantization: 'F16',
@@ -155,6 +392,7 @@ const MODEL_REGISTRY = {
     name: 'All MiniLM L6',
     description: 'Tiny, fast embedding model. Good for basic similarity search.',
     categories: ['embedding'],
+    family: 'embedding',
     variants: [
       {
         quantization: 'F32',
@@ -214,6 +452,38 @@ function getModelsByCategory(category) {
   return getAllModels().filter(m => m.categories.includes(category));
 }
 
+/**
+ * Get models filtered by family
+ */
+function getModelsByFamily(family) {
+  return getAllModels().filter(m => m.family === family);
+}
+
+/**
+ * Get models that fit within a RAM budget
+ */
+function getModelsForRAM(availableRAM) {
+  return getAllModels().filter(m => {
+    const defaultVariant = m.variants.find(v => v.isDefault) || m.variants[0];
+    return defaultVariant.ramRequired <= availableRAM;
+  });
+}
+
+/**
+ * Get recommended models for a given RAM amount, sorted by quality tier
+ */
+function getRecommendedModels(availableRAM) {
+  const compatible = getModelsForRAM(availableRAM)
+    .filter(m => !m.categories.includes('embedding'));
+
+  // Sort by size descending (bigger = generally better quality)
+  return compatible.sort((a, b) => {
+    const aDefault = a.variants.find(v => v.isDefault) || a.variants[0];
+    const bDefault = b.variants.find(v => v.isDefault) || b.variants[0];
+    return bDefault.sizeGB - aDefault.sizeGB;
+  });
+}
+
 module.exports = {
   MODEL_REGISTRY,
   getAllModels,
@@ -221,4 +491,7 @@ module.exports = {
   getDefaultVariant,
   findByFilename,
   getModelsByCategory,
+  getModelsByFamily,
+  getModelsForRAM,
+  getRecommendedModels,
 };

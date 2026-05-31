@@ -13,6 +13,13 @@ const ModelBrowser = {
     this._container = container;
     this._manifest = await window.api.manifest.get();
     this._hardware = await window.api.hardware.scan();
+
+    // Load installed models from disk to mark them as "Installed" in the UI
+    try {
+      const installed = await window.api.engine.getInstalledModels();
+      this._installedModels = installed || [];
+    } catch { this._installedModels = []; }
+
     this._render();
   },
 
@@ -124,14 +131,15 @@ const ModelBrowser = {
       noteHtml = `<p class="text-[11px] text-blue-600 dark:text-blue-400 p-2.5 rounded-xl bg-blue-50/80 dark:bg-blue-900/20 border border-blue-200/60 dark:border-blue-800/40 mb-2">${message}</p>`;
     }
 
-    const installedIds = this._installedModels.map(m => m.name);
+    const installedFilenames = this._installedModels.map(m => m.filename);
     const top5 = models.slice(0, 5);
 
     resultsDiv.innerHTML = noteHtml + top5.map((model, i) => {
-      const variant = model.variants.find(v => v.is_default) || model.variants[0];
+      const variant = model.variants.find(v => v.is_default || v.isDefault) || model.variants[0];
       const perf = window.ModelAdvisor.getPerformanceEstimate(model, this._hardware);
-      const isInstalled = installedIds.some(n => n === model.ollama_id || n.startsWith(model.ollama_id + ':'));
-      const pullCmd = window.ModelAdvisor.getPullCommand(model);
+      const isInstalled = model.variants.some(v => installedFilenames.includes(v.filename));
+      const sizeGB = variant.size_gb || variant.sizeGB || '?';
+      const ramGB = variant.ram_required_gb || variant.ramRequired || '?';
 
       return `
         <div class="p-3 rounded-xl ${i === 0 ? 'bg-emerald-50/80 dark:bg-emerald-900/20 border border-emerald-200/60 dark:border-emerald-800/40' : 'bg-white/50 dark:bg-neutral-800/50 border border-neutral-200/40 dark:border-neutral-700/40'}">
@@ -143,14 +151,14 @@ const ModelBrowser = {
               </div>
               <p class="text-[11px] text-neutral-500 dark:text-neutral-400 mt-0.5">${model.description}</p>
               <div class="flex items-center gap-3 mt-1.5 text-[10px]">
-                <span class="text-neutral-400">${variant.size_gb}GB download</span>
-                <span class="text-neutral-400">${variant.ram_required_gb}GB RAM needed</span>
+                <span class="text-neutral-400">${sizeGB}GB download</span>
+                <span class="text-neutral-400">${ramGB}GB RAM needed</span>
                 <span class="${perf.speedColor} font-medium">${perf.speedLabel}</span>
               </div>
             </div>
             ${isInstalled
               ? '<span class="px-2.5 py-1.5 rounded-lg bg-emerald-100 dark:bg-emerald-900/40 text-[11px] font-medium text-emerald-700 dark:text-emerald-300 flex-shrink-0">Installed ✓</span>'
-              : `<button class="mb-download-btn px-2.5 py-1.5 rounded-lg bg-neutral-900 dark:bg-neutral-100 text-[11px] font-medium text-white dark:text-neutral-900 hover:bg-neutral-800 dark:hover:bg-neutral-200 transition-all flex-shrink-0" data-model="${pullCmd}">Download</button>`
+              : `<button class="mb-download-btn px-2.5 py-1.5 rounded-lg bg-neutral-900 dark:bg-neutral-100 text-[11px] font-medium text-white dark:text-neutral-900 hover:bg-neutral-800 dark:hover:bg-neutral-200 transition-all flex-shrink-0" data-model="${model.id}">Download</button>`
             }
           </div>
         </div>
@@ -179,12 +187,7 @@ const ModelBrowser = {
         <div id="mbModelTable" class="space-y-1 max-h-[300px] overflow-y-auto"></div>
 
         <div class="pt-3 border-t border-neutral-200/40 dark:border-neutral-700/40">
-          <label class="text-[10px] text-neutral-400 mb-1 block">Or enter a model ID directly:</label>
-          <div class="flex gap-2">
-            <input id="mbCustomInput" type="text" placeholder="model-name:tag"
-              class="flex-1 bg-white/60 dark:bg-neutral-800/60 border border-neutral-200/50 dark:border-neutral-700/50 rounded-xl px-3 py-2 text-xs text-neutral-700 dark:text-neutral-300 placeholder-neutral-400 focus:outline-none transition-all shadow-sm font-mono" />
-            <button id="mbCustomDownloadBtn" class="px-3 py-2 rounded-lg bg-neutral-900 dark:bg-neutral-100 text-xs font-medium text-white dark:text-neutral-900 hover:bg-neutral-800 dark:hover:bg-neutral-200 transition-all shadow-sm disabled:opacity-40" disabled>Download</button>
-          </div>
+          <p class="text-[10px] text-neutral-400">Models are downloaded directly from HuggingFace as GGUF files.</p>
         </div>
       </div>
     `;
@@ -212,7 +215,8 @@ const ModelBrowser = {
     // Search + table rendering
     const searchInput = this._container.querySelector('#mbSearchInput');
     const tableDiv = this._container.querySelector('#mbModelTable');
-    const installedIds = this._installedModels.map(m => m.name);
+
+    const installedFilenames = this._installedModels.map(m => m.filename);
 
     const renderTable = () => {
       let filtered = models;
@@ -220,10 +224,10 @@ const ModelBrowser = {
       if (searchInput.value.trim()) filtered = window.ModelAdvisor.searchModels(filtered, searchInput.value);
 
       tableDiv.innerHTML = filtered.map(model => {
-        const variant = model.variants.find(v => v.is_default) || model.variants[0];
+        const variant = model.variants.find(v => v.is_default || v.isDefault) || model.variants[0];
         const compat = window.ModelAdvisor.checkCompatibility(model, this._hardware);
-        const isInstalled = installedIds.some(n => n === model.ollama_id || n.startsWith(model.ollama_id + ':'));
-        const pullCmd = window.ModelAdvisor.getPullCommand(model);
+        const isInstalled = model.variants.some(v => installedFilenames.includes(v.filename));
+        const sizeGB = variant.size_gb || variant.sizeGB || '?';
 
         return `
           <div class="flex items-center justify-between py-2 px-2.5 rounded-xl ${!compat.compatible ? 'opacity-40' : ''} hover:bg-white/50 dark:hover:bg-neutral-800/50 transition-all">
@@ -231,7 +235,7 @@ const ModelBrowser = {
               <div class="min-w-0">
                 <p class="text-xs font-medium text-neutral-900 dark:text-neutral-100 truncate">${model.name}</p>
                 <div class="flex items-center gap-2 mt-0.5">
-                  <span class="text-[10px] text-neutral-400">${variant.size_gb}GB</span>
+                  <span class="text-[10px] text-neutral-400">${sizeGB}GB</span>
                   <span class="text-[10px] text-neutral-400">${model.categories.join(', ')}</span>
                 </div>
               </div>
@@ -240,7 +244,7 @@ const ModelBrowser = {
               ? `<span class="text-[10px] text-rose-400 flex-shrink-0" title="${compat.reason}">⚠️</span>`
               : isInstalled
                 ? '<span class="text-[10px] text-emerald-600 flex-shrink-0">Installed</span>'
-                : `<button class="mb-download-btn px-2 py-1 rounded-lg bg-neutral-900 dark:bg-neutral-100 text-[10px] font-medium text-white dark:text-neutral-900 hover:bg-neutral-800 dark:hover:bg-neutral-200 transition-all flex-shrink-0" data-model="${pullCmd}">⬇</button>`
+                : `<button class="mb-download-btn px-2 py-1 rounded-lg bg-neutral-900 dark:bg-neutral-100 text-[10px] font-medium text-white dark:text-neutral-900 hover:bg-neutral-800 dark:hover:bg-neutral-200 transition-all flex-shrink-0" data-model="${model.id}">⬇</button>`
             }
           </div>
         `;
@@ -255,34 +259,26 @@ const ModelBrowser = {
     searchInput.addEventListener('input', renderTable);
     renderTable();
 
-    // Custom model input
-    const customInput = this._container.querySelector('#mbCustomInput');
-    const customBtn = this._container.querySelector('#mbCustomDownloadBtn');
-    customInput.addEventListener('input', () => { customBtn.disabled = !customInput.value.trim(); });
-    customInput.addEventListener('keydown', (e) => { if (e.key === 'Enter' && customInput.value.trim()) customBtn.click(); });
-    customBtn.addEventListener('click', async () => {
-      const modelName = customInput.value.trim();
-      if (!modelName) return;
-      customBtn.disabled = true;
-      customBtn.textContent = '...';
-      await window.api.ollama.pull(modelName);
-      customInput.value = '';
-      customBtn.textContent = 'Download';
-    });
   },
 
   // ─── Shared: trigger download ─────────────────────────────────
   async _triggerDownload(btn) {
     const modelId = btn.dataset.model;
-    const status = await window.api.ollama.status();
-    if (!status.running) {
-      btn.textContent = 'Start AI Engine first';
-      setTimeout(() => { btn.textContent = 'Download'; }, 2000);
+
+    // Look up model in the GGUF registry
+    const registry = await window.api.engine.getRegistry();
+    const registryMatch = registry?.find(m => {
+      const cleanId = modelId.toLowerCase().split(':')[0];
+      return m.id === cleanId || m.id === modelId || m.name.toLowerCase().includes(cleanId);
+    });
+
+    if (!registryMatch) {
+      btn.textContent = 'Not found';
+      setTimeout(() => { btn.textContent = '⬇'; }, 2000);
       return;
     }
 
-    // Replace button with inline progress indicator
-    const card = btn.closest('.flex.items-start') || btn.parentElement;
+    // Use the new download manager (supports resume, progress, queue)
     const progressId = 'mb-progress-' + Date.now();
     btn.outerHTML = `
       <div class="flex-shrink-0 w-32" id="${progressId}">
@@ -297,39 +293,40 @@ const ModelBrowser = {
     const bar = progressEl?.querySelector('.mb-prog-bar');
     const text = progressEl?.querySelector('.mb-prog-text');
 
-    // Listen for progress
     let isDone = false;
-    const onProgress = (data) => {
-      if (isDone) return;
-      if (bar && text && data.total && data.completed) {
-        const pct = Math.round((data.completed / data.total) * 100);
-        bar.style.width = pct + '%';
-        text.textContent = pct + '%';
-      } else if (text) {
-        text.textContent = data.status || 'Processing...';
-      }
-    };
 
-    const onDone = (data) => {
-      if (isDone) return;
+    window.api.downloads.onProgress((data) => {
+      if (isDone || data.modelId !== registryMatch.id) return;
+      if (bar && text) {
+        bar.style.width = data.percentage + '%';
+        const speed = data.speedMBps > 0 ? ` • ${data.speedMBps} MB/s` : '';
+        text.textContent = data.percentage + '%' + speed;
+      }
+    });
+
+    window.api.downloads.onComplete((data) => {
+      if (isDone || data.modelId !== registryMatch.id) return;
       isDone = true;
       if (progressEl) {
-        if (data.success) {
-          progressEl.innerHTML = '<span class="text-[10px] text-emerald-600 font-medium">Installed ✓</span>';
-        } else {
-          progressEl.innerHTML = `<span class="text-[10px] text-rose-500">${data.error === 'Download cancelled' ? 'Cancelled' : 'Error'}</span>`;
-        }
+        progressEl.innerHTML = '<span class="text-[10px] text-emerald-600 font-medium">Installed ✓</span>';
+        if (window.ProviderManager?.refreshLocal) window.ProviderManager.refreshLocal();
+        if (window.AppRouter?.updateModelDropdown) window.AppRouter.updateModelDropdown();
       }
-    };
+    });
 
-    window.api.ollama.onPullProgress(onProgress);
-    window.api.ollama.onPullDone(onDone);
+    window.api.downloads.onFailed((data) => {
+      if (isDone || data.modelId !== registryMatch.id) return;
+      isDone = true;
+      if (progressEl) {
+        progressEl.innerHTML = `<span class="text-[10px] text-rose-500">${data.error || 'Download failed'}</span>`;
+      }
+    });
 
     try {
-      await window.api.ollama.pull(modelId);
+      await window.api.downloads.start(registryMatch.id, 0);
     } catch (err) {
-      if (progressEl) {
-        progressEl.innerHTML = '<span class="text-[10px] text-rose-500">Error</span>';
+      if (progressEl && !isDone) {
+        progressEl.innerHTML = `<span class="text-[10px] text-rose-500">${err.message || 'Error'}</span>`;
       }
     }
   },

@@ -17,6 +17,52 @@ let currentModel = null;
 let isStarting = false;
 let isReady = false;
 
+// Keep-alive idle timer
+let idleTimer = null;
+let lastActivityTime = Date.now();
+
+/**
+ * Parse keep-alive setting string to milliseconds.
+ * Supports: '0', '5m', '30m', '1h', '24h', '-1'
+ */
+function parseKeepAlive(value) {
+  if (!value || value === '-1') return -1; // Never unload
+  if (value === '0') return 0; // Unload immediately
+  const match = value.match(/^(\d+)(m|h)$/);
+  if (!match) return 5 * 60 * 1000; // Default 5 minutes
+  const num = parseInt(match[1]);
+  const unit = match[2];
+  return unit === 'h' ? num * 60 * 60 * 1000 : num * 60 * 1000;
+}
+
+/**
+ * Reset the idle timer. Call this after every chat/embed request.
+ */
+function resetIdleTimer() {
+  lastActivityTime = Date.now();
+  if (idleTimer) {
+    clearTimeout(idleTimer);
+    idleTimer = null;
+  }
+
+  const keepAlive = store.get('ollama.keepAlive', '5m');
+  const ms = parseKeepAlive(keepAlive);
+
+  if (ms === -1) return; // Never unload
+  if (ms === 0) {
+    // Unload immediately after response completes
+    stopEngine();
+    return;
+  }
+
+  idleTimer = setTimeout(() => {
+    if (engineProcess && isReady) {
+      console.log(`[Engine] Idle timeout (${keepAlive}) — stopping engine to free memory`);
+      stopEngine();
+    }
+  }, ms);
+}
+
 // Paths
 const ENGINE_BINARY_NAME = process.platform === 'win32' ? 'iimagine-engine.exe' : 'iimagine-engine';
 const MODELS_DIR_NAME = 'models';
@@ -40,17 +86,10 @@ function getEnginePath() {
 
 /**
  * Get the models directory where GGUF files are stored.
- * Uses ~/Library/Application Support/iimagine-desktop/models on macOS
- * Uses %APPDATA%/iimagine-desktop/models on Windows
+ * Uses ~/.iimagine/models/ on all platforms (shared with download-manager)
  */
 function getModelsDir() {
-  const appData = process.platform === 'darwin'
-    ? path.join(os.homedir(), 'Library', 'Application Support', 'iimagine-desktop')
-    : process.platform === 'win32'
-      ? path.join(process.env.APPDATA || path.join(os.homedir(), 'AppData', 'Roaming'), 'iimagine-desktop')
-      : path.join(os.homedir(), '.local', 'share', 'iimagine-desktop');
-
-  const modelsPath = path.join(appData, MODELS_DIR_NAME);
+  const modelsPath = path.join(os.homedir(), '.iimagine', 'models');
 
   // Ensure directory exists
   if (!fs.existsSync(modelsPath)) {
@@ -180,6 +219,7 @@ async function startEngine(modelPath, options = {}) {
     '--port', String(port),
     '--host', '127.0.0.1',
     '--ctx-size', numCtx === 'auto' ? '4096' : String(numCtx),
+    '--fit', 'off',
   ];
 
   // GPU layers
@@ -262,7 +302,7 @@ async function startEngine(modelPath, options = {}) {
         }
       });
 
-      // Timeout: if not ready in 30 seconds, fail
+      // Timeout: if not ready in 60 seconds, fail
       setTimeout(() => {
         if (isStarting) {
           isStarting = false;
@@ -272,7 +312,7 @@ async function startEngine(modelPath, options = {}) {
           }
           resolve({ success: false, error: `Engine startup timed out. Output: ${startupOutput.slice(-500)}` });
         }
-      }, 30000);
+      }, 60000);
 
     } catch (err) {
       isStarting = false;
@@ -287,24 +327,24 @@ async function startEngine(modelPath, options = {}) {
 async function stopEngine() {
   if (!engineProcess) return { success: true };
 
+  // Clear idle timer
+  if (idleTimer) { clearTimeout(idleTimer); idleTimer = null; }
+
+  const proc = engineProcess;
+  engineProcess = null;
+  isReady = false;
+  currentModel = null;
+
   return new Promise((resolve) => {
-    engineProcess.on('close', () => {
-      engineProcess = null;
-      isReady = false;
-      currentModel = null;
+    proc.on('close', () => {
       resolve({ success: true });
     });
 
-    engineProcess.kill('SIGTERM');
+    proc.kill('SIGTERM');
 
     // Force kill after 5 seconds
     setTimeout(() => {
-      if (engineProcess) {
-        engineProcess.kill('SIGKILL');
-        engineProcess = null;
-        isReady = false;
-        currentModel = null;
-      }
+      try { proc.kill('SIGKILL'); } catch {}
       resolve({ success: true });
     }, 5000);
   });
@@ -349,10 +389,12 @@ async function chat({ messages, stream = false, options = {} }) {
 
     if (!stream) {
       const data = await res.json();
+      resetIdleTimer();
       return { success: true, data };
     }
 
     // Return the response for streaming
+    resetIdleTimer();
     return { success: true, response: res };
   } catch (err) {
     if (err.name === 'AbortError') {
@@ -387,6 +429,7 @@ async function embed(text) {
 
     const data = await res.json();
     const embedding = data.data?.[0]?.embedding || null;
+    resetIdleTimer();
     return { success: true, embedding };
   } catch (err) {
     return { success: false, error: err.message };

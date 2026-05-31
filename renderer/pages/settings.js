@@ -11,6 +11,7 @@ const SettingsPage = {
           <div class="flex gap-1 border-b border-neutral-200/40 dark:border-neutral-700/40">
             <button data-settings-tab="profile" class="settings-tab-btn px-4 py-2 text-sm font-medium transition-all border-b-2">Profile</button>
             <button data-settings-tab="models" class="settings-tab-btn px-4 py-2 text-sm font-medium transition-all border-b-2">Models</button>
+            <button data-settings-tab="chat" class="settings-tab-btn px-4 py-2 text-sm font-medium transition-all border-b-2">Chat</button>
             <button data-settings-tab="plugins" class="settings-tab-btn px-4 py-2 text-sm font-medium transition-all border-b-2">Plugins</button>
             <button data-settings-tab="personas" class="settings-tab-btn px-4 py-2 text-sm font-medium transition-all border-b-2">Personas</button>
             <button data-settings-tab="memory" id="memoryTabBtn" class="settings-tab-btn px-4 py-2 text-sm font-medium transition-all border-b-2 hidden">Memory</button>
@@ -75,6 +76,7 @@ const SettingsPage = {
 
     if (tab === 'profile') this._renderProfile(content);
     else if (tab === 'models') this._renderModelsTab(content);
+    else if (tab === 'chat') this._renderChatTab(content);
     else if (tab === 'plugins') this._renderPluginsTab(content);
     else if (tab === 'personas') this._renderPersonasTab(content);
     else if (tab === 'memory') this._renderMemoryTab(content);
@@ -215,6 +217,75 @@ const SettingsPage = {
     }
   },
 
+  // ─── Chat Tab ─────────────────────────────────────────────────────────────
+  _renderChatTab(content) {
+    content.innerHTML = `
+      <section class="bg-white/50 dark:bg-neutral-800/50 border border-neutral-200/40 dark:border-neutral-700/40 rounded-2xl p-5 shadow-[0_2px_10px_rgb(0,0,0,0.02)] dark:shadow-[0_2px_10px_rgb(0,0,0,0.2)] backdrop-blur-md">
+        <div class="flex items-center gap-2 mb-4">
+          <div class="p-2 bg-white dark:bg-neutral-800 rounded-xl border border-neutral-100 dark:border-neutral-800 shadow-sm text-neutral-700 dark:text-neutral-300"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></div>
+          <div>
+            <h3 class="text-sm font-semibold text-neutral-900 dark:text-neutral-100">Chat Memory</h3>
+            <p class="text-xs text-neutral-500 dark:text-neutral-400">How much conversation history is sent to the model each turn</p>
+          </div>
+        </div>
+
+        <div class="space-y-4">
+          <div>
+            <label class="text-xs font-medium text-neutral-500 uppercase tracking-wider mb-1.5 block">Messages to include</label>
+            <p class="text-[10px] text-neutral-400 mb-3">The number of recent messages from the current chat that are sent to the model with each new message. More messages = better recall within the chat, but uses more of the context window and may slow responses.</p>
+            <div class="flex items-center gap-4">
+              <input id="chatHistorySlider" type="range" min="2" max="50" step="2" value="6"
+                class="flex-1 h-2 bg-neutral-200 dark:bg-neutral-700 rounded-lg appearance-none cursor-pointer accent-neutral-900 dark:accent-neutral-100" />
+              <span id="chatHistoryValue" class="text-sm font-mono font-medium text-neutral-700 dark:text-neutral-300 min-w-[3rem] text-right">6</span>
+            </div>
+            <div class="flex justify-between text-[10px] text-neutral-400 mt-1 px-0.5">
+              <span>2 (minimal)</span>
+              <span>50 (maximum)</span>
+            </div>
+          </div>
+
+          <div class="bg-neutral-50 dark:bg-neutral-900/50 border border-neutral-200/30 dark:border-neutral-700/30 rounded-xl p-3">
+            <p class="text-[11px] text-neutral-500 dark:text-neutral-400 leading-relaxed">
+              <strong class="text-neutral-700 dark:text-neutral-300">How it works:</strong> Each time you send a message, the last N messages from the current chat are included so the AI can follow the conversation. This only applies within a single chat — starting a new chat resets the history. For cross-chat memory, enable the Cortex plugin in Settings → Plugins.
+            </p>
+          </div>
+
+          <button id="saveChatSettingsBtn" class="w-full px-4 py-2.5 rounded-lg bg-neutral-900 dark:bg-neutral-100 text-sm font-medium text-white dark:text-neutral-900 hover:bg-neutral-800 dark:hover:bg-neutral-200 transition-all shadow-sm">
+            Save
+          </button>
+          <p id="chatSettingsSaveStatus" class="text-xs text-emerald-600 text-center hidden">Settings saved</p>
+        </div>
+      </section>
+    `;
+
+    this._bindChatTab(content);
+  },
+
+  async _bindChatTab(content) {
+    const slider = content.querySelector('#chatHistorySlider');
+    const valueDisplay = content.querySelector('#chatHistoryValue');
+    const saveBtn = content.querySelector('#saveChatSettingsBtn');
+    const saveStatus = content.querySelector('#chatSettingsSaveStatus');
+
+    // Load current value
+    const saved = await window.api.settings.get('chat.historyMessages');
+    const current = saved || 6;
+    slider.value = current;
+    valueDisplay.textContent = current;
+
+    // Update display on slide
+    slider.addEventListener('input', () => {
+      valueDisplay.textContent = slider.value;
+    });
+
+    // Save
+    saveBtn.addEventListener('click', async () => {
+      await window.api.settings.set('chat.historyMessages', parseInt(slider.value, 10));
+      saveStatus.classList.remove('hidden');
+      setTimeout(() => saveStatus.classList.add('hidden'), 2000);
+    });
+  },
+
   // ─── Models Tab ───────────────────────────────────────────────────────────
   _renderModelsTab(content) {
     content.innerHTML = `
@@ -227,6 +298,9 @@ const SettingsPage = {
             <p class="text-xs text-neutral-500 dark:text-neutral-400">Nothing leaves your machine</p>
           </div>
         </div>
+
+        <!-- Model Download Onboarding (shown when no engine models installed) -->
+        <div id="modelOnboardingMount" class="mb-4"></div>
 
         <!-- Model Recommendation Wizard -->
         <div id="modelBrowserMount" class="mb-4"></div>
@@ -454,6 +528,17 @@ const SettingsPage = {
     const pullProgressText = content.querySelector('#pullProgressText');
     const modelList = content.querySelector('#modelList');
 
+    // ── Model Download Onboarding (no models installed state) ──
+    const modelOnboardingMount = content.querySelector('#modelOnboardingMount');
+    if (modelOnboardingMount && window.ModelDownloadOnboarding) {
+      const shouldShow = await window.ModelDownloadOnboarding.shouldShow();
+      if (shouldShow) {
+        window.ModelDownloadOnboarding.mount(modelOnboardingMount);
+      } else {
+        modelOnboardingMount.classList.add('hidden');
+      }
+    }
+
     // ── Model Browser (guided wizard + advanced browser) ────────
     const modelBrowserMount = content.querySelector('#modelBrowserMount');
     if (modelBrowserMount && window.ModelBrowser) {
@@ -665,17 +750,18 @@ const SettingsPage = {
     // ── Engine status + model pull ───────────────────────────────
     const updateStatus = async () => {
       const status = await window.ProviderManager.getOllamaStatus();
-      if (status.running) {
-        engineStatusBadge.textContent = 'Running';
+      if (status.running || status.models?.length > 0) {
+        engineStatusBadge.textContent = status.running ? 'Running' : 'Ready';
         engineStatusBadge.className = 'text-xs px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-100';
         installSection.classList.add('hidden');
         modelSection.classList.remove('hidden');
         this._renderModels(modelList, status.models || []);
       } else {
-        engineStatusBadge.textContent = 'Not installed';
-        engineStatusBadge.className = 'text-xs px-2 py-0.5 rounded-full bg-rose-50 text-rose-700 border border-rose-100';
-        installSection.classList.remove('hidden');
-        modelSection.classList.add('hidden');
+        engineStatusBadge.textContent = 'No models';
+        engineStatusBadge.className = 'text-xs px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 border border-amber-100';
+        installSection.classList.add('hidden');
+        modelSection.classList.remove('hidden');
+        this._renderModels(modelList, []);
       }
     };
 
@@ -684,54 +770,36 @@ const SettingsPage = {
     // Poll status while on models tab
     this._pollInterval = setInterval(updateStatus, 5000);
 
-    // Install engine
+    // Install engine — engine is bundled, just show info
     installEngineBtn.addEventListener('click', async () => {
       installEngineBtn.disabled = true;
-      installEngineBtn.textContent = 'Installing...';
+      installEngineBtn.textContent = 'Engine is bundled';
       installProgress.classList.remove('hidden');
-      installProgress.textContent = 'Downloading and installing AI engine...';
-
-      try {
-        const result = await window.api.ollama.install();
-        if (result.success) {
-          installProgress.textContent = 'Installed. Starting engine...';
-          await new Promise(r => setTimeout(r, 3000));
-          await updateStatus();
-          await window.ProviderManager.refreshLocal();
-        } else {
-          installProgress.textContent = `Error: ${result.error}`;
-          installEngineBtn.disabled = false;
-          installEngineBtn.textContent = 'Install AI Engine';
-        }
-      } catch (err) {
-        installProgress.textContent = `Error: ${err.message}`;
-        installEngineBtn.disabled = false;
-        installEngineBtn.textContent = 'Install AI Engine';
-      }
+      installProgress.textContent = 'The AI engine is bundled with the app. Download a model below to get started.';
     });
 
     // Cancel download button
     cancelPullBtn.addEventListener('click', async () => {
-      await window.api.ollama.cancelPull();
+      await window.api.engine.cancelDownload();
     });
 
-    // Pull progress listener
-    window.api.ollama.onPullProgress((data) => {
+    // Engine download progress listener (replaces Ollama pull)
+    window.api.engine.onDownloadProgress((data) => {
       if (!pullProgress) return;
       pullProgress.classList.remove('hidden');
 
-      if (data.total && data.completed) {
-        const pct = Math.round((data.completed / data.total) * 100);
+      if (data.total > 0) {
+        const pct = data.percent || Math.round((data.downloaded / data.total) * 100);
         pullProgressBar.style.width = pct + '%';
-        const downloadedMB = (data.completed / 1e6).toFixed(0);
+        const downloadedMB = (data.downloaded / 1e6).toFixed(0);
         const totalMB = (data.total / 1e6).toFixed(0);
-        pullProgressText.textContent = `${data.status || 'Downloading'} — ${downloadedMB}MB / ${totalMB}MB (${pct}%)`;
+        pullProgressText.textContent = `Downloading — ${downloadedMB}MB / ${totalMB}MB (${pct}%)`;
       } else {
-        pullProgressText.textContent = data.status || 'Processing...';
+        pullProgressText.textContent = 'Downloading...';
       }
     });
 
-    window.api.ollama.onPullDone(async (data) => {
+    window.api.engine.onDownloadDone(async (data) => {
       if (data.success) {
         pullProgressBar.style.width = '100%';
         pullProgressText.textContent = 'Model installed.';
@@ -741,17 +809,14 @@ const SettingsPage = {
 
         setTimeout(() => {
           pullProgress.classList.add('hidden');
+          pullProgressBar.style.width = '0%';
         }, 1500);
       } else {
         pullProgressText.textContent = data.error === 'Download cancelled' ? 'Download cancelled.' : `Error: ${data.error}`;
         setTimeout(() => {
           pullProgress.classList.add('hidden');
+          pullProgressBar.style.width = '0%';
         }, 2000);
-      }
-
-      // Reset custom download button state
-      if (window.ModelBrowser) {
-        // Re-render model browser to reflect new installed state
       }
     });
   },
@@ -1127,7 +1192,7 @@ const SettingsPage = {
     }
 
     container.innerHTML = models.map(m => {
-      const sizeGB = (m.size / 1e9).toFixed(1);
+      const sizeGB = m.sizeGB || (m.size ? (m.size / 1e9).toFixed(1) : '?');
       const isActive = window.ProviderManager.activeProvider?.name === m.name;
       const isHidden = window.ProviderManager.isModelHidden(m.name);
       return `
@@ -1145,7 +1210,7 @@ const SettingsPage = {
                 : '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>'
               }
             </button>
-            <button class="model-delete-btn text-neutral-300 hover:text-rose-500 transition-colors" data-model="${m.name}" title="Delete model">
+            <button class="model-delete-btn text-neutral-300 hover:text-rose-500 transition-colors" data-filename="${m.filename || m.name}" title="Delete model">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
             </button>
           </div>
@@ -1160,14 +1225,8 @@ const SettingsPage = {
         const wasHidden = window.ProviderManager.isModelHidden(modelName);
         await window.ProviderManager.toggleModelVisibility(modelName);
 
-        // If we just disabled (hid) the model, unload it from memory to free resources
-        if (!wasHidden) {
-          btn.title = 'Unloading from memory...';
-          await window.api.ollama.unload(modelName);
-        }
-
         window.AppRouter?.updateModelDropdown();
-        const status = await window.api.ollama.status();
+        const status = await window.ProviderManager.getOllamaStatus();
         this._renderModels(container, status.models || []);
       });
     });
@@ -1175,17 +1234,18 @@ const SettingsPage = {
     // Bind delete buttons
     container.querySelectorAll('.model-delete-btn').forEach(btn => {
       btn.addEventListener('click', async () => {
-        const modelName = btn.dataset.model;
-        if (!confirm(`Delete "${modelName}"?\n\nThis will permanently remove the model from your computer and free up disk space. You will need to re-download it if you want to use it again.\n\nTip: Use the eye icon to hide a model from the dropdown without deleting it.`)) return;
+        const filename = btn.dataset.filename;
+        const displayName = filename.replace('.gguf', '');
+        if (!confirm(`Delete "${displayName}"?\n\nThis will permanently remove the model from your computer and free up disk space. You will need to re-download it if you want to use it again.\n\nTip: Use the eye icon to hide a model from the dropdown without deleting it.`)) return;
 
         btn.innerHTML = '<span class="text-xs">...</span>';
         btn.disabled = true;
 
-        const result = await window.api.ollama.delete(modelName);
+        const result = await window.api.engine.deleteModel(filename);
         if (result.success) {
           await window.ProviderManager.refreshLocal();
           window.AppRouter?.updateModelDropdown();
-          const status = await window.api.ollama.status();
+          const status = await window.ProviderManager.getOllamaStatus();
           this._renderModels(container, status.models || []);
         } else {
           btn.innerHTML = '<span class="text-xs text-rose-500">Error</span>';

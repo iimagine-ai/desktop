@@ -23,6 +23,7 @@ const modelOrchestrator = require('./model-orchestrator');
 const engineManager = require('./engine-manager');
 const modelRegistry = require('./model-registry');
 const localAI = require('./local-ai-adapter');
+const downloadManager = require('./download-manager');
 
 const store = new Store();
 
@@ -1079,6 +1080,45 @@ function setupIPC() {
         }
       }
 
+      // Auto-start engine if not running
+      const engineStatus = await engineManager.getStatus();
+      const modelFilename = store.get('provider.active')?.model || store.get('local.selectedModel');
+      if (!engineStatus.running && modelFilename) {
+        const modelsDir = engineManager.getModelsDir();
+        let modelPath = path.join(modelsDir, modelFilename);
+        if (!fs.existsSync(modelPath) && !modelFilename.endsWith('.gguf')) {
+          modelPath = path.join(modelsDir, modelFilename + '.gguf');
+        }
+        if (fs.existsSync(modelPath)) {
+          console.log('[engine:chatStream] Auto-starting engine with:', modelFilename);
+          const startResult = await engineManager.startEngine(modelPath);
+          if (!startResult.success) {
+            return { success: false, error: `Failed to start AI engine: ${startResult.error}` };
+          }
+          console.log('[engine:chatStream] Engine started on port:', startResult.port || 8847);
+        } else {
+          return { success: false, error: `Model file not found: ${modelFilename}. Download it from Settings → Models.` };
+        }
+      } else if (!engineStatus.running && !modelFilename) {
+        return { success: false, error: 'No local model selected. Download and select a model in Settings → Models.' };
+      } else if (engineStatus.running && modelFilename) {
+        // Check if we need to switch models
+        const modelsDir = engineManager.getModelsDir();
+        let modelPath = path.join(modelsDir, modelFilename);
+        if (!fs.existsSync(modelPath) && !modelFilename.endsWith('.gguf')) {
+          modelPath = path.join(modelsDir, modelFilename + '.gguf');
+        }
+        if (engineStatus.currentModel !== modelPath && fs.existsSync(modelPath)) {
+          console.log('[engine:chatStream] Switching model to:', modelFilename);
+          await engineManager.stopEngine();
+          await new Promise(r => setTimeout(r, 500));
+          const startResult = await engineManager.startEngine(modelPath);
+          if (!startResult.success) {
+            return { success: false, error: `Failed to start AI engine: ${startResult.error}` };
+          }
+        }
+      }
+
       const numCtx = store.get('ollama.numCtx', '4096');
       const result = await engineManager.chat({
         messages,
@@ -1208,21 +1248,76 @@ function setupIPC() {
         }
       }
 
+      // Ensure engine is running (auto-starts if needed)
+      const ensureResult = await localAI.ensureRunning();
+
+      // Try iimagine-engine first (primary path)
+      const engineStatus = await engineManager.getStatus();
+      if (engineStatus.running) {
+        const controller = new AbortController();
+        streamAbort.setActiveStreamController(controller);
+
+        const numCtx = store.get('ollama.numCtx', '4096');
+        const result = await engineManager.chat({
+          messages,
+          stream: true,
+          options: {
+            max_tokens: parseInt(numCtx) || 4096,
+            signal: controller.signal,
+          },
+        });
+
+        if (!result.success) {
+          streamAbort.clearActiveStreamController();
+          return { success: false, error: result.error };
+        }
+
+        // Stream the response (OpenAI SSE format → ollama:stream-chunk for compatibility)
+        const reader = result.response.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = '';
+
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split('\n');
+          buffer = lines.pop() || '';
+
+          for (const line of lines) {
+            if (!line.startsWith('data: ')) continue;
+            const data = line.slice(6).trim();
+            if (data === '[DONE]') break;
+            try {
+              const parsed = JSON.parse(data);
+              const content = parsed.choices?.[0]?.delta?.content || '';
+              if (content) {
+                mainWindow?.webContents.send('ollama:stream-chunk', {
+                  message: { content },
+                });
+              }
+            } catch {}
+          }
+        }
+
+        mainWindow?.webContents.send('ollama:stream-done');
+        streamAbort.clearActiveStreamController();
+        return { success: true };
+      }
+
+      // Fallback: try Ollama (legacy support)
       const ollamaHost = store.get('local.ollamaHost') || OLLAMA_URL;
       const controller = new AbortController();
       streamAbort.setActiveStreamController(controller);
 
-      // Build options from advanced settings
       const options = toolCalling.buildOllamaOptions();
       const keepAlive = toolCalling.getKeepAlive();
-
-      // Determine which tools to offer
       const webSearchEnabled = !!store.get('webSearch.enabled');
       const kbStats = kbStorage.getKBStats();
       const hasKBDocuments = kbStats.embeddingCount > 0;
       const tools = toolCalling.getActiveTools({ webSearchEnabled, hasKBDocuments });
 
-      // Build request body
       const body = { model, messages, stream: true, options };
       if (keepAlive !== '5m') body.keep_alive = keepAlive;
       if (tools.length > 0) body.tools = tools;
@@ -1243,58 +1338,39 @@ function setupIPC() {
       while (true) {
         const { done, value } = await reader.read();
         if (done) break;
-
         const chunk = decoder.decode(value);
         const lines = chunk.split('\n').filter(Boolean);
-
         for (const line of lines) {
           try {
             const parsed = JSON.parse(line);
-
-            // Check if model is making a tool call
             if (parsed.message?.tool_calls && parsed.message.tool_calls.length > 0) {
               toolCalls = parsed.message.tool_calls;
             } else {
               mainWindow?.webContents.send('ollama:stream-chunk', parsed);
               if (parsed.message?.content) fullResponse += parsed.message.content;
             }
-          } catch {
-            // skip malformed
-          }
+          } catch {}
         }
       }
 
-      // If model made tool calls, execute them and continue the conversation
       if (toolCalls.length > 0) {
-        mainWindow?.webContents.send('ollama:stream-chunk', {
-          message: { content: '\n\n🔍 *Searching...*\n\n' },
-        });
-
+        mainWindow?.webContents.send('ollama:stream-chunk', { message: { content: '\n\n🔍 *Searching...*\n\n' } });
         const context = { ollamaHost, kbStorage, store };
         const updatedMessages = [...messages, { role: 'assistant', content: fullResponse, tool_calls: toolCalls }];
-
         for (const tc of toolCalls) {
           const fnName = tc.function?.name;
           const fnArgs = tc.function?.arguments || {};
           const result = await toolCalling.executeTool(fnName, fnArgs, context);
-
-          updatedMessages.push({
-            role: 'tool',
-            content: result,
-          });
+          updatedMessages.push({ role: 'tool', content: result });
         }
-
-        // Make a follow-up request with tool results (no tools this time to avoid loops)
         const followUpBody = { model, messages: updatedMessages, stream: true, options };
         if (keepAlive !== '5m') followUpBody.keep_alive = keepAlive;
-
         const followUpRes = await fetch(`${ollamaHost}/api/chat`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(followUpBody),
           signal: controller.signal,
         });
-
         if (followUpRes.ok) {
           const followReader = followUpRes.body.getReader();
           while (true) {
@@ -1303,10 +1379,7 @@ function setupIPC() {
             const chunk2 = decoder.decode(v2);
             const lines2 = chunk2.split('\n').filter(Boolean);
             for (const line2 of lines2) {
-              try {
-                const parsed2 = JSON.parse(line2);
-                mainWindow?.webContents.send('ollama:stream-chunk', parsed2);
-              } catch {}
+              try { mainWindow?.webContents.send('ollama:stream-chunk', JSON.parse(line2)); } catch {}
             }
           }
         }
@@ -1590,7 +1663,8 @@ END OF DOCUMENTS`;
       // Build messages array with system prompt
       // IMPORTANT: Limit chat history to avoid overwhelming small models.
       // The system prompt with KB context must remain dominant.
-      const recentHistory = (chatHistory || []).slice(-6); // Last 3 exchanges max
+      const historyLimit = store.get('chat.historyMessages') || 6;
+      const recentHistory = (chatHistory || []).slice(-historyLimit);
       let messages = [
         { role: 'system', content: systemContent },
         ...recentHistory,
@@ -1709,54 +1783,85 @@ END OF DOCUMENTS`;
         }
       }
 
-      // Fallback: Use local Ollama
+      // Fallback: Use local iimagine-engine (llama.cpp)
       if (providerType === 'local' || !cloudApiKey) {
-        // Use Ollama
-        const ollamaStatus = await checkOllama();
-        if (!ollamaStatus.running || !ollamaStatus.models?.length) {
-          mainWindow?.webContents.send('chat:rag-done');
-          return { success: false, error: 'No AI model available. Install a local model in Settings.' };
-        }
-        const EMBED_ONLY = ['nomic-embed-text', 'all-minilm', 'mxbai-embed-large', 'snowflake-arctic-embed'];
-        const chatModels = ollamaStatus.models.filter(m => !EMBED_ONLY.some(e => m.name.startsWith(e)));
-        if (!chatModels.length) {
-          mainWindow?.webContents.send('chat:rag-done');
-          return { success: false, error: 'No chat model available.' };
-        }
-        const model = pm?.model || chatModels[0].name;
-        console.log('[ChatRAG] Using model:', model, 'with', messages.length, 'messages');
+        const engineStatus = await engineManager.getStatus();
+        const modelFilename = pm?.model || store.get('local.selectedModel');
 
-        const res = await fetch(`${ollamaHost}/api/chat`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ model, messages, stream: true, options: { num_ctx: numCtx } }),
-        });
-        if (!res.ok) {
+        if (!modelFilename) {
           mainWindow?.webContents.send('chat:rag-done');
-          return { success: false, error: `Ollama error: ${res.status}` };
+          return { success: false, error: 'No local model selected. Download and select a model in Settings → Models.' };
         }
 
-        const reader = res.body.getReader();
+        // Resolve model path from filename
+        const modelsDir = engineManager.getModelsDir();
+        // Handle case where filename might not have .gguf extension
+        let modelPath = path.join(modelsDir, modelFilename);
+        if (!fs.existsSync(modelPath) && !modelFilename.endsWith('.gguf')) {
+          modelPath = path.join(modelsDir, modelFilename + '.gguf');
+        }
+
+        if (!fs.existsSync(modelPath)) {
+          mainWindow?.webContents.send('chat:rag-done');
+          return { success: false, error: `Model file not found: ${modelFilename}. Download it from Settings → Models.` };
+        }
+
+        // Start engine if not running, or switch model if different
+        if (!engineStatus.running || engineStatus.currentModel !== modelPath) {
+          console.log('[ChatRAG] Starting iimagine-engine with:', modelFilename);
+
+          // If engine is running with a different model, stop it first and wait for port release
+          if (engineStatus.running && engineStatus.currentModel !== modelPath) {
+            console.log('[ChatRAG] Stopping current engine to switch models...');
+            await engineManager.stopEngine();
+            // Brief delay to let the OS release the port
+            await new Promise(r => setTimeout(r, 500));
+          }
+
+          const startResult = await engineManager.startEngine(modelPath);
+          if (!startResult.success) {
+            console.error('[ChatRAG] Engine start failed:', startResult.error);
+            mainWindow?.webContents.send('chat:rag-done');
+            return { success: false, error: `Failed to start AI engine: ${startResult.error}` };
+          }
+          console.log('[ChatRAG] Engine started successfully on port:', startResult.port || 8847);
+        }
+
+        console.log('[ChatRAG] Using local engine with model:', modelFilename);
+
+        // Send chat via engine (OpenAI-compatible streaming)
+        const chatResult = await engineManager.chat({ messages, stream: true, options: { num_ctx: numCtx } });
+        if (!chatResult.success) {
+          mainWindow?.webContents.send('chat:rag-done');
+          return { success: false, error: chatResult.error };
+        }
+
+        const reader = chatResult.response.body.getReader();
         const decoder = new TextDecoder();
         let fullResponse = '';
+
         while (true) {
           const { done, value } = await reader.read();
           if (done) break;
           const chunk = decoder.decode(value);
-          for (const line of chunk.split('\n').filter(Boolean)) {
+          for (const line of chunk.split('\n').filter(l => l.startsWith('data: '))) {
+            const data = line.slice(6).trim();
+            if (data === '[DONE]') break;
             try {
-              const parsed = JSON.parse(line);
-              if (parsed.message?.content) {
-                fullResponse += parsed.message.content;
-                mainWindow?.webContents.send('chat:rag-chunk', { content: parsed.message.content });
+              const parsed = JSON.parse(data);
+              const content = parsed.choices?.[0]?.delta?.content || '';
+              if (content) {
+                fullResponse += content;
+                mainWindow?.webContents.send('chat:rag-chunk', { content });
               }
             } catch {}
           }
         }
+
         mainWindow?.webContents.send('chat:rag-done');
         console.log('[ChatRAG] Response complete, length:', fullResponse.length, 'chars');
 
-        // Run plugin postprocess hooks (Cortex Lite fact extraction, Client Workspace timeline, etc.)
+        // Run plugin postprocess hooks
         try {
           await pluginManager.runChatPostprocess({ response: fullResponse, assistant: null });
         } catch (err) {
@@ -2493,6 +2598,25 @@ app.whenReady().then(async () => {
     console.warn('[App] Manifest init warning:', err.message);
   });
 
+  // Initialize GGUF download manager
+  downloadManager.initialize().catch(err => {
+    console.warn('[App] Download manager init warning:', err.message);
+  });
+
+  // Forward download progress events to renderer
+  downloadManager.on('download-progress', (progress) => {
+    mainWindow?.webContents.send('model:download-progress', progress);
+  });
+  downloadManager.on('state-changed', (state) => {
+    mainWindow?.webContents.send('model:download-state-changed', state);
+  });
+  downloadManager.on('download-complete', (dl) => {
+    mainWindow?.webContents.send('model:download-complete', dl);
+  });
+  downloadManager.on('download-failed', (dl) => {
+    mainWindow?.webContents.send('model:download-failed', dl);
+  });
+
   // Initialize plugin system
   pluginManager.setContext({
     db: storage.getDb(),
@@ -2540,6 +2664,10 @@ app.whenReady().then(async () => {
 
   pluginManager.loadAll();
   setupIPC();
+
+  // Register download manager IPC handlers
+  downloadManager.registerIPC(ipcMain);
+
   createWindow();
   createTray();
 

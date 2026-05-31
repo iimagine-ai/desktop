@@ -315,4 +315,18 @@ contextBridge.exposeInMainWorld('api', {
     checkUpdate: () => ipcRenderer.invoke('manifest:checkUpdate'),
     dismissUpdate: () => ipcRenderer.invoke('manifest:dismissUpdate'),
   },
+
+  // Model Downloads — GGUF direct download from HuggingFace
+  downloads: {
+    start: (modelId, variantIndex) => ipcRenderer.invoke('model:download-start', modelId, variantIndex),
+    pause: (modelId) => ipcRenderer.invoke('model:download-pause', modelId),
+    cancel: (modelId) => ipcRenderer.invoke('model:download-cancel', modelId),
+    delete: (modelId, variantIndex) => ipcRenderer.invoke('model:download-delete', modelId, variantIndex),
+    getState: () => ipcRenderer.invoke('model:download-state'),
+    getInstalled: () => ipcRenderer.invoke('model:installed-list'),
+    onProgress: (cb) => ipcRenderer.on('model:download-progress', (_, data) => cb(data)),
+    onStateChanged: (cb) => ipcRenderer.on('model:download-state-changed', (_, data) => cb(data)),
+    onComplete: (cb) => ipcRenderer.on('model:download-complete', (_, data) => cb(data)),
+    onFailed: (cb) => ipcRenderer.on('model:download-failed', (_, data) => cb(data)),
+  },
 });
