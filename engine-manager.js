@@ -144,7 +144,9 @@ function isEngineInstalled() {
  */
 async function getStatus() {
   if (!isEngineInstalled()) {
-    return { running: false, installed: false, models: [] };
+    // Engine binary not found, but still report any downloaded models
+    const models = getInstalledModels();
+    return { running: false, installed: false, models };
   }
 
   if (engineProcess && isReady) {

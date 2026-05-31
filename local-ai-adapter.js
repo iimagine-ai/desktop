@@ -58,11 +58,11 @@ async function getStatus() {
     };
   }
 
-  if (engineStatus.installed && engineStatus.models.length > 0) {
+  if (engineStatus.models && engineStatus.models.length > 0) {
     return {
       running: false,
       engine: 'iimagine',
-      installed: true,
+      installed: engineStatus.installed,
       models: engineStatus.models.map(m => ({
         name: m.name,
         filename: m.filename,
@@ -74,24 +74,7 @@ async function getStatus() {
     };
   }
 
-  // Fallback: Ollama
-  try {
-    const ollamaHost = store.get('local.ollamaHost') || OLLAMA_URL;
-    const res = await fetch(`${ollamaHost}/api/tags`, { signal: AbortSignal.timeout(3000) });
-    if (res.ok) {
-      const data = await res.json();
-      return {
-        running: true,
-        engine: 'ollama',
-        models: (data.models || []).map(m => ({
-          name: m.name,
-          size: m.size,
-        })),
-        currentModel: null,
-      };
-    }
-  } catch {}
-
+  // No iimagine models found — return empty (don't fall back to Ollama)
   return { running: false, engine: null, models: [], installed: engineStatus.installed };
 }
 

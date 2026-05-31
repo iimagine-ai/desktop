@@ -12,6 +12,7 @@ const ChatPage = {
   activeAssistantEl: null,
   activeAssistantContent: '',
   activeTypingEl: null,
+  pendingAttachments: [], // Attached files: [{ type, filename, base64, mimeType, text }]
   _listenersRegistered: false,
   _collections: [],
 
@@ -31,6 +32,7 @@ const ChatPage = {
           </div>
           <div class="border-t border-neutral-200/40 dark:border-neutral-700/40 p-3 flex-shrink-0 bg-white/30 dark:bg-neutral-800/30">
             <div class="relative bg-white/60 dark:bg-neutral-800/60 border border-neutral-200/50 dark:border-neutral-700/50 rounded-xl shadow-sm">
+              <div id="attachPreview" class="hidden px-3 pt-2 pb-1 flex items-center gap-2 flex-wrap"></div>
               <div class="flex">
                 <textarea id="chatInput" placeholder="Ask anything..." rows="3"
                   class="flex-1 resize-none bg-transparent px-3 py-2.5 text-sm text-neutral-700 dark:text-neutral-300 placeholder-neutral-400 dark:placeholder-neutral-500 focus:outline-none"></textarea>
@@ -51,6 +53,10 @@ const ChatPage = {
                 <button id="recentBtn" class="flex items-center gap-1 text-xs px-2 py-1 rounded-md text-neutral-500 dark:text-neutral-400 hover:bg-neutral-100/80 dark:hover:bg-neutral-700/60 transition-all whitespace-nowrap" title="Recent chats">
                   <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
                   <span>Recents</span>
+                </button>
+                <button id="attachBtn" class="flex items-center gap-1 text-xs px-2 py-1 rounded-md text-neutral-500 dark:text-neutral-400 hover:bg-neutral-100/80 dark:hover:bg-neutral-700/60 transition-all whitespace-nowrap" title="Attach image or file (PDF, DOCX, TXT, etc.)">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.49"/></svg>
+                  <span>Attach</span>
                 </button>
                 <div id="projSelectorContainer" class="shrink-0"></div>
                 <div id="kbSelectorContainer" class="shrink-0 min-w-0"></div>
@@ -185,7 +191,7 @@ const ChatPage = {
     chatInput.addEventListener('input', () => {
       chatInput.style.height = 'auto';
       chatInput.style.height = Math.min(chatInput.scrollHeight, 120) + 'px';
-      sendBtn.disabled = !chatInput.value.trim() || this.isStreaming || !pm.activeProvider;
+      sendBtn.disabled = (!chatInput.value.trim() && !this.pendingAttachments.length) || this.isStreaming || !pm.activeProvider;
     });
 
     chatInput.addEventListener('keydown', (e) => {
@@ -197,6 +203,26 @@ const ChatPage = {
 
     sendBtn.addEventListener('click', () => {
       this._send(chatInput, sendBtn, messages, welcomeMessage, null);
+    });
+
+    // Attachment button
+    const attachBtn = container.querySelector('#attachBtn');
+    const attachPreview = container.querySelector('#attachPreview');
+
+    attachBtn.addEventListener('click', async () => {
+      const filePath = await window.api.chat.pickFile();
+      if (!filePath) return;
+      const result = await window.api.chat.readFile(filePath);
+      if (result.error) {
+        attachPreview.classList.remove('hidden');
+        attachPreview.innerHTML = `<span class="text-xs text-red-500">${result.error}</span>`;
+        setTimeout(() => { attachPreview.classList.add('hidden'); attachPreview.innerHTML = ''; }, 3000);
+        return;
+      }
+      this.pendingAttachments.push(result);
+      this._renderAttachPreview(attachPreview);
+      // Enable send button when attachment is present
+      sendBtn.disabled = this.isStreaming || !pm.activeProvider;
     });
 
     stopBtn.addEventListener('click', async () => {
@@ -560,7 +586,7 @@ const ChatPage = {
 
   async _send(chatInput, sendBtn, messages, welcomeMessage, convList) {
     const text = chatInput.value.trim();
-    if (!text || this.isStreaming) return;
+    if ((!text && !this.pendingAttachments.length) || this.isStreaming) return;
 
     const pm = window.ProviderManager;
     if (!pm.activeProvider) return;
@@ -709,14 +735,52 @@ const ChatPage = {
       }
     }
 
-    this.chatHistory.push({ role: 'user', content: text });
-    this._appendMessage(messages, 'user', text);
+    // Build message content with attachments
+    let userMessageContent = text;
+    let userMessageForHistory = text;
 
-    // Persist user message
+    if (this.pendingAttachments.length > 0) {
+      const attachments = [...this.pendingAttachments];
+      this.pendingAttachments = [];
+      const attachPreview = document.querySelector('#attachPreview');
+      if (attachPreview) { attachPreview.classList.add('hidden'); attachPreview.innerHTML = ''; }
+
+      const imageAttachments = attachments.filter(a => a.type === 'image');
+      const docAttachments = attachments.filter(a => a.type === 'document');
+
+      if (imageAttachments.length > 0) {
+        // Build multimodal content array for vision models
+        const contentParts = [];
+        if (docAttachments.length > 0) {
+          const docContext = docAttachments.map(d => `[File: ${d.filename}]\n${d.text}`).join('\n\n');
+          contentParts.push({ type: 'text', text: docContext + '\n\n' + (text || 'Describe this image.') });
+        } else {
+          contentParts.push({ type: 'text', text: text || 'Describe this image.' });
+        }
+        for (const img of imageAttachments) {
+          contentParts.push({
+            type: 'image_url',
+            image_url: { url: `data:${img.mimeType};base64,${img.base64}` }
+          });
+        }
+        userMessageContent = contentParts;
+        userMessageForHistory = (text || 'Describe this image.') + imageAttachments.map(i => ` [📷 ${i.filename}]`).join('') + docAttachments.map(d => ` [📄 ${d.filename}]`).join('');
+      } else if (docAttachments.length > 0) {
+        // Text-only: prepend document content to the message
+        const docContext = docAttachments.map(d => `[File: ${d.filename}]\n${d.text}`).join('\n\n---\n\n');
+        userMessageContent = `The user has attached the following file(s):\n\n${docContext}\n\n---\n\nUser message: ${text || 'Please review the attached file(s).'}`;
+        userMessageForHistory = (text || 'Please review the attached file(s).') + docAttachments.map(d => ` [📄 ${d.filename}]`).join('');
+      }
+    }
+
+    this.chatHistory.push({ role: 'user', content: userMessageContent });
+    this._appendMessage(messages, 'user', userMessageForHistory);
+
+    // Persist user message (plain text version — don't store base64 in DB)
     await window.api.storage.addMessage({
       conversationId: this.activeConversationId,
       role: 'user',
-      content: text,
+      content: userMessageForHistory,
       model: pm.activeProvider.name,
       providerType: pm.activeProvider.type,
     });
@@ -810,6 +874,35 @@ const ChatPage = {
       this.activeAssistantContent = '';
       this.activeTypingEl = null;
     }
+  },
+
+  _renderAttachPreview(container) {
+    if (!this.pendingAttachments.length) {
+      container.classList.add('hidden');
+      container.innerHTML = '';
+      return;
+    }
+    container.classList.remove('hidden');
+    container.innerHTML = this.pendingAttachments.map((att, i) => {
+      const icon = att.type === 'image' ? '🖼️' : '📄';
+      return `<span class="inline-flex items-center gap-1 text-xs bg-neutral-100 dark:bg-neutral-700 text-neutral-600 dark:text-neutral-300 px-2 py-1 rounded-lg">
+        ${icon} ${att.filename}
+        <button data-remove-attach="${i}" class="ml-1 text-neutral-400 hover:text-red-500">×</button>
+      </span>`;
+    }).join('');
+    container.querySelectorAll('[data-remove-attach]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        this.pendingAttachments.splice(parseInt(btn.dataset.removeAttach), 1);
+        this._renderAttachPreview(container);
+        // Update send button state
+        const chatInput = document.querySelector('#chatInput');
+        const sendBtn = document.querySelector('#sendBtn');
+        const pm = window.ProviderManager;
+        if (sendBtn && chatInput) {
+          sendBtn.disabled = (!chatInput.value.trim() && !this.pendingAttachments.length) || this.isStreaming || !pm.activeProvider;
+        }
+      });
+    });
   },
 
   _appendMessage(container, role, content) {
@@ -1037,7 +1130,7 @@ const ChatPage = {
     const sendBtn = document.querySelector('#sendBtn');
     const stopBtn = document.querySelector('#stopBtn');
     const chatInput = document.querySelector('#chatInput');
-    if (sendBtn && chatInput) sendBtn.disabled = !chatInput.value.trim();
+    if (sendBtn && chatInput) sendBtn.disabled = !chatInput.value.trim() && !this.pendingAttachments.length;
     if (stopBtn) stopBtn.classList.add('hidden');
     if (sendBtn) sendBtn.classList.remove('hidden');
     this.activeAssistantEl = null;
@@ -1097,7 +1190,7 @@ const ChatPage = {
       stopBtn.classList.add('hidden');
       sendBtn.classList.remove('hidden');
       // Re-enable input
-      sendBtn.disabled = !chatInput.value.trim();
+      sendBtn.disabled = !chatInput.value.trim() && !this.pendingAttachments.length;
       this.isStreaming = false;
       // Remove typing indicator if present
       if (this.activeTypingEl?.parentNode) this.activeTypingEl.remove();

@@ -1,5 +1,16 @@
 # Desktop App Release Workflow
 
+## Quick Reference
+
+**Mac install command (run after every install/update):**
+```bash
+xattr -cr /Applications/IIMAGINE\ Desktop.app
+```
+
+**Build status:** https://github.com/iimagine-ai/desktop/actions
+
+---
+
 ## Overview
 
 This document describes the complete workflow for publishing a new version of the IIMAGINE Desktop app.
@@ -75,7 +86,9 @@ Go to: https://github.com/iimagine-ai/desktop/releases
 - **DELETE the previous version's release** — do NOT accumulate multiple versions
 - Only the latest version should be visible to users
 
-### 7. Update download links on the web app
+### 7. Update download links on the web app (AI AGENT MUST DO THIS)
+
+**This step is mandatory and must be done immediately after tagging.**
 
 Update the version in TWO files in `iia-28`:
 
@@ -86,7 +99,7 @@ const RELEASE_TAG = 'v0.X.Y';
 ```
 
 **File 2:** `src/app/desktop/downloads/page.tsx`
-- Update all three download href URLs to point to the new version
+- Update all three download href URLs to point to the new version (Mac .dmg, Windows .exe, Linux .AppImage)
 
 ### 8. Push to trigger Vercel deployment
 
@@ -96,16 +109,15 @@ git commit -m "fix: update download links to v0.X.Y"
 git push origin main
 ```
 
-### 9. Test the downloaded app on Mac
+### 9. Install on Mac (clear quarantine)
 
-After downloading the .dmg from the release:
+After downloading the .dmg from the release, macOS will block it because the app is not code-signed. Run this command to allow installation:
 
 ```bash
-# Remove quarantine attribute (required because app is not code-signed)
 xattr -cr /Applications/IIMAGINE\ Desktop.app
 ```
 
-Then open the app and verify it launches without errors.
+Then open the app normally. This is required every time you install a new version until we set up Apple code signing.
 
 ---
 
