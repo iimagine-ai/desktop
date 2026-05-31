@@ -364,37 +364,36 @@ function parseCsvToReadableText(raw) {
 // ── Auto-Embed (fire-and-forget after add/update) ───────────────
 let autoEmbedRunning = false;
 
+const EMBED_MODEL_FILENAME = 'nomic-embed-text-v1.5-f16.gguf';
+
 async function autoEmbedCollection(collectionId) {
   if (autoEmbedRunning) return; // skip if already running
   if (!kbStorage.isVecLoaded()) return;
 
-  const EMBED_MODEL = 'nomic-embed-text';
-  const ollamaHost = store.get('local.ollamaHost') || OLLAMA_URL;
-
-  // Check Ollama is running
-  try {
-    const res = await fetch(`${ollamaHost}/api/tags`);
-    if (!res.ok) return;
-  } catch {
-    return; // Ollama not running — skip silently
-  }
-
-  // Check embedding model is available (don't auto-pull)
-  try {
-    const res = await fetch(`${ollamaHost}/api/tags`);
-    if (!res.ok) return;
-    const data = await res.json();
-    const hasModel = (data.models || []).some(m =>
-      m.name === EMBED_MODEL || m.name.startsWith(EMBED_MODEL + ':')
-    );
-    if (!hasModel) return; // model not installed — skip silently
-  } catch {
+  // Check embedding model is downloaded locally
+  const modelsDir = engineManager.getModelsDir();
+  const embedModelPath = path.join(modelsDir, EMBED_MODEL_FILENAME);
+  if (!fs.existsSync(embedModelPath)) {
+    console.log('[AutoEmbed] Embedding model not found. Download "Nomic Embed Text" from Settings > Models to enable KB search.');
     return;
   }
 
   // Get unembedded chunks
   const chunks = kbStorage.getUnembeddedChunks(collectionId, 5000);
   if (!chunks.length) return;
+
+  // Remember which chat model was running so we can restore it
+  const engineStatus = engineManager.getStatus();
+  const previousModel = engineStatus.currentModel || null;
+
+  console.log(`[AutoEmbed] Starting embedding for collection ${collectionId} (${chunks.length} chunks)`);
+
+  // Switch engine to embedding model
+  const startResult = await engineManager.startEngine(embedModelPath);
+  if (!startResult.success) {
+    console.warn('[AutoEmbed] Failed to start embedding engine:', startResult.error);
+    return;
+  }
 
   autoEmbedRunning = true;
   mainWindow?.webContents.send('kb:auto-embed-start', {
@@ -411,21 +410,13 @@ async function autoEmbedCollection(collectionId) {
 
       for (const chunk of batch) {
         try {
-          const res = await fetch(`${ollamaHost}/api/embed`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ model: EMBED_MODEL, input: chunk.content }),
-          });
-          if (res.ok) {
-            const data = await res.json();
-            const embedding = data.embeddings?.[0] || data.embedding || null;
-            if (embedding) {
-              kbStorage.storeEmbeddings([{
-                chunkId: chunk.id,
-                embedding: new Float32Array(embedding),
-              }]);
-              totalStored++;
-            }
+          const result = await engineManager.embed(chunk.content);
+          if (result.success && result.embedding) {
+            kbStorage.storeEmbeddings([{
+              chunkId: chunk.id,
+              embedding: new Float32Array(result.embedding),
+            }]);
+            totalStored++;
           }
         } catch {
           // skip individual failures
@@ -446,10 +437,61 @@ async function autoEmbedCollection(collectionId) {
       embedded: totalStored,
       total: chunks.length,
     });
+
+    // Restore previous chat model if one was running before embedding
+    if (previousModel && previousModel !== embedModelPath) {
+      console.log(`[AutoEmbed] Restoring previous model: ${path.basename(previousModel)}`);
+      engineManager.startEngine(previousModel).catch(err =>
+        console.warn('[AutoEmbed] Failed to restore previous model:', err.message)
+      );
+    }
   }
 }
 
-// ── DuckDuckGo HTML Parser (fallback web search) ────────────────
+// ── Embed Query for KB Search ───────────────────────────────────
+// Uses the nomic-embed-text model via iimagine-engine for vector search.
+// Temporarily switches the engine to the embedding model, embeds the query,
+// then restores the previous chat model.
+async function embedQueryForSearch(text) {
+  if (!kbStorage.isVecLoaded()) return null;
+
+  const modelsDir = engineManager.getModelsDir();
+  const embedModelPath = path.join(modelsDir, EMBED_MODEL_FILENAME);
+  if (!fs.existsSync(embedModelPath)) {
+    console.log('[EmbedQuery] Embedding model not found — KB vector search unavailable.');
+    return null;
+  }
+
+  // Remember current model so we can restore it after embedding
+  const engineStatus = engineManager.getStatus();
+  const previousModel = engineStatus.currentModel || null;
+
+  // Start embedding model (stops current model if different)
+  const startResult = await engineManager.startEngine(embedModelPath);
+  if (!startResult.success) {
+    console.warn('[EmbedQuery] Failed to start embedding engine:', startResult.error);
+    return null;
+  }
+
+  let queryVec = null;
+  try {
+    const result = await engineManager.embed(text);
+    if (result.success && result.embedding) {
+      queryVec = new Float32Array(result.embedding);
+    }
+  } catch (err) {
+    console.warn('[EmbedQuery] Embed failed:', err.message);
+  }
+
+  // Restore previous chat model (fire and forget)
+  if (previousModel && previousModel !== embedModelPath) {
+    engineManager.startEngine(previousModel).catch(err =>
+      console.warn('[EmbedQuery] Failed to restore previous model:', err.message)
+    );
+  }
+
+  return queryVec;
+}
 function parseDuckDuckGoResults(html) {
   const results = [];
   // Match result blocks: <a class="result__a" href="...">title</a> and <a class="result__snippet">snippet</a>
@@ -1408,6 +1450,93 @@ function setupIPC() {
     return { success: aborted };
   });
 
+  // Chat — pick file via native dialog
+  ipcMain.handle('chat:pickFile', async () => {
+    const { dialog } = require('electron');
+    const result = await dialog.showOpenDialog(mainWindow, {
+      properties: ['openFile'],
+      title: 'Attach a file',
+      filters: [
+        { name: 'All Supported', extensions: ['png', 'jpg', 'jpeg', 'gif', 'webp', 'txt', 'md', 'csv', 'json', 'js', 'ts', 'py', 'html', 'css', 'xml', 'yaml', 'yml', 'log', 'pdf', 'docx'] },
+        { name: 'Images', extensions: ['png', 'jpg', 'jpeg', 'gif', 'webp'] },
+        { name: 'Documents', extensions: ['txt', 'md', 'csv', 'json', 'js', 'ts', 'py', 'html', 'css', 'xml', 'yaml', 'yml', 'log', 'pdf', 'docx'] },
+        { name: 'All Files', extensions: ['*'] },
+      ],
+    });
+    if (result.canceled || !result.filePaths.length) return null;
+    return result.filePaths[0];
+  });
+
+  // Chat — read file for attachment (image or document)
+  ipcMain.handle('chat:readFile', async (event, filePath) => {
+    try {
+      const ext = path.extname(filePath).toLowerCase();
+      const filename = path.basename(filePath);
+      const stat = fs.statSync(filePath);
+
+      const imageExts = ['.png', '.jpg', '.jpeg', '.gif', '.webp'];
+      const textExts = ['.txt', '.md', '.csv', '.json', '.js', '.ts', '.py', '.html', '.css', '.xml', '.yaml', '.yml', '.log'];
+
+      if (imageExts.includes(ext)) {
+        // 10MB limit for images
+        if (stat.size > 10 * 1024 * 1024) {
+          return { error: `Image too large (${(stat.size / 1024 / 1024).toFixed(1)}MB). Max 10MB.` };
+        }
+        const buffer = fs.readFileSync(filePath);
+        const base64 = buffer.toString('base64');
+        const mimeMap = { '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.gif': 'image/gif', '.webp': 'image/webp' };
+        return { type: 'image', base64, mimeType: mimeMap[ext] || 'image/png', filename };
+      } else if (ext === '.pdf') {
+        // 20MB limit for PDFs
+        if (stat.size > 20 * 1024 * 1024) {
+          return { error: `PDF too large (${(stat.size / 1024 / 1024).toFixed(1)}MB). Max 20MB.` };
+        }
+        try {
+          const pdfParse = require('pdf-parse');
+          const buffer = fs.readFileSync(filePath);
+          const data = await pdfParse(buffer);
+          const text = data.text?.trim();
+          if (!text) {
+            return { error: 'Could not extract text from this PDF. It may be a scanned image PDF.' };
+          }
+          // Truncate to ~100K chars to avoid overwhelming context window
+          const truncated = text.length > 100000 ? text.slice(0, 100000) + '\n\n[... document truncated ...]' : text;
+          return { type: 'document', text: truncated, filename };
+        } catch (pdfErr) {
+          return { error: `PDF extraction failed: ${pdfErr.message}` };
+        }
+      } else if (ext === '.docx') {
+        // 20MB limit for DOCX
+        if (stat.size > 20 * 1024 * 1024) {
+          return { error: `File too large (${(stat.size / 1024 / 1024).toFixed(1)}MB). Max 20MB.` };
+        }
+        try {
+          const mammoth = require('mammoth');
+          const result = await mammoth.extractRawText({ path: filePath });
+          const text = result.value?.trim();
+          if (!text) {
+            return { error: 'Could not extract text from this DOCX file.' };
+          }
+          const truncated = text.length > 100000 ? text.slice(0, 100000) + '\n\n[... document truncated ...]' : text;
+          return { type: 'document', text: truncated, filename };
+        } catch (docxErr) {
+          return { error: `DOCX extraction failed: ${docxErr.message}` };
+        }
+      } else if (textExts.includes(ext)) {
+        // 1MB limit for text files
+        if (stat.size > 1 * 1024 * 1024) {
+          return { error: `File too large (${(stat.size / 1024 / 1024).toFixed(1)}MB). Max 1MB for text files.` };
+        }
+        const text = fs.readFileSync(filePath, 'utf-8');
+        return { type: 'document', text, filename };
+      } else {
+        return { error: `Unsupported file type: ${ext}` };
+      }
+    } catch (err) {
+      return { error: `Failed to read file: ${err.message}` };
+    }
+  });
+
 
   // Storage — Conversations
   ipcMain.handle('storage:createConversation', (event, data) => storage.createConversation(data));
@@ -1567,19 +1696,12 @@ function setupIPC() {
       } else if (selections.length > 0 && kbStorage.isVecLoaded()) {
         try {
           console.log('[ChatRAG] Embedding query for KB search...');
-          const embedRes = await fetch(`${ollamaHost}/api/embed`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ model: 'nomic-embed-text', input: userMessage }),
-          });
-          if (embedRes.ok) {
-            const embedData = await embedRes.json();
-            const queryVec = embedData.embeddings?.[0];
-            if (queryVec) {
-              console.log('[ChatRAG] Searching KB, vector dims:', queryVec.length, 'across', selections.length, 'source(s)');
-              // Search across all selected collections/documents
-              const results = kbStorage.searchMultiple(new Float32Array(queryVec), selections, 8);
-              contextChunks = results.map(r => ({ content: r.content, docTitle: r.doc_title, distance: r.distance }));
+          const queryVec = await embedQueryForSearch(userMessage);
+          if (queryVec) {
+            console.log('[ChatRAG] Searching KB, vector dims:', queryVec.length, 'across', selections.length, 'source(s)');
+            // Search across all selected collections/documents
+            const results = kbStorage.searchMultiple(queryVec, selections, 8);
+            contextChunks = results.map(r => ({ content: r.content, docTitle: r.doc_title, distance: r.distance }));
 
               // RECENCY WINDOW: Always include the 3 most recent chunks from the collection
               // so that recent comms are never missed regardless of semantic similarity
@@ -1606,7 +1728,6 @@ function setupIPC() {
               contextChunks.forEach((c, i) => {
                 console.log(`[ChatRAG] Chunk ${i}: "${c.docTitle}" (distance: ${c.distance?.toFixed(4) || 'recent'}) — ${c.content.substring(0, 100)}...`);
               });
-            }
           }
         } catch (err) {
           console.warn('[ChatRAG] KB search failed:', err.message);
@@ -1943,22 +2064,12 @@ END OF DOCUMENTS`;
       if (selections.length > 0 && kbStorage.isVecLoaded()) {
         try {
           console.log('[RAG] Embedding query for KB search...');
-          const embedRes = await fetch(`${ollamaHost}/api/embed`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ model: 'nomic-embed-text', input: userMessage }),
-          });
-          if (embedRes.ok) {
-            const embedData = await embedRes.json();
-            const queryVec = embedData.embeddings?.[0];
-            if (queryVec) {
-              console.log('[RAG] Searching KB, vector dims:', queryVec.length, 'across', selections.length, 'source(s)');
-              const results = kbStorage.searchMultiple(new Float32Array(queryVec), selections, 5);
-              contextChunks = results.map(r => ({ content: r.content, docTitle: r.doc_title, distance: r.distance }));
-              console.log('[RAG] Found', contextChunks.length, 'relevant chunks');
-            }
-          } else {
-            console.warn('[RAG] Embed API returned:', embedRes.status);
+          const queryVec = await embedQueryForSearch(userMessage);
+          if (queryVec) {
+            console.log('[RAG] Searching KB, vector dims:', queryVec.length, 'across', selections.length, 'source(s)');
+            const results = kbStorage.searchMultiple(queryVec, selections, 5);
+            contextChunks = results.map(r => ({ content: r.content, docTitle: r.doc_title, distance: r.distance }));
+            console.log('[RAG] Found', contextChunks.length, 'relevant chunks');
           }
         } catch (err) {
           console.warn('[RAG] KB search failed:', err.message);
