@@ -1,6 +1,6 @@
 {
   "name": "iimagine-desktop",
-  "version": "0.8.3",
+  "version": "0.8.4",
   "description": "IIMAGINE Desktop Companion - Local LLM chat with your IIMAGINE account",
   "main": "main.js",
   "scripts": {
