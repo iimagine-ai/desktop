@@ -734,16 +734,29 @@ function setupIPC() {
           return { success: true };
 
         } else {
-          // OpenAI-compatible (openai, openrouter) — streaming
+          // OpenAI-compatible (openai, openrouter) — streaming with tool calling
+          const toolCalling = require('./tool-calling');
+          const webSearchEnabled = !!store.get('webSearch.enabled') || !!store.get('local.webSearchEnabled');
+          const kbStats = kbStorage.getKBStats();
+          const hasKBDocuments = kbStats.embeddingCount > 0;
+          const tools = toolCalling.getActiveTools({ webSearchEnabled, hasKBDocuments });
+
           const headers = { 'Content-Type': 'application/json', 'Authorization': `${config.authHeader} ${apiKey}` };
           if (vendor === 'openrouter') {
             headers['HTTP-Referer'] = 'https://iimagine.ai';
             headers['X-Title'] = 'IIMAGINE Desktop';
           }
+          const requestBody = { model: activeModel, messages, stream: true, max_completion_tokens: 4096, temperature: 0.7 };
+          if (tools.length > 0) {
+            requestBody.tools = tools;
+            requestBody.tool_choice = 'auto';
+            console.log(`[gateway:chat] Sending ${tools.length} tools to ${activeModel}`);
+          }
+
           const res = await fetch(config.url, {
             method: 'POST',
             headers,
-            body: JSON.stringify({ model: activeModel, messages, stream: true, max_completion_tokens: 4096, temperature: 0.7 }),
+            body: JSON.stringify(requestBody),
             signal: controller.signal,
           });
           if (!res.ok) {
@@ -752,6 +765,9 @@ function setupIPC() {
           }
           const reader = res.body.getReader();
           const decoder = new TextDecoder();
+          let gwFullContent = '';
+          let gwToolCallChunks = [];
+
           while (true) {
             const { done, value } = await reader.read();
             if (done) break;
@@ -759,16 +775,75 @@ function setupIPC() {
             const lines = chunk.split('\n').filter(l => l.startsWith('data: '));
             for (const line of lines) {
               const data = line.slice(6).trim();
-              if (data === '[DONE]') { mainWindow?.webContents.send('gateway:stream-done'); }
-              else {
-                try {
-                  const parsed = JSON.parse(data);
-                  const content = parsed.choices?.[0]?.delta?.content || '';
-                  if (content) mainWindow?.webContents.send('gateway:stream-chunk', { content });
-                } catch {}
+              if (data === '[DONE]') break;
+              try {
+                const parsed = JSON.parse(data);
+                const delta = parsed.choices?.[0]?.delta;
+                // Detect tool calls
+                if (delta?.tool_calls) {
+                  for (const tc of delta.tool_calls) {
+                    const idx = tc.index || 0;
+                    if (!gwToolCallChunks[idx]) gwToolCallChunks[idx] = { id: tc.id || '', name: '', arguments: '' };
+                    if (tc.function?.name) gwToolCallChunks[idx].name = tc.function.name;
+                    if (tc.function?.arguments) gwToolCallChunks[idx].arguments += tc.function.arguments;
+                  }
+                }
+                const content = delta?.content || '';
+                if (content) {
+                  gwFullContent += content;
+                  mainWindow?.webContents.send('gateway:stream-chunk', { content });
+                }
+              } catch {}
+            }
+          }
+
+          // If tool calls detected, execute and do follow-up
+          if (gwToolCallChunks.length > 0) {
+            mainWindow?.webContents.send('gateway:stream-chunk', { content: '\n\n🔍 *Searching...*\n\n' });
+            const context = { store, kbStorage };
+            const updatedMessages = [...messages];
+            const assistantToolCalls = gwToolCallChunks.map((tc, i) => ({
+              id: tc.id || `call_${i}`,
+              type: 'function',
+              function: { name: tc.name, arguments: tc.arguments },
+            }));
+            updatedMessages.push({ role: 'assistant', content: gwFullContent || null, tool_calls: assistantToolCalls });
+
+            for (const tc of assistantToolCalls) {
+              let args = {};
+              try { args = JSON.parse(tc.function.arguments); } catch {}
+              console.log(`[gateway:chat] Executing tool: ${tc.function.name}`, args);
+              const toolResult = await toolCalling.executeTool(tc.function.name, args, context);
+              updatedMessages.push({ role: 'tool', tool_call_id: tc.id, content: toolResult });
+            }
+
+            // Follow-up request (no tools to avoid loops)
+            const followRes = await fetch(config.url, {
+              method: 'POST',
+              headers,
+              body: JSON.stringify({ model: activeModel, messages: updatedMessages, stream: true, max_completion_tokens: 4096, temperature: 0.7 }),
+              signal: controller.signal,
+            });
+            if (followRes.ok) {
+              const followReader = followRes.body.getReader();
+              while (true) {
+                const { done: d2, value: v2 } = await followReader.read();
+                if (d2) break;
+                const fChunk = decoder.decode(v2);
+                const fLines = fChunk.split('\n').filter(l => l.startsWith('data: '));
+                for (const fLine of fLines) {
+                  const fData = fLine.slice(6).trim();
+                  if (fData === '[DONE]') break;
+                  try {
+                    const fParsed = JSON.parse(fData);
+                    const fContent = fParsed.choices?.[0]?.delta?.content || '';
+                    if (fContent) mainWindow?.webContents.send('gateway:stream-chunk', { content: fContent });
+                  } catch {}
+                }
               }
             }
           }
+
           mainWindow?.webContents.send('gateway:stream-done');
           return { success: true };
         }
@@ -1106,6 +1181,7 @@ function setupIPC() {
 
   // Engine — streaming chat (OpenAI-compatible)
   ipcMain.handle('engine:chatStream', async (event, { messages }) => {
+    const toolCalling = require('./tool-calling');
     const controller = new AbortController();
     streamAbort.setActiveStreamController(controller);
 
@@ -1162,12 +1238,18 @@ function setupIPC() {
       }
 
       const numCtx = store.get('ollama.numCtx', '4096');
+      const webSearchEnabled = !!store.get('webSearch.enabled') || !!store.get('local.webSearchEnabled');
+      const kbStats = kbStorage.getKBStats();
+      const hasKBDocuments = kbStats.embeddingCount > 0;
+      const tools = toolCalling.getActiveTools({ webSearchEnabled, hasKBDocuments });
+
       const result = await engineManager.chat({
         messages,
         stream: true,
         options: {
           max_tokens: parseInt(numCtx) || 4096,
           signal: controller.signal,
+          tools: tools.length > 0 ? tools : undefined,
         },
       });
 
@@ -1179,6 +1261,8 @@ function setupIPC() {
       const reader = result.response.body.getReader();
       const decoder = new TextDecoder();
       let buffer = '';
+      let fullContent = '';
+      let toolCallChunks = []; // Accumulate tool call deltas
 
       while (true) {
         const { done, value } = await reader.read();
@@ -1192,19 +1276,93 @@ function setupIPC() {
           if (!line.startsWith('data: ')) continue;
           const data = line.slice(6).trim();
           if (data === '[DONE]') {
-            mainWindow?.webContents.send('ollama:stream-done');
             break;
           }
           try {
             const parsed = JSON.parse(data);
-            const content = parsed.choices?.[0]?.delta?.content || '';
+            const delta = parsed.choices?.[0]?.delta;
+            const finishReason = parsed.choices?.[0]?.finish_reason;
+
+            // Detect tool calls in OpenAI streaming format
+            if (delta?.tool_calls) {
+              for (const tc of delta.tool_calls) {
+                const idx = tc.index || 0;
+                if (!toolCallChunks[idx]) {
+                  toolCallChunks[idx] = { id: tc.id || '', name: '', arguments: '' };
+                }
+                if (tc.function?.name) toolCallChunks[idx].name = tc.function.name;
+                if (tc.function?.arguments) toolCallChunks[idx].arguments += tc.function.arguments;
+              }
+            }
+
+            // Regular content
+            const content = delta?.content || '';
             if (content) {
-              // Send in same format as existing ollama:stream-chunk for compatibility
+              fullContent += content;
               mainWindow?.webContents.send('ollama:stream-chunk', {
                 message: { content },
               });
             }
           } catch {}
+        }
+      }
+
+      // If tool calls were detected, execute them and do a follow-up
+      if (toolCallChunks.length > 0) {
+        mainWindow?.webContents.send('ollama:stream-chunk', { message: { content: '\n\n🔍 *Searching...*\n\n' } });
+
+        const context = { store, kbStorage };
+        const updatedMessages = [...messages];
+        
+        // Add assistant message with tool_calls
+        const assistantToolCalls = toolCallChunks.map((tc, i) => ({
+          id: tc.id || `call_${i}`,
+          type: 'function',
+          function: { name: tc.name, arguments: tc.arguments },
+        }));
+        updatedMessages.push({ role: 'assistant', content: fullContent || null, tool_calls: assistantToolCalls });
+
+        // Execute each tool and add results
+        for (const tc of assistantToolCalls) {
+          let args = {};
+          try { args = JSON.parse(tc.function.arguments); } catch {}
+          console.log(`[engine:chatStream] Executing tool: ${tc.function.name}`, args);
+          const toolResult = await toolCalling.executeTool(tc.function.name, args, context);
+          updatedMessages.push({ role: 'tool', tool_call_id: tc.id, content: toolResult });
+        }
+
+        // Follow-up request with tool results (no tools this time to avoid loops)
+        const followUpResult = await engineManager.chat({
+          messages: updatedMessages,
+          stream: true,
+          options: {
+            max_tokens: parseInt(numCtx) || 4096,
+            signal: controller.signal,
+          },
+        });
+
+        if (followUpResult.success) {
+          const followReader = followUpResult.response.body.getReader();
+          let followBuffer = '';
+          while (true) {
+            const { done: d2, value: v2 } = await followReader.read();
+            if (d2) break;
+            followBuffer += decoder.decode(v2, { stream: true });
+            const followLines = followBuffer.split('\n');
+            followBuffer = followLines.pop() || '';
+            for (const fLine of followLines) {
+              if (!fLine.startsWith('data: ')) continue;
+              const fData = fLine.slice(6).trim();
+              if (fData === '[DONE]') break;
+              try {
+                const fParsed = JSON.parse(fData);
+                const fContent = fParsed.choices?.[0]?.delta?.content || '';
+                if (fContent) {
+                  mainWindow?.webContents.send('ollama:stream-chunk', { message: { content: fContent } });
+                }
+              } catch {}
+            }
+          }
         }
       }
 
@@ -1251,7 +1409,9 @@ function setupIPC() {
   // ── Local AI — unified interface (engine-first, Ollama fallback) ──
   // This is the preferred API for new renderer code.
   ipcMain.handle('localAI:status', async () => {
-    return await localAI.getStatus();
+    const status = await localAI.getStatus();
+    console.log('[localAI:status]', JSON.stringify({ running: status.running, engine: status.engine, modelCount: status.models?.length, installed: status.installed }));
+    return status;
   });
 
   ipcMain.handle('localAI:ensureRunning', async () => {

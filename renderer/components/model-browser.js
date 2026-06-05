@@ -60,7 +60,7 @@ const ModelBrowser = {
   // ─── Guided Wizard ────────────────────────────────────────────
   _renderGuided() {
     const hw = this._hardware || {};
-    const hwSummary = `${hw.ramGB || '?'}GB RAM • ${hw.gpu?.name || 'Unknown GPU'} • ${hw.diskFreeGB || '?'}GB free disk`;
+    const hwSummary = `${hw.aiMemoryGB || hw.ramGB || '?'}GB RAM • ${hw.gpu?.name || 'Unknown GPU'} • ${hw.diskFreeGB || '?'}GB free disk`;
 
     this._container.innerHTML = `
       <div class="space-y-4">

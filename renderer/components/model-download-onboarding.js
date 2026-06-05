@@ -34,9 +34,7 @@ const ModelDownloadOnboarding = {
   _getRecommendedModel() {
     if (!this._registry || !this._registry.length) return null;
 
-    const ramGB = this._hardware?.ramGB || 8;
-
-    // Filter to chat models that fit in RAM
+    const ramGB = this._hardware?.aiMemoryGB || this._hardware?.ramGB || 8;
     const chatModels = this._registry.filter(m =>
       m.categories.includes('text') &&
       m.variants.some(v => v.ramRequired <= ramGB)
@@ -68,7 +66,7 @@ const ModelDownloadOnboarding = {
 
   _render() {
     const recommended = this._getRecommendedModel();
-    const ramGB = this._hardware?.ramGB || '?';
+    const ramGB = this._hardware?.aiMemoryGB || this._hardware?.ramGB || '?';
     const gpu = this._hardware?.gpu?.name || 'Unknown GPU';
 
     if (!recommended) {

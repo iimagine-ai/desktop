@@ -23,6 +23,13 @@ async function scanHardware() {
     diskFreeGB,
     platform,
     arch,
+    // Available memory for local AI models:
+    // - Apple Silicon: unified memory (all RAM available to GPU)
+    // - Windows/Linux with discrete GPU: VRAM is the bottleneck
+    // - Windows/Linux without GPU: system RAM (CPU-only inference)
+    aiMemoryGB: (platform === 'darwin' && arch === 'arm64')
+      ? ramGB  // Unified memory
+      : (gpu.vramGB > 0 ? gpu.vramGB : ramGB),  // VRAM if available, else system RAM
   };
 }
 

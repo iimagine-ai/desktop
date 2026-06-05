@@ -388,6 +388,11 @@ async function chat({ messages, stream = false, options = {} }) {
     max_tokens: options.max_tokens || 4096,
   };
 
+  // Pass tools if provided (OpenAI function calling format)
+  if (options.tools && options.tools.length > 0) {
+    body.tools = options.tools;
+  }
+
   try {
     const res = await fetch(`http://127.0.0.1:${enginePort}/v1/chat/completions`, {
       method: 'POST',
