@@ -1298,10 +1298,14 @@ function setupIPC() {
             // Regular content
             const content = delta?.content || '';
             if (content) {
-              fullContent += content;
-              mainWindow?.webContents.send('ollama:stream-chunk', {
-                message: { content },
-              });
+              // Strip Gemma 4 special tokens that leak through (e.g. <unused35>, <unused0>)
+              const cleaned = content.replace(/<unused\d+>/g, '');
+              if (cleaned) {
+                fullContent += cleaned;
+                mainWindow?.webContents.send('ollama:stream-chunk', {
+                  message: { content: cleaned },
+                });
+              }
             }
           } catch {}
         }
@@ -1358,7 +1362,10 @@ function setupIPC() {
                 const fParsed = JSON.parse(fData);
                 const fContent = fParsed.choices?.[0]?.delta?.content || '';
                 if (fContent) {
-                  mainWindow?.webContents.send('ollama:stream-chunk', { message: { content: fContent } });
+                  const fCleaned = fContent.replace(/<unused\d+>/g, '');
+                  if (fCleaned) {
+                    mainWindow?.webContents.send('ollama:stream-chunk', { message: { content: fCleaned } });
+                  }
                 }
               } catch {}
             }
@@ -1495,9 +1502,12 @@ function setupIPC() {
               const parsed = JSON.parse(data);
               const content = parsed.choices?.[0]?.delta?.content || '';
               if (content) {
-                mainWindow?.webContents.send('ollama:stream-chunk', {
-                  message: { content },
-                });
+                const cleaned = content.replace(/<unused\d+>/g, '');
+                if (cleaned) {
+                  mainWindow?.webContents.send('ollama:stream-chunk', {
+                    message: { content: cleaned },
+                  });
+                }
               }
             } catch {}
           }
@@ -2137,8 +2147,11 @@ END OF DOCUMENTS`;
               const parsed = JSON.parse(data);
               const content = parsed.choices?.[0]?.delta?.content || '';
               if (content) {
-                fullResponse += content;
-                mainWindow?.webContents.send('chat:rag-chunk', { content });
+                const cleaned = content.replace(/<unused\d+>/g, '');
+                if (cleaned) {
+                  fullResponse += cleaned;
+                  mainWindow?.webContents.send('chat:rag-chunk', { content: cleaned });
+                }
               }
             } catch {}
           }
