@@ -17,7 +17,7 @@ async function scanHardware() {
   const gpu = detectGPU(platform);
   const diskFreeGB = detectDiskSpace(platform);
 
-  return {
+  const result = {
     ramGB,
     gpu,
     diskFreeGB,
@@ -31,6 +31,9 @@ async function scanHardware() {
       ? ramGB  // Unified memory
       : (gpu.vramGB > 0 ? gpu.vramGB : ramGB),  // VRAM if available, else system RAM
   };
+
+  console.log(`[HardwareScanner] platform=${platform} arch=${arch} ramGB=${ramGB} gpu=${gpu.name} vramGB=${gpu.vramGB} aiMemoryGB=${result.aiMemoryGB}`);
+  return result;
 }
 
 /**
@@ -96,45 +99,91 @@ function detectGPUMacOS() {
 }
 
 /**
- * Windows GPU detection via wmic.
+ * Windows GPU detection — tries nvidia-smi first (most reliable for NVIDIA),
+ * then PowerShell Get-CimInstance (no 4GB cap like wmic), then wmic as last resort.
  */
 function detectGPUWindows() {
-  const output = execSync(
-    'wmic path win32_VideoController get Name,AdapterRAM /format:csv',
-    { encoding: 'utf8', timeout: 5000 }
-  );
-
-  const lines = output.trim().split('\n').filter(l => l.trim() && !l.startsWith('Node'));
-
-  if (!lines.length) {
-    return { name: 'Unknown', vramGB: 0, type: 'unknown' };
-  }
-
-  // Take the first discrete GPU (skip integrated if possible)
-  let bestGPU = null;
-  for (const line of lines) {
-    const parts = line.split(',');
-    if (parts.length < 3) continue;
-
-    const adapterRAM = parseInt(parts[1]) || 0;
-    const name = parts[2]?.trim() || 'Unknown';
-
-    // Skip integrated Intel GPUs if a discrete one exists
-    const isIntegrated = name.toLowerCase().includes('intel') && name.toLowerCase().includes('uhd');
-    if (!bestGPU || (!isIntegrated && adapterRAM > (bestGPU.adapterRAM || 0))) {
-      bestGPU = { name, adapterRAM, vramGB: Math.round((adapterRAM / (1024 ** 3)) * 10) / 10 };
+  // Try nvidia-smi first (most accurate for NVIDIA GPUs)
+  try {
+    const nvidiaOutput = execSync(
+      'nvidia-smi --query-gpu=name,memory.total --format=csv,noheader,nounits',
+      { encoding: 'utf8', timeout: 5000 }
+    );
+    const line = nvidiaOutput.trim().split('\n')[0];
+    if (line) {
+      const [name, memMB] = line.split(',').map(s => s.trim());
+      const vramGB = Math.round((parseInt(memMB) / 1024) * 10) / 10;
+      if (vramGB > 0) {
+        return { name: name || 'NVIDIA GPU', vramGB, type: 'nvidia' };
+      }
     }
+  } catch (e) {
+    // nvidia-smi not available, try PowerShell
   }
 
-  if (!bestGPU) {
-    return { name: 'Unknown', vramGB: 0, type: 'unknown' };
+  // Try PowerShell Get-CimInstance (works for all GPUs, no 4GB cap)
+  try {
+    const psOutput = execSync(
+      'powershell -NoProfile -Command "Get-CimInstance Win32_VideoController | Select-Object Name,AdapterRAM | ConvertTo-Json"',
+      { encoding: 'utf8', timeout: 8000 }
+    );
+    const data = JSON.parse(psOutput);
+    const gpus = Array.isArray(data) ? data : [data];
+
+    let bestGPU = null;
+    for (const gpu of gpus) {
+      if (!gpu || !gpu.Name) continue;
+      const name = gpu.Name;
+      const adapterRAM = gpu.AdapterRAM || 0;
+      const isIntegrated = name.toLowerCase().includes('intel') &&
+        (name.toLowerCase().includes('uhd') || name.toLowerCase().includes('iris'));
+
+      if (!bestGPU || (!isIntegrated && adapterRAM > (bestGPU.adapterRAM || 0))) {
+        bestGPU = { name, adapterRAM, vramGB: Math.round((adapterRAM / (1024 ** 3)) * 10) / 10 };
+      }
+    }
+
+    if (bestGPU && bestGPU.vramGB > 0) {
+      const type = bestGPU.name.toLowerCase().includes('nvidia') ? 'nvidia' :
+        bestGPU.name.toLowerCase().includes('amd') ? 'amd' :
+        bestGPU.name.toLowerCase().includes('intel') ? 'intel' : 'unknown';
+      return { name: bestGPU.name, vramGB: bestGPU.vramGB, type };
+    }
+  } catch (e) {
+    // PowerShell failed, fall back to wmic
   }
 
-  const type = bestGPU.name.toLowerCase().includes('nvidia') ? 'nvidia' :
-    bestGPU.name.toLowerCase().includes('amd') ? 'amd' :
-    bestGPU.name.toLowerCase().includes('intel') ? 'intel' : 'unknown';
+  // Last resort: wmic (has 4GB cap on AdapterRAM for some GPUs)
+  try {
+    const output = execSync(
+      'wmic path win32_VideoController get Name,AdapterRAM /format:csv',
+      { encoding: 'utf8', timeout: 5000 }
+    );
 
-  return { name: bestGPU.name, vramGB: bestGPU.vramGB, type };
+    const lines = output.trim().split('\n').filter(l => l.trim() && !l.startsWith('Node'));
+    let bestGPU = null;
+    for (const line of lines) {
+      const parts = line.split(',');
+      if (parts.length < 3) continue;
+      const adapterRAM = parseInt(parts[1]) || 0;
+      const name = parts[2]?.trim() || 'Unknown';
+      const isIntegrated = name.toLowerCase().includes('intel') && name.toLowerCase().includes('uhd');
+      if (!bestGPU || (!isIntegrated && adapterRAM > (bestGPU.adapterRAM || 0))) {
+        bestGPU = { name, adapterRAM, vramGB: Math.round((adapterRAM / (1024 ** 3)) * 10) / 10 };
+      }
+    }
+
+    if (bestGPU) {
+      const type = bestGPU.name.toLowerCase().includes('nvidia') ? 'nvidia' :
+        bestGPU.name.toLowerCase().includes('amd') ? 'amd' :
+        bestGPU.name.toLowerCase().includes('intel') ? 'intel' : 'unknown';
+      return { name: bestGPU.name, vramGB: bestGPU.vramGB, type };
+    }
+  } catch (e) {
+    // All methods failed
+  }
+
+  return { name: 'Unknown', vramGB: 0, type: 'unknown' };
 }
 
 /**
