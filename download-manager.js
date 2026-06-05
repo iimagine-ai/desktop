@@ -336,6 +336,10 @@ class DownloadManager extends EventEmitter {
 
       res.on('data', (chunk) => {
         dl.bytesDownloaded += chunk.length;
+        // Update totalBytes if the server reported wrong size (e.g. after redirect)
+        if (dl.totalBytes > 0 && dl.bytesDownloaded > dl.totalBytes) {
+          dl.totalBytes = 0; // Reset — we don't know the real size
+        }
       });
 
       res.pipe(fileStream);
@@ -473,7 +477,7 @@ class DownloadManager extends EventEmitter {
       const remaining = dl.totalBytes - dl.bytesDownloaded;
       const eta = speedBps > 0 ? Math.round(remaining / speedBps) : null;
       const percentage = dl.totalBytes > 0
-        ? Math.round((dl.bytesDownloaded / dl.totalBytes) * 100)
+        ? Math.min(Math.round((dl.bytesDownloaded / dl.totalBytes) * 100), 100)
         : 0;
 
       this.lastBytesTime = now;

@@ -21,6 +21,9 @@ const ModelBrowser = {
     } catch { this._installedModels = []; }
 
     this._render();
+
+    // Check for active downloads and show progress
+    this._resumeActiveDownloads();
   },
 
   setInstalledModels(models) {
@@ -328,6 +331,69 @@ const ModelBrowser = {
       if (progressEl && !isDone) {
         progressEl.innerHTML = `<span class="text-[10px] text-rose-500">${err.message || 'Error'}</span>`;
       }
+    }
+  },
+
+  /**
+   * On mount, check if there's an active download running in the main process
+   * and show its progress in the UI (download persists across page navigation).
+   */
+  async _resumeActiveDownloads() {
+    try {
+      const state = await window.api.downloads.getState();
+      if (!state.active) return;
+
+      const dl = state.downloads[state.active];
+      if (!dl || dl.status !== 'downloading') return;
+
+      // Find the download button for this model and replace it with progress
+      const btn = this._container?.querySelector(`.mb-download-btn[data-model="${dl.modelId}"]`);
+      if (btn) {
+        const progressId = 'mb-progress-resume-' + Date.now();
+        const percentage = dl.totalBytes > 0 ? Math.round((dl.bytesDownloaded / dl.totalBytes) * 100) : 0;
+        btn.outerHTML = `
+          <div class="flex-shrink-0 w-32" id="${progressId}">
+            <div class="w-full bg-neutral-200 dark:bg-neutral-700 rounded-full h-2 mb-1">
+              <div class="mb-prog-bar bg-neutral-900 dark:bg-neutral-100 h-2 rounded-full transition-all" style="width: ${percentage}%"></div>
+            </div>
+            <p class="mb-prog-text text-[9px] text-neutral-500 text-center">${percentage}% • Downloading...</p>
+          </div>
+        `;
+
+        const progressEl = document.getElementById(progressId);
+        const bar = progressEl?.querySelector('.mb-prog-bar');
+        const text = progressEl?.querySelector('.mb-prog-text');
+        let isDone = false;
+
+        window.api.downloads.onProgress((data) => {
+          if (isDone || data.modelId !== dl.modelId) return;
+          if (bar && text) {
+            bar.style.width = data.percentage + '%';
+            const speed = data.speedMBps > 0 ? ` • ${data.speedMBps} MB/s` : '';
+            text.textContent = data.percentage + '%' + speed;
+          }
+        });
+
+        window.api.downloads.onComplete((data) => {
+          if (isDone || data.modelId !== dl.modelId) return;
+          isDone = true;
+          if (progressEl) {
+            progressEl.innerHTML = '<span class="text-[10px] text-emerald-600 font-medium">Installed ✓</span>';
+            if (window.ProviderManager?.refreshLocal) window.ProviderManager.refreshLocal();
+            if (window.AppRouter?.updateModelDropdown) window.AppRouter.updateModelDropdown();
+          }
+        });
+
+        window.api.downloads.onFailed((data) => {
+          if (isDone || data.modelId !== dl.modelId) return;
+          isDone = true;
+          if (progressEl) {
+            progressEl.innerHTML = `<span class="text-[10px] text-rose-500">${data.error || 'Download failed'}</span>`;
+          }
+        });
+      }
+    } catch (err) {
+      console.warn('[ModelBrowser] Resume active downloads check failed:', err.message);
     }
   },
 
