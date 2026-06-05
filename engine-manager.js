@@ -249,6 +249,10 @@ async function startEngine(modelPath, options = {}) {
   // Enable embeddings endpoint
   args.push('--embedding');
 
+  // Performance optimizations
+  args.push('--flash-attn');       // Flash attention (free speed boost)
+  args.push('--batch-size', '512'); // Faster first-token latency for short prompts
+
   return new Promise((resolve) => {
     try {
       const engineDir = path.dirname(enginePath);
