@@ -1299,7 +1299,7 @@ function setupIPC() {
             const content = delta?.content || '';
             if (content) {
               // Strip Gemma 4 special tokens that leak through (e.g. <unused35>, <unused0>)
-              const cleaned = content.replace(/<unused\d+>/g, '');
+              const cleaned = content.replace(/<unused\d+>|<tool_response\|>|<\/tool_response>|\[multimodal\]/g, '');
               if (cleaned) {
                 fullContent += cleaned;
                 mainWindow?.webContents.send('ollama:stream-chunk', {
@@ -1362,7 +1362,7 @@ function setupIPC() {
                 const fParsed = JSON.parse(fData);
                 const fContent = fParsed.choices?.[0]?.delta?.content || '';
                 if (fContent) {
-                  const fCleaned = fContent.replace(/<unused\d+>/g, '');
+                  const fCleaned = fContent.replace(/<unused\d+>|<tool_response\|>|<\/tool_response>|\[multimodal\]/g, '');
                   if (fCleaned) {
                     mainWindow?.webContents.send('ollama:stream-chunk', { message: { content: fCleaned } });
                   }
@@ -1502,7 +1502,7 @@ function setupIPC() {
               const parsed = JSON.parse(data);
               const content = parsed.choices?.[0]?.delta?.content || '';
               if (content) {
-                const cleaned = content.replace(/<unused\d+>/g, '');
+                const cleaned = content.replace(/<unused\d+>|<tool_response\|>|<\/tool_response>|\[multimodal\]/g, '');
                 if (cleaned) {
                   mainWindow?.webContents.send('ollama:stream-chunk', {
                     message: { content: cleaned },
@@ -2147,7 +2147,7 @@ END OF DOCUMENTS`;
               const parsed = JSON.parse(data);
               const content = parsed.choices?.[0]?.delta?.content || '';
               if (content) {
-                const cleaned = content.replace(/<unused\d+>/g, '');
+                const cleaned = content.replace(/<unused\d+>|<tool_response\|>|<\/tool_response>|\[multimodal\]/g, '');
                 if (cleaned) {
                   fullResponse += cleaned;
                   mainWindow?.webContents.send('chat:rag-chunk', { content: cleaned });
