@@ -283,6 +283,7 @@ const ChatPage = {
       window.api.ollama.onStreamChunk((chunk) => {
         if (this.activeTypingEl?.parentNode) this.activeTypingEl.remove();
         if (chunk.message?.content && this.activeAssistantEl) {
+          this.activeAssistantEl.style.display = '';
           this.activeAssistantContent += chunk.message.content;
           this.activeAssistantEl.querySelector('.msg-content').textContent = this.activeAssistantContent;
           const msgs = document.querySelector('#messages');
@@ -298,6 +299,7 @@ const ChatPage = {
       window.api.vertex.onStreamChunk((chunk) => {
         if (this.activeTypingEl?.parentNode) this.activeTypingEl.remove();
         if (chunk.content && this.activeAssistantEl) {
+          this.activeAssistantEl.style.display = '';
           this.activeAssistantContent += chunk.content;
           this.activeAssistantEl.querySelector('.msg-content').textContent = this.activeAssistantContent;
           const msgs = document.querySelector('#messages');
@@ -313,6 +315,7 @@ const ChatPage = {
       window.api.gateway.onStreamChunk((chunk) => {
         if (this.activeTypingEl?.parentNode) this.activeTypingEl.remove();
         if (chunk.content && this.activeAssistantEl) {
+          this.activeAssistantEl.style.display = '';
           this.activeAssistantContent += chunk.content;
           this.activeAssistantEl.querySelector('.msg-content').textContent = this.activeAssistantContent;
           const msgs = document.querySelector('#messages');
@@ -328,6 +331,7 @@ const ChatPage = {
       window.api.chatRag.onChunk((chunk) => {
         if (this.activeTypingEl?.parentNode) this.activeTypingEl.remove();
         if (chunk.content && this.activeAssistantEl) {
+          this.activeAssistantEl.style.display = '';
           this.activeAssistantContent += chunk.content;
           this.activeAssistantEl.querySelector('.msg-content').textContent = this.activeAssistantContent;
           const msgs = document.querySelector('#messages');
@@ -717,6 +721,7 @@ const ChatPage = {
         const chatResult = await pm.activeProvider.chat(result.messages || this.chatHistory);
         if (!chatResult.success) {
           if (this.activeTypingEl?.parentNode) this.activeTypingEl.remove();
+          this.activeAssistantEl.style.display = '';
           if (chatResult.error && chatResult.error.includes('aborted')) {
             this.activeAssistantEl.querySelector('.msg-content').textContent = 'Response stopped.';
             this.activeAssistantEl.querySelector('.msg-content').classList.add('text-neutral-400');
@@ -835,6 +840,7 @@ const ChatPage = {
 
       if (!result.success) {
         if (this.activeTypingEl?.parentNode) this.activeTypingEl.remove();
+        this.activeAssistantEl.style.display = '';
         this.activeAssistantEl.querySelector('.msg-content').textContent =
           `Error: ${result.error}`;
         this.activeAssistantEl.querySelector('.msg-content').classList.add('text-red-500');
@@ -860,6 +866,7 @@ const ChatPage = {
 
     if (!result.success) {
       if (this.activeTypingEl?.parentNode) this.activeTypingEl.remove();
+      this.activeAssistantEl.style.display = '';
       if (result.error && result.error.includes('aborted')) {
         this.activeAssistantEl.querySelector('.msg-content').textContent = 'Response stopped.';
         this.activeAssistantEl.querySelector('.msg-content').classList.add('text-neutral-400');
@@ -1053,6 +1060,7 @@ const ChatPage = {
   _createAssistantBubble(container) {
     const div = document.createElement('div');
     div.className = 'message-enter group flex justify-start';
+    div.style.display = 'none'; // Hidden until first token arrives
     const wrapper = document.createElement('div');
     wrapper.className = 'flex flex-col max-w-[85%]';
     const bubble = document.createElement('div');
@@ -1092,6 +1100,8 @@ const ChatPage = {
   async _onStreamComplete() {
     if (this.activeTypingEl?.parentNode) this.activeTypingEl.remove();
     if (this.activeAssistantContent && this.activeConversationId) {
+      // Ensure bubble is visible
+      if (this.activeAssistantEl) this.activeAssistantEl.style.display = '';
       // Run plugin postprocess hooks
       const postprocessed = await window.api.plugins.chatPostprocess({
         response: this.activeAssistantContent,

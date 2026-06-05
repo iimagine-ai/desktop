@@ -76,12 +76,16 @@ function getEnginePath() {
   const isDev = !require('electron')?.app?.isPackaged;
 
   if (isDev) {
-    return path.join(__dirname, 'bin', ENGINE_BINARY_NAME);
+    const devPath = path.join(__dirname, 'bin', ENGINE_BINARY_NAME);
+    console.log(`[Engine] Dev path: ${devPath}`);
+    return devPath;
   }
 
   // Production: binary is in Resources/bin/ (unpacked from asar)
   const resourcesPath = process.resourcesPath || path.join(__dirname, '..', '..', 'Resources');
-  return path.join(resourcesPath, 'bin', ENGINE_BINARY_NAME);
+  const prodPath = path.join(resourcesPath, 'bin', ENGINE_BINARY_NAME);
+  console.log(`[Engine] Production path: ${prodPath}, exists: ${fs.existsSync(prodPath)}`);
+  return prodPath;
 }
 
 /**
@@ -132,7 +136,12 @@ function getInstalledModels() {
 function isEngineInstalled() {
   const enginePath = getEnginePath();
   try {
-    fs.accessSync(enginePath, fs.constants.X_OK);
+    // On Windows, X_OK doesn't work for .exe files — just check existence
+    if (process.platform === 'win32') {
+      fs.accessSync(enginePath, fs.constants.F_OK);
+    } else {
+      fs.accessSync(enginePath, fs.constants.X_OK);
+    }
     return true;
   } catch {
     return false;
@@ -248,6 +257,9 @@ async function startEngine(modelPath, options = {}) {
       // Set library path so the engine finds its shared libraries
       if (process.platform === 'darwin') {
         env.DYLD_LIBRARY_PATH = engineDir + (env.DYLD_LIBRARY_PATH ? ':' + env.DYLD_LIBRARY_PATH : '');
+      } else if (process.platform === 'win32') {
+        // Windows: prepend engine dir to PATH so DLLs are found
+        env.PATH = engineDir + ';' + (env.PATH || '');
       } else if (process.platform === 'linux') {
         env.LD_LIBRARY_PATH = engineDir + (env.LD_LIBRARY_PATH ? ':' + env.LD_LIBRARY_PATH : '');
       }
