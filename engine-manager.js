@@ -250,7 +250,7 @@ async function startEngine(modelPath, options = {}) {
   args.push('--embedding');
 
   // Performance optimizations
-  args.push('--flash-attn');       // Flash attention (free speed boost)
+  args.push('--flash-attn', 'on');  // Flash attention (free speed boost)
   args.push('--batch-size', '512'); // Faster first-token latency for short prompts
 
   return new Promise((resolve) => {
