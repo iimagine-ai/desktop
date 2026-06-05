@@ -27,6 +27,32 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Setup engine binary
+        if: matrix.os == 'macos-latest'
+        run: |
+          chmod +x scripts/setup-engine.sh
+          ./scripts/setup-engine.sh
+
+      - name: Setup engine binary (Windows)
+        if: matrix.os == 'windows-latest'
+        shell: pwsh
+        run: |
+          $versionJson = Get-Content engine/version.json | ConvertFrom-Json
+          $url = $versionJson.binaries.'win32-x64'
+          $binDir = "bin"
+          New-Item -ItemType Directory -Force -Path $binDir | Out-Null
+          Write-Host "Downloading llama.cpp for Windows..."
+          Invoke-WebRequest -Uri $url -OutFile "$binDir\llama-cpp.zip"
+          Expand-Archive -Path "$binDir\llama-cpp.zip" -DestinationPath "$binDir\extracted" -Force
+          $server = Get-ChildItem -Path "$binDir\extracted" -Recurse -Filter "llama-server.exe" | Select-Object -First 1
+          if ($server) {
+            Copy-Item $server.FullName "$binDir\iimagine-engine.exe"
+            Get-ChildItem -Path "$binDir\extracted" -Recurse -Filter "*.dll" | ForEach-Object { Copy-Item $_.FullName $binDir }
+          }
+          Remove-Item "$binDir\llama-cpp.zip" -Force
+          Remove-Item "$binDir\extracted" -Recurse -Force
+          Write-Host "Engine binary ready at $binDir\iimagine-engine.exe"
+
       - name: Build
         run: ${{ matrix.build_cmd }}
         env:
