@@ -68,14 +68,36 @@ const ENGINE_BINARY_NAME = process.platform === 'win32' ? 'iimagine-engine.exe' 
 const MODELS_DIR_NAME = 'models';
 
 /**
+ * Check if NVIDIA GPU is available (Windows only — used to select CUDA binary)
+ */
+function hasNvidiaGpu() {
+  if (process.platform !== 'win32') return false;
+  try {
+    execSync('nvidia-smi', { stdio: 'ignore', timeout: 5000 });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
  * Get the path to the engine binary.
  * In dev: looks in desktop-companion/bin/
  * In production: looks in app.asar.unpacked/bin/ or Resources/bin/
+ * On Windows: prefers bin/cuda/iimagine-engine.exe if NVIDIA GPU detected
  */
 function getEnginePath() {
   const isDev = !require('electron')?.app?.isPackaged;
 
   if (isDev) {
+    // In dev, check for CUDA variant on Windows
+    if (process.platform === 'win32' && hasNvidiaGpu()) {
+      const cudaPath = path.join(__dirname, 'bin', 'cuda', ENGINE_BINARY_NAME);
+      if (fs.existsSync(cudaPath)) {
+        console.log(`[Engine] Dev path (CUDA): ${cudaPath}`);
+        return cudaPath;
+      }
+    }
     const devPath = path.join(__dirname, 'bin', ENGINE_BINARY_NAME);
     console.log(`[Engine] Dev path: ${devPath}`);
     return devPath;
@@ -83,6 +105,16 @@ function getEnginePath() {
 
   // Production: binary is in Resources/bin/ (unpacked from asar)
   const resourcesPath = process.resourcesPath || path.join(__dirname, '..', '..', 'Resources');
+
+  // On Windows, prefer CUDA binary if GPU is present
+  if (process.platform === 'win32' && hasNvidiaGpu()) {
+    const cudaPath = path.join(resourcesPath, 'bin', 'cuda', ENGINE_BINARY_NAME);
+    if (fs.existsSync(cudaPath)) {
+      console.log(`[Engine] Production path (CUDA): ${cudaPath}, exists: true`);
+      return cudaPath;
+    }
+  }
+
   const prodPath = path.join(resourcesPath, 'bin', ENGINE_BINARY_NAME);
   console.log(`[Engine] Production path: ${prodPath}, exists: ${fs.existsSync(prodPath)}`);
   return prodPath;
@@ -262,11 +294,13 @@ async function startEngine(modelPath, options = {}) {
       if (process.platform === 'darwin') {
         env.DYLD_LIBRARY_PATH = engineDir + (env.DYLD_LIBRARY_PATH ? ':' + env.DYLD_LIBRARY_PATH : '');
       } else if (process.platform === 'win32') {
-        // Windows: prepend engine dir to PATH so DLLs are found
+        // Windows: prepend engine dir to PATH so DLLs are found (works for both CPU and CUDA dirs)
         env.PATH = engineDir + ';' + (env.PATH || '');
       } else if (process.platform === 'linux') {
         env.LD_LIBRARY_PATH = engineDir + (env.LD_LIBRARY_PATH ? ':' + env.LD_LIBRARY_PATH : '');
       }
+
+      console.log(`[Engine] Starting: ${enginePath} (${engineDir.includes('cuda') ? 'CUDA' : 'CPU'})`);
 
       engineProcess = spawn(enginePath, args, {
         stdio: ['ignore', 'pipe', 'pipe'],
