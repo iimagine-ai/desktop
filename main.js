@@ -1234,6 +1234,7 @@ function setupIPC() {
       keepAlive: store.get('ollama.keepAlive', '5m'),
       numCtx: store.get('ollama.numCtx', 'auto'),
       reasoning: store.get('ollama.reasoning', false),
+      toolsEnabled: store.get('ollama.toolsEnabled', true),
     };
   });
 
@@ -1243,6 +1244,7 @@ function setupIPC() {
     if (settings.keepAlive !== undefined) store.set('ollama.keepAlive', settings.keepAlive);
     if (settings.numCtx !== undefined) store.set('ollama.numCtx', settings.numCtx);
     if (settings.reasoning !== undefined) store.set('ollama.reasoning', settings.reasoning);
+    if (settings.toolsEnabled !== undefined) store.set('ollama.toolsEnabled', settings.toolsEnabled);
     return { success: true };
   });
 
@@ -1426,10 +1428,11 @@ function setupIPC() {
       }
 
       const numCtx = store.get('ollama.numCtx', '4096');
+      const toolsEnabled = store.get('ollama.toolsEnabled', true);
       const webSearchEnabled = !!store.get('webSearch.enabled') || !!store.get('local.webSearchEnabled');
       const kbStats = kbStorage.getKBStats();
       const hasKBDocuments = kbStats.embeddingCount > 0;
-      const tools = toolCalling.getActiveTools({ webSearchEnabled, hasKBDocuments });
+      const tools = toolsEnabled ? toolCalling.getActiveTools({ webSearchEnabled, hasKBDocuments }) : [];
 
       const result = await engineManager.chat({
         messages,
@@ -1751,10 +1754,11 @@ function setupIPC() {
 
       const options = toolCalling.buildOllamaOptions();
       const keepAlive = toolCalling.getKeepAlive();
+      const toolsEnabled = store.get('ollama.toolsEnabled', true);
       const webSearchEnabled = !!store.get('webSearch.enabled');
       const kbStats = kbStorage.getKBStats();
       const hasKBDocuments = kbStats.embeddingCount > 0;
-      const tools = toolCalling.getActiveTools({ webSearchEnabled, hasKBDocuments });
+      const tools = toolsEnabled ? toolCalling.getActiveTools({ webSearchEnabled, hasKBDocuments }) : [];
 
       const body = { model, messages, stream: true, options };
       if (keepAlive !== '5m') body.keep_alive = keepAlive;

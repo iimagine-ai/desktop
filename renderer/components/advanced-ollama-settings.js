@@ -53,6 +53,11 @@ const AdvancedOllamaSettings = {
     { value: 'true', label: 'On (slower, may improve hard questions)' },
   ],
 
+  TOOLS_OPTIONS: [
+    { value: 'true', label: 'On (MCP integrations + web search)' },
+    { value: 'false', label: 'Off (faster, no tool calls)' },
+  ],
+
   /**
    * Mount the advanced settings component into a container element
    */
@@ -116,6 +121,13 @@ const AdvancedOllamaSettings = {
             <select id="advReasoning" class="w-full bg-white/60 dark:bg-neutral-800/60 border border-neutral-200/50 dark:border-neutral-700/50 rounded-xl px-3 py-2.5 text-sm text-neutral-700 dark:text-neutral-300 focus:outline-none transition-all shadow-sm"></select>
           </div>
 
+          <!-- Tool Use -->
+          <div>
+            <label class="text-xs font-medium text-neutral-500 dark:text-neutral-400 uppercase tracking-wider mb-1.5 block">Tool Use</label>
+            <p class="text-[10px] text-neutral-400 dark:text-neutral-500 mb-1.5">When on, MCP integrations (Google Workspace etc.) and web search tools are sent with each request. Turning off reduces prompt size and speeds up responses on local models that don't need tool calling.</p>
+            <select id="advToolsEnabled" class="w-full bg-white/60 dark:bg-neutral-800/60 border border-neutral-200/50 dark:border-neutral-700/50 rounded-xl px-3 py-2.5 text-sm text-neutral-700 dark:text-neutral-300 focus:outline-none transition-all shadow-sm"></select>
+          </div>
+
           <!-- Reset button -->
           <button id="advResetBtn" class="w-full px-4 py-2 rounded-lg bg-neutral-100 dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 text-xs font-medium text-neutral-600 dark:text-neutral-400 hover:bg-neutral-200 dark:hover:bg-neutral-700 transition-all">
             Reset to defaults
@@ -131,6 +143,7 @@ const AdvancedOllamaSettings = {
     this._populateSelect('advKeepAlive', this.KEEP_ALIVE_OPTIONS);
     this._populateSelect('advNumCtx', this.CTX_OPTIONS);
     this._populateSelect('advReasoning', this.REASONING_OPTIONS);
+    this._populateSelect('advToolsEnabled', this.TOOLS_OPTIONS);
   },
 
   _populateSelect(id, options) {
@@ -148,6 +161,7 @@ const AdvancedOllamaSettings = {
       this._setSelectValue('advNumCtx', settings.numCtx);
       this._updateCtxNote(settings.numCtx);
       this._setSelectValue('advReasoning', settings.reasoning);
+      this._setSelectValue('advToolsEnabled', settings.toolsEnabled);
     } catch (err) {
       console.warn('[AdvancedOllamaSettings] Failed to load:', err);
     }
@@ -170,7 +184,7 @@ const AdvancedOllamaSettings = {
     });
 
     // Auto-save on change
-    const selects = ['advNumGpu', 'advNumThread', 'advKeepAlive', 'advNumCtx', 'advReasoning'];
+    const selects = ['advNumGpu', 'advNumThread', 'advKeepAlive', 'advNumCtx', 'advReasoning', 'advToolsEnabled'];
     selects.forEach(id => {
       this._container.querySelector(`#${id}`)?.addEventListener('change', () => this._save());
     });
@@ -186,6 +200,7 @@ const AdvancedOllamaSettings = {
       keepAlive: this._container.querySelector('#advKeepAlive')?.value || '5m',
       numCtx: this._container.querySelector('#advNumCtx')?.value || 'auto',
       reasoning: this._container.querySelector('#advReasoning')?.value === 'true',
+      toolsEnabled: this._container.querySelector('#advToolsEnabled')?.value === 'true',
     };
 
     // Show context window guidance
@@ -224,12 +239,13 @@ const AdvancedOllamaSettings = {
   },
 
   async _reset() {
-    const defaults = { numGpu: 'auto', numThread: 'auto', keepAlive: '5m', numCtx: 'auto', reasoning: false };
+    const defaults = { numGpu: 'auto', numThread: 'auto', keepAlive: '5m', numCtx: 'auto', reasoning: false, toolsEnabled: true };
     this._setSelectValue('advNumGpu', defaults.numGpu);
     this._setSelectValue('advNumThread', defaults.numThread);
     this._setSelectValue('advKeepAlive', defaults.keepAlive);
     this._setSelectValue('advNumCtx', defaults.numCtx);
     this._setSelectValue('advReasoning', defaults.reasoning);
+    this._setSelectValue('advToolsEnabled', defaults.toolsEnabled);
     await window.api.ollama.setAdvancedSettings(defaults);
     this._flashStatus('Reset to defaults');
   },
