@@ -74,10 +74,10 @@
       "description": "Google's dense 12B. Multimodal, strong general-purpose quality on mid-range hardware.",
       "variants": [
         {
-          "quantization": "Q4_K_M",
-          "filename": "gemma-4-12B-it-Q4_K_M.gguf",
-          "url": "https://huggingface.co/bartowski/gemma-4-12B-it-GGUF/resolve/main/gemma-4-12B-it-Q4_K_M.gguf",
-          "sizeGB": 7.66,
+          "quantization": "UD-Q4_K_XL",
+          "filename": "gemma-4-12b-it-UD-Q4_K_XL.gguf",
+          "url": "https://huggingface.co/unsloth/gemma-4-12B-it-GGUF/resolve/main/gemma-4-12b-it-UD-Q4_K_XL.gguf",
+          "sizeGB": 7.37,
           "ramRequired": 12,
           "isDefault": true
         },

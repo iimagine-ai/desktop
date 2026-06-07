@@ -1233,6 +1233,7 @@ function setupIPC() {
       numThread: store.get('ollama.numThread', 'auto'),
       keepAlive: store.get('ollama.keepAlive', '5m'),
       numCtx: store.get('ollama.numCtx', 'auto'),
+      reasoning: store.get('ollama.reasoning', false),
     };
   });
 
@@ -1241,6 +1242,7 @@ function setupIPC() {
     if (settings.numThread !== undefined) store.set('ollama.numThread', settings.numThread);
     if (settings.keepAlive !== undefined) store.set('ollama.keepAlive', settings.keepAlive);
     if (settings.numCtx !== undefined) store.set('ollama.numCtx', settings.numCtx);
+    if (settings.reasoning !== undefined) store.set('ollama.reasoning', settings.reasoning);
     return { success: true };
   });
 
@@ -1382,11 +1384,18 @@ function setupIPC() {
         }
         if (fs.existsSync(modelPath)) {
           console.log('[engine:chatStream] Auto-starting engine with:', modelFilename);
-          const startResult = await engineManager.startEngine(modelPath);
+          const startResult = await engineManager.startEngine(modelPath, {
+            onProgress: (p) => mainWindow?.webContents.send('engine:loadProgress', p),
+          });
           if (!startResult.success) {
+            mainWindow?.webContents.send('engine:loadProgress', { phase: 'error', percent: 0, label: '' });
             return { success: false, error: `Failed to start AI engine: ${startResult.error}` };
           }
           console.log('[engine:chatStream] Engine started on port:', startResult.port || 8847);
+          // Engine is up; the first request still pays a one-time prompt-processing cost.
+          mainWindow?.webContents.send('engine:loadProgress', {
+            phase: 'generating', percent: 97, label: 'Generating first response…',
+          });
         } else {
           return { success: false, error: `Model file not found: ${modelFilename}. Download it from Settings → Models.` };
         }
@@ -1403,10 +1412,16 @@ function setupIPC() {
           console.log('[engine:chatStream] Switching model to:', modelFilename);
           await engineManager.stopEngine();
           await new Promise(r => setTimeout(r, 500));
-          const startResult = await engineManager.startEngine(modelPath);
+          const startResult = await engineManager.startEngine(modelPath, {
+            onProgress: (p) => mainWindow?.webContents.send('engine:loadProgress', p),
+          });
           if (!startResult.success) {
+            mainWindow?.webContents.send('engine:loadProgress', { phase: 'error', percent: 0, label: '' });
             return { success: false, error: `Failed to start AI engine: ${startResult.error}` };
           }
+          mainWindow?.webContents.send('engine:loadProgress', {
+            phase: 'generating', percent: 97, label: 'Generating first response…',
+          });
         }
       }
 
@@ -1436,6 +1451,12 @@ function setupIPC() {
       let buffer = '';
       let fullContent = '';
       let toolCallChunks = []; // Accumulate tool call deltas
+      let finalStats = null;   // Captured token usage / timings from final chunk(s)
+
+      const captureStats = (parsed) => {
+        if (parsed?.usage) finalStats = { ...(finalStats || {}), usage: parsed.usage };
+        if (parsed?.timings) finalStats = { ...(finalStats || {}), timings: parsed.timings };
+      };
 
       while (true) {
         const { done, value } = await reader.read();
@@ -1453,6 +1474,7 @@ function setupIPC() {
           }
           try {
             const parsed = JSON.parse(data);
+            captureStats(parsed);
             const delta = parsed.choices?.[0]?.delta;
             const finishReason = parsed.choices?.[0]?.finish_reason;
 
@@ -1468,7 +1490,9 @@ function setupIPC() {
               }
             }
 
-            // Regular content
+            // Regular content. (Thinking/reasoning is force-disabled at the engine via
+            // --reasoning-budget 0, so the answer arrives directly in `content`. We do
+            // NOT surface `reasoning_content` — that's the model's chain-of-thought.)
             const content = delta?.content || '';
             if (content) {
               // Strip Gemma 4 special tokens that leak through (e.g. <unused35>, <unused0>)
@@ -1533,6 +1557,7 @@ function setupIPC() {
               if (fData === '[DONE]') break;
               try {
                 const fParsed = JSON.parse(fData);
+                captureStats(fParsed);
                 const fContent = fParsed.choices?.[0]?.delta?.content || '';
                 if (fContent) {
                   const fCleaned = fContent.replace(/<unused\d+>|<tool_response\|>|<\/tool_response>|\[multimodal\]/g, '');
@@ -1544,6 +1569,19 @@ function setupIPC() {
             }
           }
         }
+      }
+
+      // Emit per-response token stats (used by the chat UI) before signalling done.
+      if (finalStats) {
+        const usage = finalStats.usage || {};
+        const timings = finalStats.timings || {};
+        mainWindow?.webContents.send('engine:stats', {
+          completionTokens: usage.completion_tokens ?? timings.predicted_n ?? null,
+          promptTokens: usage.prompt_tokens ?? timings.prompt_n ?? null,
+          tokensPerSecond: typeof timings.predicted_per_second === 'number'
+            ? timings.predicted_per_second
+            : null,
+        });
       }
 
       mainWindow?.webContents.send('ollama:stream-done');
@@ -1658,6 +1696,7 @@ function setupIPC() {
         const reader = result.response.body.getReader();
         const decoder = new TextDecoder();
         let buffer = '';
+        let finalStats = null;
 
         while (true) {
           const { done, value } = await reader.read();
@@ -1673,6 +1712,8 @@ function setupIPC() {
             if (data === '[DONE]') break;
             try {
               const parsed = JSON.parse(data);
+              if (parsed?.usage) finalStats = { ...(finalStats || {}), usage: parsed.usage };
+              if (parsed?.timings) finalStats = { ...(finalStats || {}), timings: parsed.timings };
               const content = parsed.choices?.[0]?.delta?.content || '';
               if (content) {
                 const cleaned = content.replace(/<unused\d+>|<tool_response\|>|<\/tool_response>|\[multimodal\]/g, '');
@@ -1684,6 +1725,18 @@ function setupIPC() {
               }
             } catch {}
           }
+        }
+
+        if (finalStats) {
+          const usage = finalStats.usage || {};
+          const timings = finalStats.timings || {};
+          mainWindow?.webContents.send('engine:stats', {
+            completionTokens: usage.completion_tokens ?? timings.predicted_n ?? null,
+            promptTokens: usage.prompt_tokens ?? timings.prompt_n ?? null,
+            tokensPerSecond: typeof timings.predicted_per_second === 'number'
+              ? timings.predicted_per_second
+              : null,
+          });
         }
 
         mainWindow?.webContents.send('ollama:stream-done');

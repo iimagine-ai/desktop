@@ -255,6 +255,21 @@ async function startEngine(modelPath, options = {}) {
   const numGpu = options.numGpu || store.get('ollama.numGpu', 'auto');
   const numThread = options.numThread || store.get('ollama.numThread', 'auto');
   const numCtx = options.numCtx || store.get('ollama.numCtx', '4096');
+  // Reasoning ("thinking") toggle. Default OFF = fast, model answers directly.
+  // When ON, the model is allowed to stream chain-of-thought before the answer,
+  // which is slower but can improve quality on hard prompts.
+  const reasoningEnabled = options.reasoning ?? store.get('ollama.reasoning', false);
+
+  // Detect model family from the filename so we can apply model-specific launch flags
+  // (Gemma/Qwen use the chat-template `enable_thinking` kwarg and have recommended sampling).
+  const modelFile = path.basename(modelPath).toLowerCase();
+  const isGemma = modelFile.includes('gemma');
+  const isQwen = modelFile.includes('qwen');
+  const supportsThinkingKwarg = isGemma || isQwen;
+
+  // Optional progress callback so callers (e.g. the chat UI) can show a load bar.
+  // Same Node process, so passing a function is fine. Phases only ever move forward.
+  const onProgress = typeof options.onProgress === 'function' ? options.onProgress : null;
 
   // Build command args for llama-server
   const args = [
@@ -262,7 +277,7 @@ async function startEngine(modelPath, options = {}) {
     '--port', String(port),
     '--host', '127.0.0.1',
     '--ctx-size', numCtx === 'auto' ? '4096' : String(numCtx),
-    '--fit', 'off',
+    '--fit', 'on',
   ];
 
   // GPU layers
@@ -282,8 +297,33 @@ async function startEngine(modelPath, options = {}) {
   args.push('--embedding');
 
   // Performance optimizations
-  args.push('--flash-attn', 'on');  // Flash attention (free speed boost)
+  args.push('--flash-attn', 'on');  // Flash attention (free speed boost; also required for quantized KV cache)
+  args.push('--cache-type-k', 'q8_0'); // Quantize KV cache to ~half the memory. On memory-
+  args.push('--cache-type-v', 'q8_0'); // constrained machines (e.g. 16GB unified) this avoids
+                                       // pressure/swap that slows generation. Needs flash-attn on.
   args.push('--batch-size', '512'); // Faster first-token latency for short prompts
+  args.push('--no-warmup');         // Skip the slow empty-run warmup so the server
+                                    // starts listening quickly (esp. large models on
+                                    // memory-constrained machines). First real request
+                                    // pays a small one-time cost instead.
+
+  // Gemma's recommended sampling defaults (temp 1.0, top_p 0.95, top_k 64). These set the
+  // server's defaults; per-request values still override. Other families keep engine defaults.
+  if (isGemma) {
+    args.push('--temp', '1.0');
+    args.push('--top-p', '0.95');
+    args.push('--top-k', '64');
+  }
+
+  // Thinking/reasoning control. Default OFF = fast, model answers directly.
+  // Gemma/Qwen gate thinking via the chat template's `enable_thinking` kwarg (the model-
+  // sanctioned mechanism — stops the chain-of-thought from being generated at all). Other
+  // families fall back to `--reasoning-budget 0` (forces an immediate end to thinking).
+  if (supportsThinkingKwarg) {
+    args.push('--chat-template-kwargs', JSON.stringify({ enable_thinking: reasoningEnabled }));
+  } else if (!reasoningEnabled) {
+    args.push('--reasoning-budget', '0');
+  }
 
   return new Promise((resolve) => {
     try {
@@ -308,63 +348,113 @@ async function startEngine(modelPath, options = {}) {
       });
 
       let startupOutput = '';
+      let startupTimer = null;
 
-      engineProcess.stdout.on('data', (data) => {
-        const text = data.toString();
+      // Cold-start progress phases, surfaced to the optional onProgress callback so the
+      // UI can render a load bar. Each phase has a baseline percent; phases only advance
+      // forward (never regress) regardless of output ordering.
+      const PROGRESS_PHASES = {
+        starting: { percent: 8,  label: 'Starting AI engine…' },
+        loading:  { percent: 35, label: 'Loading model into memory…' },
+        context:  { percent: 75, label: 'Allocating context…' },
+        ready:    { percent: 95, label: 'Almost ready…' },
+      };
+      const PHASE_ORDER = ['starting', 'loading', 'context', 'ready'];
+      let currentPhaseIdx = -1;
+      const emitProgress = (phase) => {
+        if (!onProgress) return;
+        const idx = PHASE_ORDER.indexOf(phase);
+        if (idx <= currentPhaseIdx) return; // never go backwards
+        currentPhaseIdx = idx;
+        const info = PROGRESS_PHASES[phase];
+        try { onProgress({ phase, percent: info.percent, label: info.label }); } catch {}
+      };
+      emitProgress('starting');
+
+      // Activity-based startup timeout: a large model can take a while to load from
+      // disk, but as long as the engine keeps emitting load progress we shouldn't kill
+      // it. We only fail if there's no new output for STARTUP_INACTIVITY_MS, capped by
+      // an absolute STARTUP_MAX_MS ceiling.
+      const STARTUP_INACTIVITY_MS = 90000;
+      const STARTUP_MAX_MS = 300000;
+      const startedAt = Date.now();
+
+      const failStartup = (reason) => {
+        if (!isStarting) return;
+        isStarting = false;
+        if (startupTimer) { clearTimeout(startupTimer); startupTimer = null; }
+        if (engineProcess) {
+          engineProcess.kill();
+          engineProcess = null;
+        }
+        resolve({ success: false, error: `${reason}. Output: ${startupOutput.slice(-500)}` });
+      };
+
+      const resetStartupTimer = () => {
+        if (startupTimer) clearTimeout(startupTimer);
+        startupTimer = setTimeout(() => {
+          failStartup('Engine startup timed out (no progress)');
+        }, STARTUP_INACTIVITY_MS);
+      };
+
+      const handleStartupChunk = (text) => {
         startupOutput += text;
+
+        // Enforce absolute ceiling so a perpetually-chatty-but-never-ready engine
+        // can't hang forever.
+        if (Date.now() - startedAt > STARTUP_MAX_MS) {
+          failStartup('Engine startup timed out (max wait exceeded)');
+          return;
+        }
+
+        // Engine still making progress — keep waiting.
+        resetStartupTimer();
+
+        // Surface load milestones to the UI. These substrings are emitted by the
+        // engine's own load logs ("load:", "llama_context:") before it starts serving.
+        if (/llama_context:|n_ctx/.test(text)) {
+          emitProgress('context');
+        } else if (/load:|llama_model_loader|load_tensors/.test(text)) {
+          emitProgress('loading');
+        }
 
         // llama-server prints "server is listening on ..." when ready
         if (text.includes('listening') || text.includes('HTTP server listening')) {
+          if (startupTimer) { clearTimeout(startupTimer); startupTimer = null; }
+          emitProgress('ready');
           isReady = true;
           isStarting = false;
           currentModel = modelPath;
           enginePort = port;
           resolve({ success: true, port });
         }
-      });
+      };
 
-      engineProcess.stderr.on('data', (data) => {
-        const text = data.toString();
-        startupOutput += text;
-
-        // llama-server also logs to stderr
-        if (text.includes('listening') || text.includes('HTTP server listening')) {
-          isReady = true;
-          isStarting = false;
-          currentModel = modelPath;
-          enginePort = port;
-          resolve({ success: true, port });
-        }
-      });
+      engineProcess.stdout.on('data', (data) => handleStartupChunk(data.toString()));
+      engineProcess.stderr.on('data', (data) => handleStartupChunk(data.toString()));
 
       engineProcess.on('error', (err) => {
         isStarting = false;
         isReady = false;
         engineProcess = null;
+        if (startupTimer) { clearTimeout(startupTimer); startupTimer = null; }
         resolve({ success: false, error: err.message });
       });
 
       engineProcess.on('close', (code) => {
+        const wasReady = isReady;
         isReady = false;
         isStarting = false;
         currentModel = null;
         engineProcess = null;
-        if (!isReady) {
+        if (startupTimer) { clearTimeout(startupTimer); startupTimer = null; }
+        if (!wasReady) {
           resolve({ success: false, error: `Engine exited with code ${code}. Output: ${startupOutput.slice(-500)}` });
         }
       });
 
-      // Timeout: if not ready in 60 seconds, fail
-      setTimeout(() => {
-        if (isStarting) {
-          isStarting = false;
-          if (engineProcess) {
-            engineProcess.kill();
-            engineProcess = null;
-          }
-          resolve({ success: false, error: `Engine startup timed out. Output: ${startupOutput.slice(-500)}` });
-        }
-      }, 60000);
+      // Kick off the activity-based startup timer (reset on each output chunk above).
+      resetStartupTimer();
 
     } catch (err) {
       isStarting = false;
@@ -425,6 +515,12 @@ async function chat({ messages, stream = false, options = {} }) {
     temperature: options.temperature || 0.7,
     max_tokens: options.max_tokens || 4096,
   };
+
+  // Ask llama-server to include token usage in the final streamed chunk so the UI
+  // can show tokens used / tokens-per-second. (timings are included by default.)
+  if (stream) {
+    body.stream_options = { include_usage: true };
+  }
 
   // Pass tools if provided (OpenAI function calling format)
   if (options.tools && options.tools.length > 0) {

@@ -75,6 +75,8 @@ contextBridge.exposeInMainWorld('api', {
     onDownloadDone: (cb) => ipcRenderer.on('engine:download-done', (_, data) => cb(data)),
     onStarted: (cb) => ipcRenderer.on('engine:started', (_, data) => cb(data)),
     onSwitching: (cb) => ipcRenderer.on('engine:switching', (_, data) => cb(data)),
+    onLoadProgress: (cb) => ipcRenderer.on('engine:loadProgress', (_, data) => cb(data)),
+    onStats: (cb) => ipcRenderer.on('engine:stats', (_, data) => cb(data)),
   },
 
   // Local AI — unified interface (preferred for new code)

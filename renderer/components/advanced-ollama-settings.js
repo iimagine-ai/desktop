@@ -48,6 +48,11 @@ const AdvancedOllamaSettings = {
     { value: '131072', label: '131072' },
   ],
 
+  REASONING_OPTIONS: [
+    { value: 'false', label: 'Off (faster, recommended)' },
+    { value: 'true', label: 'On (slower, may improve hard questions)' },
+  ],
+
   /**
    * Mount the advanced settings component into a container element
    */
@@ -104,6 +109,13 @@ const AdvancedOllamaSettings = {
             <p id="advCtxNote" class="text-[10px] text-amber-600 dark:text-amber-400 mt-1 hidden"></p>
           </div>
 
+          <!-- Reasoning -->
+          <div>
+            <label class="text-xs font-medium text-neutral-500 dark:text-neutral-400 uppercase tracking-wider mb-1.5 block">Reasoning</label>
+            <p class="text-[10px] text-neutral-400 dark:text-neutral-500 mb-1.5">When on, the model "thinks" before answering. This can improve quality on hard questions but is much slower on local hardware and adds a long delay before the first word appears. Off answers directly. Takes effect on next engine start.</p>
+            <select id="advReasoning" class="w-full bg-white/60 dark:bg-neutral-800/60 border border-neutral-200/50 dark:border-neutral-700/50 rounded-xl px-3 py-2.5 text-sm text-neutral-700 dark:text-neutral-300 focus:outline-none transition-all shadow-sm"></select>
+          </div>
+
           <!-- Reset button -->
           <button id="advResetBtn" class="w-full px-4 py-2 rounded-lg bg-neutral-100 dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 text-xs font-medium text-neutral-600 dark:text-neutral-400 hover:bg-neutral-200 dark:hover:bg-neutral-700 transition-all">
             Reset to defaults
@@ -118,6 +130,7 @@ const AdvancedOllamaSettings = {
     this._populateSelect('advNumThread', this.THREAD_OPTIONS);
     this._populateSelect('advKeepAlive', this.KEEP_ALIVE_OPTIONS);
     this._populateSelect('advNumCtx', this.CTX_OPTIONS);
+    this._populateSelect('advReasoning', this.REASONING_OPTIONS);
   },
 
   _populateSelect(id, options) {
@@ -134,6 +147,7 @@ const AdvancedOllamaSettings = {
       this._setSelectValue('advKeepAlive', settings.keepAlive);
       this._setSelectValue('advNumCtx', settings.numCtx);
       this._updateCtxNote(settings.numCtx);
+      this._setSelectValue('advReasoning', settings.reasoning);
     } catch (err) {
       console.warn('[AdvancedOllamaSettings] Failed to load:', err);
     }
@@ -156,7 +170,7 @@ const AdvancedOllamaSettings = {
     });
 
     // Auto-save on change
-    const selects = ['advNumGpu', 'advNumThread', 'advKeepAlive', 'advNumCtx'];
+    const selects = ['advNumGpu', 'advNumThread', 'advKeepAlive', 'advNumCtx', 'advReasoning'];
     selects.forEach(id => {
       this._container.querySelector(`#${id}`)?.addEventListener('change', () => this._save());
     });
@@ -171,6 +185,7 @@ const AdvancedOllamaSettings = {
       numThread: this._container.querySelector('#advNumThread')?.value || 'auto',
       keepAlive: this._container.querySelector('#advKeepAlive')?.value || '5m',
       numCtx: this._container.querySelector('#advNumCtx')?.value || 'auto',
+      reasoning: this._container.querySelector('#advReasoning')?.value === 'true',
     };
 
     // Show context window guidance
@@ -209,11 +224,12 @@ const AdvancedOllamaSettings = {
   },
 
   async _reset() {
-    const defaults = { numGpu: 'auto', numThread: 'auto', keepAlive: '5m', numCtx: 'auto' };
+    const defaults = { numGpu: 'auto', numThread: 'auto', keepAlive: '5m', numCtx: 'auto', reasoning: false };
     this._setSelectValue('advNumGpu', defaults.numGpu);
     this._setSelectValue('advNumThread', defaults.numThread);
     this._setSelectValue('advKeepAlive', defaults.keepAlive);
     this._setSelectValue('advNumCtx', defaults.numCtx);
+    this._setSelectValue('advReasoning', defaults.reasoning);
     await window.api.ollama.setAdvancedSettings(defaults);
     this._flashStatus('Reset to defaults');
   },
