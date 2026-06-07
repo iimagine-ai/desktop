@@ -116,6 +116,7 @@ contextBridge.exposeInMainWorld('api', {
     generateVideo: (prompt, model, aspectRatio, duration) => ipcRenderer.invoke('gateway:generateVideo', { prompt, model, aspectRatio, duration }),
     onStreamChunk: (cb) => ipcRenderer.on('gateway:stream-chunk', (_, chunk) => cb(chunk)),
     onStreamDone: (cb) => ipcRenderer.on('gateway:stream-done', () => cb()),
+    onClearIndicator: (cb) => ipcRenderer.on('gateway:clear-indicator', () => cb()),
   },
 
   // Settings
@@ -238,6 +239,7 @@ contextBridge.exposeInMainWorld('api', {
     renderPage: (pluginId) => ipcRenderer.invoke('plugins:renderPage', pluginId),
     sendEvent: (event, data) => ipcRenderer.invoke('plugins:event', event, data),
     getDir: () => ipcRenderer.invoke('plugins:getDir'),
+    openFolder: (pluginId) => ipcRenderer.invoke('plugins:openFolder', pluginId),
     install: () => ipcRenderer.invoke('plugins:install'),
     uninstall: (id) => ipcRenderer.invoke('plugins:uninstall', id),
     chatPreprocess: (data) => ipcRenderer.invoke('plugins:chatPreprocess', data),
@@ -246,6 +248,37 @@ contextBridge.exposeInMainWorld('api', {
     getMentions: () => ipcRenderer.invoke('plugins:getMentions'),
     checkLicense: (pluginId) => ipcRenderer.invoke('plugins:checkLicense', pluginId),
     getAllLicenses: () => ipcRenderer.invoke('plugins:getAllLicenses'),
+  },
+
+  // Plugin Generator — AI-powered plugin creation
+  pluginGen: {
+    generate: (userRequest, existingPluginId) => ipcRenderer.invoke('pluginGen:generate', userRequest, existingPluginId),
+    detectIntent: (message) => ipcRenderer.invoke('pluginGen:detectIntent', message),
+    delete: (pluginId) => ipcRenderer.invoke('pluginGen:delete', pluginId),
+    listGenerated: () => ipcRenderer.invoke('pluginGen:listGenerated'),
+    refreshSidebar: () => ipcRenderer.invoke('pluginGen:refreshSidebar'),
+    onSidebarChanged: (cb) => ipcRenderer.on('plugins:sidebarChanged', () => cb()),
+  },
+
+  // MCP — Model Context Protocol integrations
+  mcp: {
+    getServers: () => ipcRenderer.invoke('mcp:getServers'),
+    connect: (serverId) => ipcRenderer.invoke('mcp:connect', serverId),
+    disconnect: (serverId) => ipcRenderer.invoke('mcp:disconnect', serverId),
+    getTools: () => ipcRenderer.invoke('mcp:getTools'),
+    getToolsOpenAI: () => ipcRenderer.invoke('mcp:getToolsOpenAI'),
+    callTool: (serverId, toolName, args) => ipcRenderer.invoke('mcp:callTool', serverId, toolName, args),
+    parseToolName: (fullName) => ipcRenderer.invoke('mcp:parseToolName', fullName),
+    addServer: (id, config) => ipcRenderer.invoke('mcp:addServer', id, config),
+    removeServer: (id) => ipcRenderer.invoke('mcp:removeServer', id),
+    updateServer: (id, updates) => ipcRenderer.invoke('mcp:updateServer', id, updates),
+  },
+
+  // Google OAuth — one-click connect for Google Workspace
+  google: {
+    connect: () => ipcRenderer.invoke('google:connect'),
+    disconnect: () => ipcRenderer.invoke('google:disconnect'),
+    status: () => ipcRenderer.invoke('google:status'),
   },
 
   // Folders — connect local folders to KB

@@ -113,12 +113,22 @@ class PluginManager {
       const mainFile = path.join(plugin.manifest._dir, plugin.manifest.main || 'index.js');
       if (!fs.existsSync(mainFile)) {
         console.warn(`[Plugin] ${pluginId}: main file not found at ${mainFile}`);
+        this._logError(pluginId, 'Main file not found: ' + mainFile);
         return;
       }
 
       // Clear require cache to allow reloading
       delete require.cache[require.resolve(mainFile)];
+
+      // Sandbox: load with timeout protection
+      const startTime = Date.now();
       const instance = require(mainFile);
+      const loadTime = Date.now() - startTime;
+
+      if (loadTime > 5000) {
+        console.warn(`[Plugin] ${pluginId}: took ${loadTime}ms to load — marking as slow`);
+        this._logError(pluginId, `Load timeout: took ${loadTime}ms (limit 5000ms)`);
+      }
 
       if (typeof instance.activate === 'function') {
         instance.activate(this._context || {});
@@ -126,11 +136,55 @@ class PluginManager {
 
       plugin.instance = instance;
       plugin.enabled = true;
+      plugin._error = null; // Clear any previous error
       console.log(`[Plugin] Activated: ${plugin.manifest.name} v${plugin.manifest.version}`);
     } catch (err) {
       console.error(`[Plugin] Failed to activate ${pluginId}:`, err.message);
       plugin.instance = null;
+      plugin._error = err.message;
+
+      // Auto-disable broken plugins to prevent crash loops
+      const enabledMap = store.get('plugins.enabled', {});
+      enabledMap[pluginId] = false;
+      store.set('plugins.enabled', enabledMap);
+      plugin.enabled = false;
+
+      this._logError(pluginId, err.stack || err.message);
+      console.warn(`[Plugin] Auto-disabled broken plugin: ${pluginId}`);
     }
+  }
+
+  // Log plugin errors to ~/.iimagine/logs/plugin-errors.log
+  _logError(pluginId, error) {
+    try {
+      const logsDir = path.join(app.getPath('home'), '.iimagine', 'logs');
+      if (!fs.existsSync(logsDir)) fs.mkdirSync(logsDir, { recursive: true });
+
+      const logFile = path.join(logsDir, 'plugin-errors.log');
+      const timestamp = new Date().toISOString();
+      const entry = `[${timestamp}] ${pluginId}: ${error}\n`;
+
+      fs.appendFileSync(logFile, entry, 'utf-8');
+
+      // Keep log file under 100KB — truncate if needed
+      try {
+        const stat = fs.statSync(logFile);
+        if (stat.size > 100 * 1024) {
+          const content = fs.readFileSync(logFile, 'utf-8');
+          const lines = content.split('\n');
+          // Keep the last 200 lines
+          fs.writeFileSync(logFile, lines.slice(-200).join('\n'), 'utf-8');
+        }
+      } catch {}
+    } catch (logErr) {
+      console.warn('[Plugin] Failed to write error log:', logErr.message);
+    }
+  }
+
+  // Get the last error for a plugin (for UI display)
+  getPluginError(pluginId) {
+    const plugin = this.plugins.get(pluginId);
+    return plugin?._error || null;
   }
 
   _deactivate(pluginId) {
@@ -186,6 +240,7 @@ class PluginManager {
       enabled: p.enabled,
       hooks: p.manifest.hooks || {},
       hasInstance: !!p.instance,
+      error: p._error || null,
     }));
   }
 

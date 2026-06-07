@@ -1,5 +1,5 @@
 {
-  "version": "2026-05-31",
+  "version": "2026-06-07",
   "manifest_url": "https://raw.githubusercontent.com/iimagine-ai/model-registry/main/model-registry.json",
   "categories": [
     "code",
@@ -60,6 +60,33 @@
           "url": "https://huggingface.co/bartowski/google_gemma-4-E4B-it-GGUF/resolve/main/google_gemma-4-E4B-it-Q8_0.gguf",
           "sizeGB": 8.03,
           "ramRequired": 12
+        }
+      ]
+    },
+    {
+      "id": "gemma-4-12b",
+      "name": "Gemma 4 12B",
+      "family": "gemma",
+      "categories": [
+        "text",
+        "multimodal"
+      ],
+      "description": "Google's dense 12B. Multimodal, strong general-purpose quality on mid-range hardware.",
+      "variants": [
+        {
+          "quantization": "Q4_K_M",
+          "filename": "gemma-4-12B-it-Q4_K_M.gguf",
+          "url": "https://huggingface.co/bartowski/gemma-4-12B-it-GGUF/resolve/main/gemma-4-12B-it-Q4_K_M.gguf",
+          "sizeGB": 7.66,
+          "ramRequired": 12,
+          "isDefault": true
+        },
+        {
+          "quantization": "Q8_0",
+          "filename": "gemma-4-12B-it-Q8_0.gguf",
+          "url": "https://huggingface.co/bartowski/gemma-4-12B-it-GGUF/resolve/main/gemma-4-12B-it-Q8_0.gguf",
+          "sizeGB": 12.67,
+          "ramRequired": 16
         }
       ]
     },

@@ -7,7 +7,10 @@ const https = require('https');
 const http = require('http');
 const { EventEmitter } = require('events');
 const os = require('os');
-const { getModel } = require('./model-registry');
+// Model lookups resolve against the live manifest (cache → remote → bundled),
+// so newly published models are downloadable without an app release.
+const manifestManager = require('./manifest-manager');
+const getModel = (modelId) => manifestManager.getModel(modelId);
 
 const MODELS_DIR = path.join(os.homedir(), '.iimagine', 'models');
 const STATE_FILE = path.join(os.homedir(), '.iimagine', 'download-state.json');
@@ -336,6 +339,10 @@ class DownloadManager extends EventEmitter {
 
       res.on('data', (chunk) => {
         dl.bytesDownloaded += chunk.length;
+        // Update totalBytes if the server reported wrong size (e.g. after redirect)
+        if (dl.totalBytes > 0 && dl.bytesDownloaded > dl.totalBytes) {
+          dl.totalBytes = 0; // Reset — we don't know the real size
+        }
       });
 
       res.pipe(fileStream);
@@ -473,7 +480,7 @@ class DownloadManager extends EventEmitter {
       const remaining = dl.totalBytes - dl.bytesDownloaded;
       const eta = speedBps > 0 ? Math.round(remaining / speedBps) : null;
       const percentage = dl.totalBytes > 0
-        ? Math.round((dl.bytesDownloaded / dl.totalBytes) * 100)
+        ? Math.min(Math.round((dl.bytesDownloaded / dl.totalBytes) * 100), 100)
         : 0;
 
       this.lastBytesTime = now;

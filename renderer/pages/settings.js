@@ -13,6 +13,7 @@ const SettingsPage = {
             <button data-settings-tab="models" class="settings-tab-btn px-4 py-2 text-sm font-medium transition-all border-b-2">Models</button>
             <button data-settings-tab="chat" class="settings-tab-btn px-4 py-2 text-sm font-medium transition-all border-b-2">Chat</button>
             <button data-settings-tab="plugins" class="settings-tab-btn px-4 py-2 text-sm font-medium transition-all border-b-2">Plugins</button>
+            <button data-settings-tab="integrations" class="settings-tab-btn px-4 py-2 text-sm font-medium transition-all border-b-2">Integrations</button>
             <button data-settings-tab="personas" class="settings-tab-btn px-4 py-2 text-sm font-medium transition-all border-b-2">Personas</button>
             <button data-settings-tab="memory" id="memoryTabBtn" class="settings-tab-btn px-4 py-2 text-sm font-medium transition-all border-b-2 hidden">Memory</button>
           </div>
@@ -78,6 +79,7 @@ const SettingsPage = {
     else if (tab === 'models') this._renderModelsTab(content);
     else if (tab === 'chat') this._renderChatTab(content);
     else if (tab === 'plugins') this._renderPluginsTab(content);
+    else if (tab === 'integrations') this._renderIntegrationsTab(content);
     else if (tab === 'personas') this._renderPersonasTab(content);
     else if (tab === 'memory') this._renderMemoryTab(content);
   },
@@ -983,13 +985,30 @@ const SettingsPage = {
   // ─── Plugins Tab ──────────────────────────────────────────────────────────
   _renderPluginsTab(content) {
     content.innerHTML = `
+      <!-- AI-Generated Plugins Section -->
+      <section class="bg-white/50 dark:bg-neutral-800/50 border border-neutral-200/40 dark:border-neutral-700/40 rounded-2xl p-5 shadow-[0_2px_10px_rgb(0,0,0,0.02)] dark:shadow-[0_2px_10px_rgb(0,0,0,0.2)] backdrop-blur-md">
+        <div class="flex items-center justify-between mb-3">
+          <div class="flex items-center gap-2">
+            <div class="p-2 bg-white dark:bg-neutral-800 rounded-xl border border-neutral-100 dark:border-neutral-800 shadow-sm text-neutral-700 dark:text-neutral-300"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg></div>
+            <div>
+              <h3 class="text-sm font-semibold text-neutral-900 dark:text-neutral-100">My Plugins</h3>
+              <p class="text-xs text-neutral-500 dark:text-neutral-400">Plugins you've built with AI</p>
+            </div>
+          </div>
+        </div>
+        <div id="aiPluginsList" class="space-y-2">
+          <p class="text-xs text-neutral-400">Loading...</p>
+        </div>
+      </section>
+
+      <!-- Installed/Official Plugins Section -->
       <section class="bg-white/50 dark:bg-neutral-800/50 border border-neutral-200/40 dark:border-neutral-700/40 rounded-2xl p-5 shadow-[0_2px_10px_rgb(0,0,0,0.02)] dark:shadow-[0_2px_10px_rgb(0,0,0,0.2)] backdrop-blur-md">
         <div class="flex items-center justify-between mb-3">
           <div class="flex items-center gap-2">
             <div class="p-2 bg-white dark:bg-neutral-800 rounded-xl border border-neutral-100 dark:border-neutral-800 shadow-sm text-neutral-700 dark:text-neutral-300"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10z"/><path d="M9 8v3M15 8v3M8 11h8v2a4 4 0 0 1-8 0v-2z"/></svg></div>
             <div>
-              <h3 class="text-sm font-semibold text-neutral-900 dark:text-neutral-100">Plugins</h3>
-              <p class="text-xs text-neutral-500 dark:text-neutral-400">Extend functionality with add-ons</p>
+              <h3 class="text-sm font-semibold text-neutral-900 dark:text-neutral-100">Installed Plugins</h3>
+              <p class="text-xs text-neutral-500 dark:text-neutral-400">Official and third-party add-ons</p>
             </div>
           </div>
           <button id="installPluginBtn" class="px-4 py-2 rounded-lg bg-neutral-900 dark:bg-neutral-100 text-sm font-medium text-white dark:text-neutral-900 hover:bg-neutral-800 dark:hover:bg-neutral-200 transition-all shadow-sm flex items-center gap-2"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M8 12h8M12 8v8"/></svg> Install</button>
@@ -1002,6 +1021,288 @@ const SettingsPage = {
     `;
 
     this._loadPlugins(content);
+  },
+
+  // ─── Integrations Tab (MCP) ──────────────────────────────────────────────
+  async _renderIntegrationsTab(content) {
+    const googleStatus = await window.api.google.status();
+
+    content.innerHTML = `
+      <!-- Google Workspace One-Click Connect -->
+      <section class="bg-white/50 dark:bg-neutral-800/50 border border-neutral-200/40 dark:border-neutral-700/40 rounded-2xl p-5 shadow-[0_2px_10px_rgb(0,0,0,0.02)] dark:shadow-[0_2px_10px_rgb(0,0,0,0.2)] backdrop-blur-md mb-4">
+        <div class="flex items-center justify-between">
+          <div class="flex items-center gap-3">
+            <div class="p-2 bg-white dark:bg-neutral-800 rounded-xl border border-neutral-100 dark:border-neutral-800 shadow-sm">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/><path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/><path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/><path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/></svg>
+            </div>
+            <div>
+              <div class="text-sm font-medium text-neutral-900 dark:text-neutral-100">Google Workspace</div>
+              <div class="text-xs text-neutral-500 dark:text-neutral-400">Gmail, Calendar, Drive, Docs, Sheets</div>
+              ${googleStatus.connected ? `<div class="text-[10px] text-emerald-600 dark:text-emerald-400 mt-0.5 font-medium">Connected • ${googleStatus.toolCount} tools available</div>` : ''}
+            </div>
+          </div>
+          <div>
+            ${!googleStatus.hasCredentials
+              ? `<span class="text-xs text-neutral-400 italic">Not available in this build</span>`
+              : googleStatus.connected
+                ? `<button id="googleDisconnectBtn" class="px-4 py-2 rounded-lg border border-neutral-200/50 dark:border-neutral-600/50 bg-white/60 dark:bg-neutral-700/60 text-sm font-medium text-neutral-600 dark:text-neutral-300 hover:bg-white/90 dark:hover:bg-neutral-700/90 transition-all">Disconnect</button>`
+                : `<button id="googleConnectBtn" class="px-4 py-2 rounded-lg bg-neutral-900 dark:bg-neutral-100 text-sm font-medium text-white dark:text-neutral-900 hover:bg-neutral-800 dark:hover:bg-neutral-200 transition-all shadow-sm">Connect Google</button>`
+            }
+          </div>
+        </div>
+      </section>
+
+      <!-- Action Steps -->
+      <section class="bg-white/50 dark:bg-neutral-800/50 border border-neutral-200/40 dark:border-neutral-700/40 rounded-2xl p-5 shadow-[0_2px_10px_rgb(0,0,0,0.02)] dark:shadow-[0_2px_10px_rgb(0,0,0,0.2)] backdrop-blur-md mb-4">
+        <div class="flex items-center gap-2 mb-4">
+          <div class="p-2 bg-white dark:bg-neutral-800 rounded-xl border border-neutral-100 dark:border-neutral-800 shadow-sm text-neutral-700 dark:text-neutral-300">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="13 17 18 12 13 7"/><polyline points="6 17 11 12 6 7"/></svg>
+          </div>
+          <div>
+            <h3 class="text-sm font-semibold text-neutral-900 dark:text-neutral-100">Max Action Steps</h3>
+            <p class="text-xs text-neutral-500 dark:text-neutral-400">How many consecutive actions the AI can take before pausing</p>
+          </div>
+        </div>
+        <div class="space-y-3">
+          <div class="flex items-center gap-4">
+            <input id="maxActionStepsSlider" type="range" min="1" max="25" step="1" value="10"
+              class="flex-1 h-2 bg-neutral-200 dark:bg-neutral-700 rounded-lg appearance-none cursor-pointer accent-neutral-900 dark:accent-neutral-100" />
+            <span id="maxActionStepsValue" class="text-sm font-mono font-medium text-neutral-700 dark:text-neutral-300 min-w-[2.5rem] text-right">10</span>
+          </div>
+          <div class="flex justify-between text-[10px] text-neutral-400 px-0.5">
+            <span>1 (always pause)</span>
+            <span>25 (maximum autonomy)</span>
+          </div>
+          <p class="text-[10px] text-neutral-400 leading-relaxed">When the AI needs multiple steps to complete a task (e.g. search → read → write), it will chain them automatically up to this limit. Higher values allow more complex tasks to complete in one go but use more tokens.</p>
+        </div>
+      </section>
+
+      <!-- MCP Servers (Advanced) -->
+      <section class="bg-white/50 dark:bg-neutral-800/50 border border-neutral-200/40 dark:border-neutral-700/40 rounded-2xl p-5 shadow-[0_2px_10px_rgb(0,0,0,0.02)] dark:shadow-[0_2px_10px_rgb(0,0,0,0.2)] backdrop-blur-md">
+        <div class="flex items-center justify-between mb-4">
+          <div class="flex items-center gap-2">
+            <div class="p-2 bg-white dark:bg-neutral-800 rounded-xl border border-neutral-100 dark:border-neutral-800 shadow-sm text-neutral-700 dark:text-neutral-300">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
+            </div>
+            <div>
+              <h3 class="text-sm font-semibold text-neutral-900 dark:text-neutral-100">Other Integrations</h3>
+              <p class="text-xs text-neutral-500 dark:text-neutral-400">Connect additional MCP servers</p>
+            </div>
+          </div>
+          <button id="addMCPServerBtn" class="px-4 py-2 rounded-lg bg-neutral-900 dark:bg-neutral-100 text-sm font-medium text-white dark:text-neutral-900 hover:bg-neutral-800 dark:hover:bg-neutral-200 transition-all shadow-sm flex items-center gap-2">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M8 12h8M12 8v8"/></svg> Add
+          </button>
+        </div>
+        <div id="mcpServersList" class="space-y-3">
+          <p class="text-xs text-neutral-400">Loading...</p>
+        </div>
+      </section>
+    `;
+
+    // Bind Google Connect/Disconnect
+    const connectBtn = content.querySelector('#googleConnectBtn');
+    if (connectBtn) {
+      connectBtn.addEventListener('click', async () => {
+        connectBtn.disabled = true;
+        connectBtn.textContent = 'Connecting...';
+        const result = await window.api.google.connect();
+        if (result.success) {
+          await this._renderIntegrationsTab(content);
+        } else {
+          connectBtn.textContent = 'Failed';
+          connectBtn.title = result.error;
+          setTimeout(() => this._renderIntegrationsTab(content), 2000);
+        }
+      });
+    }
+
+    const disconnectBtn = content.querySelector('#googleDisconnectBtn');
+    if (disconnectBtn) {
+      disconnectBtn.addEventListener('click', async () => {
+        await window.api.google.disconnect();
+        await this._renderIntegrationsTab(content);
+      });
+    }
+
+    await this._loadMCPServers(content);
+
+    // Bind max action steps slider
+    const stepsSlider = content.querySelector('#maxActionStepsSlider');
+    const stepsValue = content.querySelector('#maxActionStepsValue');
+    if (stepsSlider) {
+      const savedSteps = await window.api.settings.get('integrations.maxActionSteps');
+      const currentSteps = savedSteps || 10;
+      stepsSlider.value = currentSteps;
+      stepsValue.textContent = currentSteps;
+
+      stepsSlider.addEventListener('input', () => {
+        stepsValue.textContent = stepsSlider.value;
+      });
+      stepsSlider.addEventListener('change', async () => {
+        await window.api.settings.set('integrations.maxActionSteps', parseInt(stepsSlider.value, 10));
+      });
+    }
+
+    // Bind "Add" button
+    const addBtn = content.querySelector('#addMCPServerBtn');
+    if (addBtn) {
+      addBtn.addEventListener('click', () => this._showAddMCPServerDialog(content));
+    }
+  },
+
+  _showAddMCPServerDialog(settingsContainer) {
+    const existing = document.getElementById('mcp-add-dialog');
+    if (existing) existing.remove();
+
+    const dialog = document.createElement('div');
+    dialog.id = 'mcp-add-dialog';
+    dialog.className = 'fixed inset-0 z-50 flex items-center justify-center bg-black/20 backdrop-blur-sm';
+    dialog.innerHTML = `
+      <div class="bg-white/90 dark:bg-neutral-800/90 backdrop-blur-xl border border-neutral-200/60 dark:border-neutral-700/60 rounded-2xl p-6 w-full max-w-md shadow-xl">
+        <h3 class="text-base font-semibold text-neutral-900 dark:text-neutral-100 mb-4">Add MCP Server</h3>
+        <p class="text-xs text-neutral-500 dark:text-neutral-400 mb-4">Connect any community MCP server. Find servers at <span class="font-medium text-neutral-700 dark:text-neutral-300">mcpservers.org</span> or the official MCP GitHub registry.</p>
+        <div class="space-y-3">
+          <div>
+            <label class="text-xs font-medium text-neutral-700 dark:text-neutral-300 mb-1 block">Name</label>
+            <input id="mcpAddName" type="text" placeholder="e.g. GitHub" class="w-full bg-white/60 dark:bg-neutral-800/60 border border-neutral-200/50 dark:border-neutral-700/50 rounded-xl px-4 py-2.5 text-sm text-neutral-700 dark:text-neutral-200 placeholder-neutral-400 focus:outline-none" />
+          </div>
+          <div>
+            <label class="text-xs font-medium text-neutral-700 dark:text-neutral-300 mb-1 block">Command</label>
+            <input id="mcpAddCommand" type="text" placeholder="e.g. npx" class="w-full bg-white/60 dark:bg-neutral-800/60 border border-neutral-200/50 dark:border-neutral-700/50 rounded-xl px-4 py-2.5 text-sm text-neutral-700 dark:text-neutral-200 placeholder-neutral-400 focus:outline-none font-mono" />
+          </div>
+          <div>
+            <label class="text-xs font-medium text-neutral-700 dark:text-neutral-300 mb-1 block">Arguments <span class="text-neutral-400 font-normal">(space-separated)</span></label>
+            <input id="mcpAddArgs" type="text" placeholder="e.g. -y @modelcontextprotocol/server-github" class="w-full bg-white/60 dark:bg-neutral-800/60 border border-neutral-200/50 dark:border-neutral-700/50 rounded-xl px-4 py-2.5 text-sm text-neutral-700 dark:text-neutral-200 placeholder-neutral-400 focus:outline-none font-mono" />
+          </div>
+          <div>
+            <label class="text-xs font-medium text-neutral-700 dark:text-neutral-300 mb-1 block">Environment Variables <span class="text-neutral-400 font-normal">(optional, KEY=VALUE per line)</span></label>
+            <textarea id="mcpAddEnv" rows="2" placeholder="GITHUB_TOKEN=ghp_xxx&#10;API_KEY=abc123" class="w-full bg-white/60 dark:bg-neutral-800/60 border border-neutral-200/50 dark:border-neutral-700/50 rounded-xl px-4 py-2.5 text-sm text-neutral-700 dark:text-neutral-200 placeholder-neutral-400 focus:outline-none font-mono resize-none"></textarea>
+          </div>
+        </div>
+        <div id="mcpAddError" class="text-xs text-rose-500 mt-2 hidden"></div>
+        <div class="flex items-center justify-end gap-2 mt-5">
+          <button id="mcpAddCancel" class="px-4 py-2 rounded-lg bg-white/60 dark:bg-neutral-700/60 border border-neutral-200/50 dark:border-neutral-600/50 text-sm font-medium text-neutral-700 dark:text-neutral-300 hover:bg-white/90 dark:hover:bg-neutral-700/90 transition-all">Cancel</button>
+          <button id="mcpAddSave" class="px-4 py-2 rounded-lg bg-neutral-900 dark:bg-neutral-100 text-sm font-medium text-white dark:text-neutral-900 hover:bg-neutral-800 dark:hover:bg-neutral-200 transition-all shadow-sm">Add Server</button>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(dialog);
+
+    // Close on backdrop click
+    dialog.addEventListener('click', (e) => { if (e.target === dialog) dialog.remove(); });
+    dialog.querySelector('#mcpAddCancel').addEventListener('click', () => dialog.remove());
+
+    dialog.querySelector('#mcpAddSave').addEventListener('click', async () => {
+      const name = dialog.querySelector('#mcpAddName').value.trim();
+      const command = dialog.querySelector('#mcpAddCommand').value.trim();
+      const argsStr = dialog.querySelector('#mcpAddArgs').value.trim();
+      const envStr = dialog.querySelector('#mcpAddEnv').value.trim();
+      const errorEl = dialog.querySelector('#mcpAddError');
+
+      if (!name || !command) {
+        errorEl.textContent = 'Name and command are required.';
+        errorEl.classList.remove('hidden');
+        return;
+      }
+
+      // Parse args
+      const args = argsStr ? argsStr.split(/\s+/) : [];
+
+      // Parse env vars
+      const env = {};
+      if (envStr) {
+        for (const line of envStr.split('\n')) {
+          const eq = line.indexOf('=');
+          if (eq > 0) {
+            env[line.slice(0, eq).trim()] = line.slice(eq + 1).trim();
+          }
+        }
+      }
+
+      // Generate ID from name
+      const id = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+
+      await window.api.mcp.addServer(id, { name, command, args, env, description: `Custom: ${command} ${args.join(' ')}` });
+      dialog.remove();
+      await this._loadMCPServers(settingsContainer);
+    });
+
+    // Focus name input
+    dialog.querySelector('#mcpAddName').focus();
+  },
+
+  async _loadMCPServers(container) {
+    const list = container.querySelector('#mcpServersList');
+    try {
+      const servers = await window.api.mcp.getServers();
+      // Filter out google-workspace (it has its own dedicated card above)
+      const filteredEntries = Object.entries(servers || {}).filter(([id]) => id !== 'google-workspace');
+      if (!filteredEntries.length) {
+        list.innerHTML = '<p class="text-xs text-neutral-400 italic">No additional integrations configured.</p>';
+        return;
+      }
+
+      list.innerHTML = filteredEntries.map(([id, s]) => {
+        const statusColor = s.status === 'connected' ? 'bg-emerald-500' : s.status === 'error' ? 'bg-rose-500' : 'bg-neutral-300 dark:bg-neutral-600';
+        const statusText = s.status === 'connected' ? `Connected • ${s.toolCount} tools` : s.status === 'error' ? `Error: ${s.error}` : 'Disconnected';
+        return `
+          <div class="flex items-center justify-between p-4 rounded-xl bg-white/50 dark:bg-neutral-800/50 border border-neutral-200/40 dark:border-neutral-700/40">
+            <div class="flex items-center gap-3 min-w-0">
+              <div class="w-2 h-2 rounded-full ${statusColor} flex-shrink-0"></div>
+              <div class="min-w-0">
+                <div class="text-sm font-medium text-neutral-900 dark:text-neutral-100">${s.name}</div>
+                <div class="text-xs text-neutral-500 dark:text-neutral-400">${s.description || ''}</div>
+                <div class="text-[10px] text-neutral-400 dark:text-neutral-500 mt-0.5">${statusText}</div>
+              </div>
+            </div>
+            <div class="flex items-center gap-2 flex-shrink-0">
+              ${s.status === 'connected'
+                ? `<button class="mcp-disconnect text-xs px-3 py-1.5 rounded-lg border border-neutral-200/50 dark:border-neutral-600/50 bg-white/60 dark:bg-neutral-700/60 text-neutral-600 dark:text-neutral-300 hover:bg-white/90 dark:hover:bg-neutral-700/90 transition-all font-medium" data-id="${id}">Disconnect</button>`
+                : `<button class="mcp-connect text-xs px-3 py-1.5 rounded-lg bg-neutral-900 dark:bg-neutral-100 text-white dark:text-neutral-900 hover:bg-neutral-800 dark:hover:bg-neutral-200 transition-all shadow-sm font-medium" data-id="${id}">Connect</button>`
+              }
+              <button class="mcp-remove text-neutral-300 hover:text-rose-500 transition-colors p-1" data-id="${id}" title="Remove integration">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+              </button>
+            </div>
+          </div>
+        `;
+      }).join('');
+
+      // Bind connect buttons
+      list.querySelectorAll('.mcp-connect').forEach(btn => {
+        btn.addEventListener('click', async () => {
+          btn.disabled = true;
+          btn.textContent = 'Connecting...';
+          const result = await window.api.mcp.connect(btn.dataset.id);
+          if (result?.success) {
+            await this._loadMCPServers(container);
+          } else {
+            btn.textContent = 'Failed';
+            setTimeout(() => this._loadMCPServers(container), 2000);
+          }
+        });
+      });
+
+      // Bind disconnect buttons
+      list.querySelectorAll('.mcp-disconnect').forEach(btn => {
+        btn.addEventListener('click', async () => {
+          await window.api.mcp.disconnect(btn.dataset.id);
+          await this._loadMCPServers(container);
+        });
+      });
+
+      // Bind remove buttons
+      list.querySelectorAll('.mcp-remove').forEach(btn => {
+        btn.addEventListener('click', async () => {
+          if (confirm('Remove this integration?')) {
+            await window.api.mcp.removeServer(btn.dataset.id);
+            await this._loadMCPServers(container);
+          }
+        });
+      });
+    } catch (err) {
+      list.innerHTML = `<p class="text-xs text-rose-500">${err.message}</p>`;
+    }
   },
 
   // ─── Shared Helpers ────────────────────────────────────────────────────────
@@ -1126,6 +1427,7 @@ const SettingsPage = {
   },
   async _loadPlugins(container) {
     const pluginsList = container.querySelector('#pluginsList');
+    const aiPluginsList = container.querySelector('#aiPluginsList');
     const pluginsDir = container.querySelector('#pluginsDir');
     const installBtn = container.querySelector('#installPluginBtn');
 
@@ -1134,10 +1436,72 @@ const SettingsPage = {
       const dir = await window.api.plugins.getDir();
       pluginsDir.textContent = `Plugin directory: ${dir}`;
 
-      if (!plugins.length) {
-        pluginsList.innerHTML = '<p class="text-xs text-neutral-400 italic">No plugins installed. Drop a plugin folder into the plugins directory or click Install.</p>';
+      // Split into AI-generated and official/bundled
+      const aiPlugins = plugins.filter(p => p.author === 'ai-generated');
+      const officialPlugins = plugins.filter(p => p.author !== 'ai-generated');
+
+      // Render AI-generated plugins
+      if (!aiPlugins.length) {
+        aiPluginsList.innerHTML = '<p class="text-xs text-neutral-400 italic">No AI-generated plugins yet. Use the Builder button in chat to create one.</p>';
       } else {
-        pluginsList.innerHTML = plugins.map(p => `
+        aiPluginsList.innerHTML = aiPlugins.map(p => `
+          <div class="flex items-center justify-between py-2.5 px-3 rounded-2xl bg-white/50 dark:bg-neutral-800/50 border border-neutral-200/40 dark:border-neutral-700/40 backdrop-blur-md">
+            <div class="min-w-0 flex-1">
+              <div class="flex items-center gap-2">
+                <span class="text-sm font-medium text-neutral-900 dark:text-neutral-100">${p.name}</span>
+                <span class="text-[10px] text-neutral-400">v${p.version}</span>
+                ${p.error ? '<span class="text-[10px] text-rose-500 font-medium">⚠ Error</span>' : ''}
+              </div>
+              <p class="text-xs text-neutral-500 dark:text-neutral-400">${p.description || ''}</p>
+            </div>
+            <div class="flex items-center gap-2 ml-2">
+              <button class="plugin-toggle text-xs px-3 py-1.5 rounded-lg border font-medium transition-all ${p.enabled ? 'bg-neutral-900 dark:bg-neutral-100 text-white dark:text-neutral-900 border-neutral-900 dark:border-neutral-100' : 'bg-white/60 dark:bg-neutral-700/60 text-neutral-500 dark:text-neutral-400 border-neutral-200/50 dark:border-neutral-600/50'}" data-id="${p.id}" data-enabled="${p.enabled}">
+                ${p.enabled ? 'Active' : 'Inactive'}
+              </button>
+              <button class="plugin-edit text-xs px-2 py-1.5 rounded-lg bg-white/60 dark:bg-neutral-700/60 border border-neutral-200/50 dark:border-neutral-600/50 text-neutral-600 dark:text-neutral-300 hover:bg-white/90 dark:hover:bg-neutral-700/90 transition-all" data-id="${p.id}" title="Edit with AI"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/><path d="m15 5 4 4"/></svg></button>
+              <button class="plugin-folder text-neutral-300 hover:text-neutral-600 dark:hover:text-neutral-300 transition-colors p-1" data-id="${p.id}" title="Open plugin folder"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg></button>
+              <button class="plugin-remove text-neutral-300 hover:text-rose-500 transition-colors p-1" data-id="${p.id}" title="Delete plugin"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg></button>
+            </div>
+          </div>
+        `).join('');
+
+        // Bind AI plugin buttons
+        aiPluginsList.querySelectorAll('.plugin-toggle').forEach(btn => {
+          btn.addEventListener('click', async () => {
+            const newState = btn.dataset.enabled !== 'true';
+            await window.api.plugins.setEnabled(btn.dataset.id, newState);
+            this._loadPlugins(container);
+          });
+        });
+
+        aiPluginsList.querySelectorAll('.plugin-edit').forEach(btn => {
+          btn.addEventListener('click', () => {
+            if (window.BuilderMode) window.BuilderMode.enter(btn.dataset.id);
+          });
+        });
+
+        aiPluginsList.querySelectorAll('.plugin-folder').forEach(btn => {
+          btn.addEventListener('click', async () => {
+            await window.api.plugins.openFolder(btn.dataset.id);
+          });
+        });
+
+        aiPluginsList.querySelectorAll('.plugin-remove').forEach(btn => {
+          btn.addEventListener('click', async () => {
+            if (confirm(`Delete "${btn.dataset.id}" plugin and all its data?`)) {
+              await window.api.plugins.uninstall(btn.dataset.id);
+              this._loadPlugins(container);
+              await window.loadPluginSidebarItems?.();
+            }
+          });
+        });
+      }
+
+      // Render official/bundled plugins
+      if (!officialPlugins.length) {
+        pluginsList.innerHTML = '<p class="text-xs text-neutral-400 italic">No installed plugins.</p>';
+      } else {
+        pluginsList.innerHTML = officialPlugins.map(p => `
           <div class="flex items-center justify-between py-2 px-2 rounded-2xl ${p.enabled ? 'bg-white/50 dark:bg-neutral-800/50 border border-neutral-200/40 dark:border-neutral-700/40 backdrop-blur-md' : ''}">
             <div class="min-w-0 flex-1">
               <div class="flex items-center gap-2">
@@ -1148,7 +1512,7 @@ const SettingsPage = {
               ${p.author ? `<p class="text-[10px] text-neutral-400">by ${p.author}</p>` : ''}
             </div>
             <div class="flex items-center gap-2 ml-2">
-              <button class="plugin-toggle text-xs px-3 py-1 rounded-lg border ${p.enabled ? 'bg-neutral-900 text-white border-neutral-900' : 'bg-white/60 text-neutral-500 border-neutral-200'}" data-id="${p.id}" data-enabled="${p.enabled}">
+              <button class="plugin-toggle text-xs px-3 py-1 rounded-lg border ${p.enabled ? 'bg-neutral-900 dark:bg-neutral-100 text-white dark:text-neutral-900 border-neutral-900 dark:border-neutral-100' : 'bg-white/60 dark:bg-neutral-700/60 text-neutral-500 dark:text-neutral-400 border-neutral-200/50 dark:border-neutral-600/50'}" data-id="${p.id}" data-enabled="${p.enabled}">
                 ${p.enabled ? 'Active' : 'Inactive'}
               </button>
               <button class="plugin-remove text-xs text-neutral-300 hover:text-rose-600 px-1" data-id="${p.id}" title="Uninstall — removes plugin files"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg></button>

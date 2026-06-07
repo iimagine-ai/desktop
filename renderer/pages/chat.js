@@ -58,9 +58,23 @@ const ChatPage = {
                   <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.49"/></svg>
                   <span>Attach</span>
                 </button>
+                <div id="builderBtnContainer" class="relative shrink-0">
+                  <button id="builderBtn" class="flex items-center gap-1 text-xs px-2 py-1 rounded-md text-neutral-500 dark:text-neutral-400 hover:bg-neutral-100/80 dark:hover:bg-neutral-700/60 transition-all whitespace-nowrap" title="Enter Plugin Builder mode">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>
+                    <span>Builder</span>
+                  </button>
+                  <div id="builderDropdown" class="hidden absolute bottom-full left-0 mb-1 bg-white/95 dark:bg-neutral-800/95 backdrop-blur-xl border border-neutral-200/50 dark:border-neutral-700/50 rounded-lg shadow-lg z-50 min-w-[180px] py-1 max-h-48 overflow-y-auto">
+                  </div>
+                </div>
                 <div id="projSelectorContainer" class="shrink-0"></div>
                 <div id="kbSelectorContainer" class="shrink-0 min-w-0"></div>
                 <div id="promptPickerMount" class="shrink-0"></div>
+                <div id="mcpIndicator" class="hidden shrink-0">
+                  <span class="text-[10px] leading-none py-[5px] px-2 rounded-full bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 border border-emerald-100 dark:border-emerald-800 whitespace-nowrap inline-flex items-center gap-1">
+                    <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 inline-block"></span>
+                    <span id="mcpToolCount"></span> tools
+                  </span>
+                </div>
                 <button id="downloadChatBtn" class="p-1.5 rounded-md text-neutral-400 dark:text-neutral-500 hover:text-neutral-600 dark:hover:text-neutral-300 hover:bg-neutral-100/80 dark:hover:bg-neutral-700/60 transition-all shrink-0" title="Download chat">
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
                 </button>
@@ -229,6 +243,52 @@ const ChatPage = {
       await this._stopStream(stopBtn, sendBtn, chatInput);
     });
 
+    // Builder button — enter plugin builder mode
+    const builderBtn = container.querySelector('#builderBtn');
+    const builderDropdown = container.querySelector('#builderDropdown');
+    if (builderBtn && builderDropdown) {
+      builderBtn.addEventListener('click', async () => {
+        // Populate dropdown with existing AI plugins + "New Plugin" option
+        const generated = await window.api.pluginGen.listGenerated();
+        let html = `<button data-builder-action="new" class="w-full flex items-center gap-2 px-3 py-2 text-xs text-left hover:bg-neutral-100/80 dark:hover:bg-neutral-700/60 transition-colors text-neutral-700 dark:text-neutral-300 font-medium">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M8 12h8M12 8v8"/></svg> New Plugin
+        </button>`;
+        if (generated.length > 0) {
+          html += '<div class="border-t border-neutral-200/40 dark:border-neutral-700/40 my-1"></div>';
+          for (const p of generated) {
+            html += `<button data-builder-action="edit" data-plugin-id="${p.id}" class="w-full flex items-center gap-2 px-3 py-1.5 text-xs text-left hover:bg-neutral-100/80 dark:hover:bg-neutral-700/60 transition-colors text-neutral-600 dark:text-neutral-400">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg> ${p.name}
+            </button>`;
+          }
+        }
+        builderDropdown.innerHTML = html;
+        builderDropdown.classList.toggle('hidden');
+
+        // Bind dropdown items
+        builderDropdown.querySelectorAll('button').forEach(btn => {
+          btn.addEventListener('click', () => {
+            builderDropdown.classList.add('hidden');
+            const action = btn.dataset.builderAction;
+            const pluginId = btn.dataset.pluginId;
+            if (action === 'new') {
+              // Enter builder mode with no plugin — first message will create one
+              if (window.BuilderMode) window.BuilderMode.enter(null);
+            } else if (action === 'edit' && pluginId) {
+              if (window.BuilderMode) window.BuilderMode.enter(pluginId);
+            }
+          });
+        });
+      });
+
+      // Close dropdown on outside click
+      document.addEventListener('click', (e) => {
+        const container = document.querySelector('#builderBtnContainer');
+        if (container && !container.contains(e.target)) {
+          builderDropdown.classList.add('hidden');
+        }
+      });
+    }
+
     // Recent button — navigate to chat history page
     const recentBtn = container.querySelector('#recentBtn');
     if (recentBtn) {
@@ -283,6 +343,7 @@ const ChatPage = {
       window.api.ollama.onStreamChunk((chunk) => {
         if (this.activeTypingEl?.parentNode) this.activeTypingEl.remove();
         if (chunk.message?.content && this.activeAssistantEl) {
+          this.activeAssistantEl.style.display = '';
           this.activeAssistantContent += chunk.message.content;
           this.activeAssistantEl.querySelector('.msg-content').textContent = this.activeAssistantContent;
           const msgs = document.querySelector('#messages');
@@ -298,6 +359,7 @@ const ChatPage = {
       window.api.vertex.onStreamChunk((chunk) => {
         if (this.activeTypingEl?.parentNode) this.activeTypingEl.remove();
         if (chunk.content && this.activeAssistantEl) {
+          this.activeAssistantEl.style.display = '';
           this.activeAssistantContent += chunk.content;
           this.activeAssistantEl.querySelector('.msg-content').textContent = this.activeAssistantContent;
           const msgs = document.querySelector('#messages');
@@ -313,6 +375,7 @@ const ChatPage = {
       window.api.gateway.onStreamChunk((chunk) => {
         if (this.activeTypingEl?.parentNode) this.activeTypingEl.remove();
         if (chunk.content && this.activeAssistantEl) {
+          this.activeAssistantEl.style.display = '';
           this.activeAssistantContent += chunk.content;
           this.activeAssistantEl.querySelector('.msg-content').textContent = this.activeAssistantContent;
           const msgs = document.querySelector('#messages');
@@ -324,10 +387,24 @@ const ChatPage = {
         this._onStreamComplete();
       });
 
+      // Gateway clear indicator (replaces "Searching..." with actual follow-up content)
+      window.api.gateway.onClearIndicator(() => {
+        if (this.activeAssistantEl) {
+          // Remove the indicator text from accumulated content
+          this.activeAssistantContent = this.activeAssistantContent
+            .replace(/\n\n⚡ \*Running action\.\.\.\*\n\n/g, '')
+            .replace(/\n\n🔍 \*Searching\.\.\.\*\n\n/g, '')
+            .replace(/\n\n⏸️ \*\*Approval needed:.*?\n/g, '');
+          const contentEl = this.activeAssistantEl.querySelector('.msg-content');
+          if (contentEl) contentEl.textContent = this.activeAssistantContent;
+        }
+      });
+
       // Chat RAG stream (KB-augmented chat)
       window.api.chatRag.onChunk((chunk) => {
         if (this.activeTypingEl?.parentNode) this.activeTypingEl.remove();
         if (chunk.content && this.activeAssistantEl) {
+          this.activeAssistantEl.style.display = '';
           this.activeAssistantContent += chunk.content;
           this.activeAssistantEl.querySelector('.msg-content').textContent = this.activeAssistantContent;
           const msgs = document.querySelector('#messages');
@@ -341,6 +418,24 @@ const ChatPage = {
     }
 
     chatInput.focus();
+
+    // Check for connected MCP integrations and show indicator
+    this._updateMCPIndicator(container);
+  },
+
+  async _updateMCPIndicator(container) {
+    try {
+      const indicator = container.querySelector('#mcpIndicator');
+      const countEl = container.querySelector('#mcpToolCount');
+      if (!indicator || !countEl || !window.api.mcp) return;
+      const tools = await window.api.mcp.getTools();
+      if (tools && tools.length > 0) {
+        countEl.textContent = tools.length;
+        indicator.classList.remove('hidden');
+      } else {
+        indicator.classList.add('hidden');
+      }
+    } catch {}
   },
 
   async _loadConversations(convList, messagesEl, welcomeMessage) {
@@ -591,6 +686,32 @@ const ChatPage = {
     const pm = window.ProviderManager;
     if (!pm.activeProvider) return;
 
+    // ── Plugin Generation Intent Detection ──────────────────────
+    if (text && !this.pendingAttachments.length) {
+      const intent = await window.api.pluginGen.detectIntent(text);
+      if (intent.isPluginRequest) {
+        // If in builder mode and modifying the active plugin, pass the active ID
+        if (window.BuilderMode?.isActive() && intent.action === 'modify' && !intent.pluginId) {
+          intent.pluginId = window.BuilderMode.activePluginId;
+        }
+        await this._handlePluginGeneration(text, intent, chatInput, sendBtn, messages, welcomeMessage);
+        return;
+      }
+      // Also detect general modification phrases when in builder mode
+      // When in builder mode, EVERYTHING goes to plugin generator unless it's clearly a navigation/exit command
+      if (window.BuilderMode?.isActive()) {
+        const exitPhrases = /^(?:exit|quit|leave|close|go to|navigate to|open |switch to|show me (?:chat|settings|images|videos|knowledge))/i;
+        if (!exitPhrases.test(text)) {
+          const pluginId = window.BuilderMode.activePluginId;
+          const action = pluginId ? 'modify' : 'create';
+          const autoIntent = { isPluginRequest: true, action, pluginId };
+          await this._handlePluginGeneration(text, autoIntent, chatInput, sendBtn, messages, welcomeMessage);
+          return;
+        }
+      }
+    }
+    // ── End Plugin Generation ────────────────────────────────────
+
     // Auto-create conversation if none active
     if (!this.activeConversationId) {
       await this._startNewConversation(convList, messages, welcomeMessage);
@@ -717,6 +838,7 @@ const ChatPage = {
         const chatResult = await pm.activeProvider.chat(result.messages || this.chatHistory);
         if (!chatResult.success) {
           if (this.activeTypingEl?.parentNode) this.activeTypingEl.remove();
+          this.activeAssistantEl.style.display = '';
           if (chatResult.error && chatResult.error.includes('aborted')) {
             this.activeAssistantEl.querySelector('.msg-content').textContent = 'Response stopped.';
             this.activeAssistantEl.querySelector('.msg-content').classList.add('text-neutral-400');
@@ -835,6 +957,7 @@ const ChatPage = {
 
       if (!result.success) {
         if (this.activeTypingEl?.parentNode) this.activeTypingEl.remove();
+        this.activeAssistantEl.style.display = '';
         this.activeAssistantEl.querySelector('.msg-content').textContent =
           `Error: ${result.error}`;
         this.activeAssistantEl.querySelector('.msg-content').classList.add('text-red-500');
@@ -860,6 +983,7 @@ const ChatPage = {
 
     if (!result.success) {
       if (this.activeTypingEl?.parentNode) this.activeTypingEl.remove();
+      this.activeAssistantEl.style.display = '';
       if (result.error && result.error.includes('aborted')) {
         this.activeAssistantEl.querySelector('.msg-content').textContent = 'Response stopped.';
         this.activeAssistantEl.querySelector('.msg-content').classList.add('text-neutral-400');
@@ -913,7 +1037,7 @@ const ChatPage = {
     const bubble = document.createElement('div');
     bubble.className = role === 'user'
       ? 'bg-neutral-900 dark:bg-neutral-100 text-white dark:text-neutral-900 rounded-2xl rounded-br-sm px-4 py-2.5 text-sm'
-      : 'text-neutral-800 dark:text-neutral-200 rounded-2xl rounded-bl-sm px-4 py-2.5 text-sm whitespace-pre-wrap';
+      : 'msg-content text-neutral-800 dark:text-neutral-200 rounded-2xl rounded-bl-sm px-4 py-2.5 text-sm whitespace-pre-wrap';
     if (role === 'assistant') {
       bubble.classList.add('assistant-bubble');
     }
@@ -1053,6 +1177,7 @@ const ChatPage = {
   _createAssistantBubble(container) {
     const div = document.createElement('div');
     div.className = 'message-enter group flex justify-start';
+    div.style.display = 'none'; // Hidden until first token arrives
     const wrapper = document.createElement('div');
     wrapper.className = 'flex flex-col max-w-[85%]';
     const bubble = document.createElement('div');
@@ -1092,6 +1217,8 @@ const ChatPage = {
   async _onStreamComplete() {
     if (this.activeTypingEl?.parentNode) this.activeTypingEl.remove();
     if (this.activeAssistantContent && this.activeConversationId) {
+      // Ensure bubble is visible
+      if (this.activeAssistantEl) this.activeAssistantEl.style.display = '';
       // Run plugin postprocess hooks
       const postprocessed = await window.api.plugins.chatPostprocess({
         response: this.activeAssistantContent,
@@ -1182,6 +1309,88 @@ const ChatPage = {
       tokensEl.classList.add('hidden');
     }
   },
+
+  // ── Plugin Generation Handler ─────────────────────────────────
+  async _handlePluginGeneration(text, intent, chatInput, sendBtn, messages, welcomeMessage) {
+    welcomeMessage.classList.add('hidden');
+
+    // Show user message
+    this._appendMessage(messages, 'user', text);
+    chatInput.value = '';
+    chatInput.style.height = 'auto';
+    sendBtn.disabled = true;
+
+    if (intent.action === 'delete') {
+      this._appendMessage(messages, 'assistant', `🗑️ Deleting plugin "${intent.pluginId}"...`);
+      const result = await window.api.pluginGen.delete(intent.pluginId);
+      if (result.success) {
+        await window.api.pluginGen.refreshSidebar();
+        this._replaceLastAssistant(messages, `✅ Plugin "${intent.pluginId}" has been deleted.`);
+        // Refresh sidebar items
+        await window.loadPluginSidebarItems?.();
+      } else {
+        this._replaceLastAssistant(messages, `❌ Could not delete plugin: ${result.error || 'not found'}`);
+      }
+      sendBtn.disabled = false;
+      return;
+    }
+
+    // Create or modify
+    const actionLabel = intent.action === 'modify' ? 'Updating' : 'Building';
+    this._appendMessage(messages, 'assistant', `🔨 ${actionLabel} your plugin...`);
+
+    const result = await window.api.pluginGen.generate(text, intent.pluginId || null);
+
+    if (result.success) {
+      await window.api.pluginGen.refreshSidebar();
+      // Refresh sidebar nav items
+      await window.loadPluginSidebarItems?.();
+
+      // Check if the plugin activated successfully or has an error
+      const plugins = await window.api.plugins.list();
+      const generated = plugins.find(p => p.id === result.pluginId);
+      if (generated && generated.error) {
+        // Plugin was generated but crashed on activation — offer to fix
+        const msg = `⚠️ Created "${result.pluginName}" but it has a bug:\n\n\`${generated.error}\`\n\nWant me to fix it? Just say "fix the ${result.pluginId} plugin"`;
+        this._replaceLastAssistant(messages, msg);
+        // Refresh builder preview if already in builder mode, otherwise enter it
+        if (window.BuilderMode?.isActive()) {
+          window.BuilderMode.activePluginId = result.pluginId;
+          window.BuilderMode.refreshPreview();
+        } else {
+          window.BuilderMode?.enter(result.pluginId);
+        }
+      } else {
+        const msg = intent.action === 'modify'
+          ? `✅ Updated "${result.pluginName}". Preview refreshed →`
+          : `✅ Created "${result.pluginName}"! Preview is on the right →`;
+        this._replaceLastAssistant(messages, msg);
+        // Refresh builder preview if already in builder mode, otherwise enter it
+        if (window.BuilderMode?.isActive()) {
+          window.BuilderMode.activePluginId = result.pluginId;
+          window.BuilderMode.refreshPreview();
+          window.BuilderMode._updatePluginName();
+        } else {
+          window.BuilderMode?.enter(result.pluginId);
+        }
+      }
+    } else {
+      this._replaceLastAssistant(messages, `❌ Plugin generation failed: ${result.error}\n\nTry rephrasing your request or using a more capable model.`);
+    }
+
+    sendBtn.disabled = false;
+  },
+
+  _replaceLastAssistant(messagesEl, newContent) {
+    // Search globally — in builder mode the chat may be in a different container
+    const searchIn = document.querySelector('#builderChatContent') || messagesEl;
+    const allMsgs = searchIn.querySelectorAll('.msg-content');
+    if (allMsgs.length > 0) {
+      const last = allMsgs[allMsgs.length - 1];
+      last.innerHTML = this._renderMarkdown ? this._renderMarkdown(newContent) : newContent.replace(/\n/g, '<br>');
+    }
+  },
+  // ── End Plugin Generation Handler ──────────────────────────────
 
   async _stopStream(stopBtn, sendBtn, chatInput) {
     try {

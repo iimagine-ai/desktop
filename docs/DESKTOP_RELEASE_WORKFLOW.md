@@ -119,6 +119,13 @@ xattr -cr /Applications/IIMAGINE\ Desktop.app
 
 Then open the app normally. This is required every time you install a new version until we set up Apple code signing.
 
+### 10. Windows install notes
+
+The Windows .exe installer works without special steps. However:
+- Windows Defender SmartScreen may show a warning for unsigned apps — click "More info" → "Run anyway"
+- The iimagine-engine binary (llama-server) requires the Visual C++ Redistributable. If chat doesn't work, install: https://aka.ms/vs/17/release/vc_redist.x64.exe
+- Models are stored in `C:\Users\<username>\.iimagine\models\`
+
 ---
 
 ## Common Issues

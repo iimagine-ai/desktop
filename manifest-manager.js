@@ -41,9 +41,48 @@ async function initialize() {
 
 /**
  * Get the current manifest (cached or bundled).
+ * Lazily loads from cache/bundled if initialize() hasn't run yet, so callers
+ * (e.g. the download manager) never get a null manifest.
  */
 function getManifest() {
+  if (!cachedManifest) {
+    cachedManifest = loadFromCache() || loadBundled();
+    manifestVersion = cachedManifest?.version || null;
+  }
   return cachedManifest;
+}
+
+/**
+ * Get the full list of models in the active manifest.
+ * This is the single source of truth for the catalog (browse) and downloads.
+ */
+function getModels() {
+  return getManifest()?.models || [];
+}
+
+/**
+ * Look up a single model by id.
+ * Tolerates engine-style ids like "qwen3-8b:latest" by stripping the tag.
+ */
+function getModel(id) {
+  if (!id) return null;
+  const models = getModels();
+  const exact = models.find(m => m.id === id);
+  if (exact) return exact;
+  const cleanId = String(id).toLowerCase().split(':')[0];
+  return models.find(m => String(m.id).toLowerCase() === cleanId) || null;
+}
+
+/**
+ * Find a model + variant by GGUF filename (used to match installed files
+ * back to the registry).
+ */
+function findByFilename(filename) {
+  for (const model of getModels()) {
+    const variant = (model.variants || []).find(v => v.filename === filename);
+    if (variant) return { id: model.id, model, variant };
+  }
+  return null;
 }
 
 /**
@@ -169,6 +208,9 @@ function dismissUpdate() {
 module.exports = {
   initialize,
   getManifest,
+  getModels,
+  getModel,
+  findByFilename,
   checkUpdate,
   dismissUpdate,
 };

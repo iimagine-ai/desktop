@@ -278,8 +278,13 @@ async function loadPluginSidebarItems() {
       const btn = document.createElement('button');
       btn.setAttribute('data-page', `plugin:${item.id}`);
       btn.className = 'nav-btn w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-neutral-500 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-neutral-100 hover:bg-white/40 dark:hover:bg-neutral-800/40 transition-all group';
+      // Determine if icon is SVG or emoji fallback
+      const isSvg = item.icon && item.icon.trim().startsWith('<svg');
+      const iconHtml = isSvg
+        ? `<span class="group-hover:scale-110 transition-transform flex-shrink-0 [&>svg]:w-[18px] [&>svg]:h-[18px]">${item.icon}</span>`
+        : `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="group-hover:scale-110 transition-transform flex-shrink-0"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M9 12h6"/><path d="M12 9v6"/></svg>`;
       btn.innerHTML = `
-        <span class="text-base group-hover:scale-110 transition-transform flex-shrink-0">${item.icon}</span>
+        ${iconHtml}
         <span class="text-sm font-medium sidebar-label">${item.label}</span>
       `;
       btn.addEventListener('click', () => {
@@ -309,7 +314,31 @@ AppRouter.navigatePlugin = async function(pluginId, activeTab) {
   try {
     const html = await window.api.plugins.renderPage(pluginId, activeTab);
     if (html) {
-      container.innerHTML = html;
+      // Check if this is an AI-generated plugin — add edit button
+      const plugins = await window.api.plugins.list();
+      const plugin = plugins.find(p => p.id === pluginId);
+      const isAiGenerated = plugin?.author === 'ai-generated';
+
+      const editBar = isAiGenerated ? `
+        <div class="flex items-center justify-end px-4 py-1.5 border-b border-neutral-200/30 dark:border-neutral-700/30 bg-white/20 dark:bg-neutral-800/20">
+          <button id="enterBuilderBtn" class="text-xs px-3 py-1.5 rounded-lg bg-neutral-900 dark:bg-neutral-100 text-white dark:text-neutral-900 hover:bg-neutral-800 dark:hover:bg-neutral-200 transition-all shadow-sm font-medium flex items-center gap-1.5">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="inline-block"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg> Edit with AI
+          </button>
+        </div>
+      ` : '';
+
+      container.innerHTML = editBar + html;
+
+      // Bind edit button
+      if (isAiGenerated) {
+        const editBtn = container.querySelector('#enterBuilderBtn');
+        if (editBtn) {
+          editBtn.addEventListener('click', () => {
+            if (window.BuilderMode) window.BuilderMode.enter(pluginId);
+          });
+        }
+      }
+
       // Execute any script tags in the injected HTML
       container.querySelectorAll('script').forEach(oldScript => {
         const newScript = document.createElement('script');
@@ -366,6 +395,16 @@ async function init() {
 
   // Load plugin sidebar items
   await loadPluginSidebarItems();
+
+  // Listen for sidebar refresh events (from plugin generator)
+  if (window.api.pluginGen?.onSidebarChanged) {
+    window.api.pluginGen.onSidebarChanged(() => {
+      loadPluginSidebarItems();
+    });
+  }
+
+  // Make loadPluginSidebarItems globally accessible for chat to call
+  window.loadPluginSidebarItems = loadPluginSidebarItems;
 
   // Re-check provider status on chat page after models load
   if (window.ProviderManager.activeProvider) {

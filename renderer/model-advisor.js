@@ -31,7 +31,7 @@ function getRecommendations(manifest, hardware, categories) {
     return { models: [], message: 'No model data available. Check your internet connection.' };
   }
 
-  const ramGB = hardware.ramGB || 8;
+  const ramGB = hardware.aiMemoryGB || hardware.ramGB || 8;
   const selectedCats = categories.length ? categories : ['text'];
 
   // Filter models that match at least one selected category
@@ -94,8 +94,8 @@ function checkCompatibility(model, hardware) {
   const ram = getVariantRAM(v);
   const size = getVariantSize(v);
 
-  if (ram > (hardware.ramGB || 8)) {
-    return { compatible: false, reason: `Requires ${ram}GB RAM (you have ${hardware.ramGB}GB)` };
+  if (ram > (hardware.aiMemoryGB || hardware.ramGB || 8)) {
+    return { compatible: false, reason: `Requires ${ram}GB RAM (you have ${hardware.aiMemoryGB || hardware.ramGB}GB)` };
   }
 
   if (size > (hardware.diskFreeGB || 999)) {

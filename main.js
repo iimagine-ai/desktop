@@ -23,7 +23,10 @@ const modelOrchestrator = require('./model-orchestrator');
 const engineManager = require('./engine-manager');
 const modelRegistry = require('./model-registry');
 const localAI = require('./local-ai-adapter');
+const MCPClientManager = require('./mcp-client');
 const downloadManager = require('./download-manager');
+
+const mcpClient = new MCPClientManager();
 
 const store = new Store();
 
@@ -734,16 +737,48 @@ function setupIPC() {
           return { success: true };
 
         } else {
-          // OpenAI-compatible (openai, openrouter) — streaming
+          // OpenAI-compatible (openai, openrouter) — streaming with tool calling
+          const toolCalling = require('./tool-calling');
+          const webSearchEnabled = !!store.get('webSearch.enabled') || !!store.get('local.webSearchEnabled');
+          const kbStats = kbStorage.getKBStats();
+          const hasKBDocuments = kbStats.embeddingCount > 0;
+          const tools = toolCalling.getActiveTools({ webSearchEnabled, hasKBDocuments });
+
+          // Merge MCP tools (from connected integrations)
+          const mcpTools = mcpClient.getToolsAsOpenAIFunctions();
+          const allTools = [...tools, ...mcpTools];
+
+          // If MCP tools are available, add a system hint so the LLM knows to use them
+          if (mcpTools.length > 0) {
+            const connectedServers = Object.entries(mcpClient.getServers())
+              .filter(([_, s]) => s.status === 'connected')
+              .map(([id, s]) => `${s.name} (${s.description})`)
+              .join(', ');
+            const mcpHint = `\n\nYou have direct access to the following connected integrations: ${connectedServers}. When the user asks to read emails, check calendar, search docs, etc., use the appropriate mcp_* tool — do NOT use rag_search for external service queries.`;
+            const sysIdx = messages.findIndex(m => m.role === 'system');
+            if (sysIdx >= 0) {
+              messages[sysIdx].content += mcpHint;
+            } else {
+              messages.unshift({ role: 'system', content: `You are a helpful assistant.${mcpHint}` });
+            }
+          }
+
           const headers = { 'Content-Type': 'application/json', 'Authorization': `${config.authHeader} ${apiKey}` };
           if (vendor === 'openrouter') {
             headers['HTTP-Referer'] = 'https://iimagine.ai';
             headers['X-Title'] = 'IIMAGINE Desktop';
           }
+          const requestBody = { model: activeModel, messages, stream: true, max_completion_tokens: 4096, temperature: 0.7 };
+          if (allTools.length > 0) {
+            requestBody.tools = allTools;
+            requestBody.tool_choice = 'auto';
+            console.log(`[gateway:chat] Sending ${allTools.length} tools to ${activeModel} (${tools.length} built-in + ${mcpTools.length} MCP)`);
+          }
+
           const res = await fetch(config.url, {
             method: 'POST',
             headers,
-            body: JSON.stringify({ model: activeModel, messages, stream: true, max_completion_tokens: 4096, temperature: 0.7 }),
+            body: JSON.stringify(requestBody),
             signal: controller.signal,
           });
           if (!res.ok) {
@@ -752,23 +787,229 @@ function setupIPC() {
           }
           const reader = res.body.getReader();
           const decoder = new TextDecoder();
+          let gwFullContent = '';
+          let gwToolCallChunks = [];
+          let sseBuffer = ''; // Buffer for incomplete SSE lines across chunks
+
           while (true) {
             const { done, value } = await reader.read();
             if (done) break;
-            const chunk = decoder.decode(value);
-            const lines = chunk.split('\n').filter(l => l.startsWith('data: '));
-            for (const line of lines) {
-              const data = line.slice(6).trim();
-              if (data === '[DONE]') { mainWindow?.webContents.send('gateway:stream-done'); }
-              else {
-                try {
-                  const parsed = JSON.parse(data);
-                  const content = parsed.choices?.[0]?.delta?.content || '';
-                  if (content) mainWindow?.webContents.send('gateway:stream-chunk', { content });
-                } catch {}
-              }
+            sseBuffer += decoder.decode(value, { stream: true });
+            const sseLines = sseBuffer.split('\n');
+            // Keep the last element (may be incomplete)
+            sseBuffer = sseLines.pop() || '';
+            for (const line of sseLines) {
+              const trimmed = line.trim();
+              if (!trimmed.startsWith('data:')) continue;
+              const data = trimmed.slice(trimmed.startsWith('data: ') ? 6 : 5).trim();
+              if (data === '[DONE]') break;
+              try {
+                const parsed = JSON.parse(data);
+                const delta = parsed.choices?.[0]?.delta;
+                // Detect tool calls
+                if (delta?.tool_calls) {
+                  for (const tc of delta.tool_calls) {
+                    const idx = tc.index ?? 0;
+                    if (!gwToolCallChunks[idx]) gwToolCallChunks[idx] = { id: '', name: '', arguments: '' };
+                    if (tc.id) gwToolCallChunks[idx].id = tc.id;
+                    if (tc.function?.name) gwToolCallChunks[idx].name += tc.function.name;
+                    if (tc.function?.arguments) gwToolCallChunks[idx].arguments += tc.function.arguments;
+                  }
+                }
+                const content = delta?.content || '';
+                if (content) {
+                  gwFullContent += content;
+                  mainWindow?.webContents.send('gateway:stream-chunk', { content });
+                }
+              } catch {}
             }
           }
+
+          // If tool calls detected, execute and do follow-up
+          if (gwToolCallChunks.length > 0) {
+            console.log('[gateway:chat] Tool calls detected:', gwToolCallChunks.map(tc => ({ name: tc.name, argsLen: tc.arguments.length })));
+            // Show appropriate action indicator based on tool types
+            const hasMCPTools = gwToolCallChunks.some(tc => tc.name.startsWith('mcp_'));
+            const indicator = hasMCPTools ? '\n\n⚡ *Running action...*\n\n' : '\n\n🔍 *Searching...*\n\n';
+            mainWindow?.webContents.send('gateway:stream-chunk', { content: indicator });
+            const context = { store, kbStorage };
+            const updatedMessages = [...messages];
+            const assistantToolCalls = gwToolCallChunks.map((tc, i) => ({
+              id: tc.id || `call_${i}`,
+              type: 'function',
+              function: { name: tc.name, arguments: tc.arguments },
+            }));
+            updatedMessages.push({ role: 'assistant', content: gwFullContent || null, tool_calls: assistantToolCalls });
+
+            for (const tc of assistantToolCalls) {
+              let args = {};
+              try { args = JSON.parse(tc.function.arguments); } catch {}
+              console.log(`[gateway:chat] Executing tool: ${tc.function.name}`, args);
+
+              // Skip if tool name is empty (streaming didn't capture it)
+              if (!tc.function.name) {
+                console.error('[gateway:chat] Empty tool name — SSE chunk may have been lost');
+                updatedMessages.push({ role: 'tool', tool_call_id: tc.id, content: 'Error: tool name not captured' });
+                continue;
+              }
+
+              let toolResult;
+              // Check if this is an MCP tool call
+              const mcpParsed = mcpClient.parseToolCallName(tc.function.name);
+              if (mcpParsed) {
+                // Check if this is a write operation requiring user approval
+                if (mcpClient.isWriteOperation(mcpParsed.toolName)) {
+                  // Send confirmation request to renderer and wait for response
+                  const serverName = mcpClient.getServers()[mcpParsed.serverId]?.name || mcpParsed.serverId;
+                  mainWindow?.webContents.send('gateway:stream-chunk', { content: `\n\n⏸️ **Approval needed:** ${serverName} wants to run \`${mcpParsed.toolName}\`\n` });
+                  // For now, auto-approve (TODO: implement interactive approval UI)
+                  // In future: emit event, wait for renderer response
+                }
+
+                // Route to MCP server
+                const mcpResult = await mcpClient.callTool(mcpParsed.serverId, mcpParsed.toolName, args);
+                if (mcpResult.success) {
+                  // Extract text content from MCP response
+                  const content = mcpResult.result?.content;
+                  if (Array.isArray(content)) {
+                    toolResult = content.map(c => c.text || JSON.stringify(c)).join('\n');
+                  } else {
+                    toolResult = JSON.stringify(mcpResult.result);
+                  }
+                } else {
+                  toolResult = `MCP tool error: ${mcpResult.error}`;
+                }
+              } else {
+                // Built-in tool execution
+                toolResult = await toolCalling.executeTool(tc.function.name, args, context);
+              }
+              updatedMessages.push({ role: 'tool', tool_call_id: tc.id, content: toolResult || '' });
+            }
+
+            // Follow-up request — include tools so LLM can chain (e.g. search → read)
+            // Clear the indicator text before streaming follow-up
+            mainWindow?.webContents.send('gateway:clear-indicator');
+            const followBody = { model: activeModel, messages: updatedMessages, stream: true, max_completion_tokens: 4096, temperature: 0.7 };
+            if (allTools.length > 0) { followBody.tools = allTools; followBody.tool_choice = 'auto'; }
+            let followRes;
+            try {
+              followRes = await fetch(config.url, {
+                method: 'POST',
+                headers,
+                body: JSON.stringify(followBody),
+                signal: controller.signal,
+              });
+            } catch (fetchErr) {
+              console.error('[gateway:chat] Follow-up fetch failed:', fetchErr.message);
+              mainWindow?.webContents.send('gateway:stream-chunk', { content: '\n\nI encountered a network error while processing. Please try again.' });
+              followRes = null;
+            }
+            if (followRes?.ok) {
+              // Follow-up streaming with tool chaining (max 5 additional rounds)
+              let chainDepth = 0;
+              const maxChainDepth = store.get('integrations.maxActionSteps') || 10;
+              let currentRes = followRes;
+              let lastRoundHadToolCalls = false;
+              try {
+                while (currentRes.ok && chainDepth < maxChainDepth) {
+                  const fReader = currentRes.body.getReader();
+                  let fBuffer = '';
+                  let fContent = '';
+                  let fToolChunks = [];
+
+                  while (true) {
+                    const { done: d2, value: v2 } = await fReader.read();
+                    if (d2) break;
+                    fBuffer += decoder.decode(v2, { stream: true });
+                    const fLines = fBuffer.split('\n');
+                    fBuffer = fLines.pop() || '';
+                    for (const fLine of fLines) {
+                      const fTrimmed = fLine.trim();
+                      if (!fTrimmed.startsWith('data:')) continue;
+                      const fData = fTrimmed.slice(fTrimmed.startsWith('data: ') ? 6 : 5).trim();
+                      if (fData === '[DONE]') break;
+                      try {
+                        const fParsed = JSON.parse(fData);
+                        const fDelta = fParsed.choices?.[0]?.delta;
+                        if (fDelta?.tool_calls) {
+                          for (const tc of fDelta.tool_calls) {
+                            const idx = tc.index ?? 0;
+                            if (!fToolChunks[idx]) fToolChunks[idx] = { id: '', name: '', arguments: '' };
+                            if (tc.id) fToolChunks[idx].id = tc.id;
+                            if (tc.function?.name) fToolChunks[idx].name += tc.function.name;
+                            if (tc.function?.arguments) fToolChunks[idx].arguments += tc.function.arguments;
+                          }
+                        }
+                        const text = fDelta?.content || '';
+                        if (text) { fContent += text; mainWindow?.webContents.send('gateway:stream-chunk', { content: text }); }
+                      } catch {}
+                    }
+                  }
+
+                  // If no tool calls in this round, we're done
+                  if (!fToolChunks.length) { lastRoundHadToolCalls = false; break; }
+
+                  lastRoundHadToolCalls = true;
+
+                  // Execute chained tool calls
+                  console.log(`[gateway:chat] Chained tool calls (depth ${chainDepth + 1}):`, fToolChunks.map(tc => tc.name));
+                  mainWindow?.webContents.send('gateway:stream-chunk', { content: '\n\n⚡ *Running action...*\n\n' });
+                  const chainAssistantCalls = fToolChunks.map((tc, i) => ({ id: tc.id || `call_chain_${i}`, type: 'function', function: { name: tc.name, arguments: tc.arguments } }));
+                  updatedMessages.push({ role: 'assistant', content: fContent || null, tool_calls: chainAssistantCalls });
+
+                  for (const tc of chainAssistantCalls) {
+                    let args = {}; try { args = JSON.parse(tc.function.arguments); } catch {}
+                    console.log(`[gateway:chat] Chained tool: ${tc.function.name}`, args);
+                    if (!tc.function.name) { updatedMessages.push({ role: 'tool', tool_call_id: tc.id, content: 'Error: empty tool name' }); continue; }
+                    let toolResult;
+                    const mcpParsed = mcpClient.parseToolCallName(tc.function.name);
+                    if (mcpParsed) {
+                      const mcpResult = await mcpClient.callTool(mcpParsed.serverId, mcpParsed.toolName, args);
+                      if (mcpResult.success) {
+                        const content = mcpResult.result?.content;
+                        toolResult = Array.isArray(content) ? content.map(c => c.text || JSON.stringify(c)).join('\n') : JSON.stringify(mcpResult.result);
+                      } else { toolResult = `MCP tool error: ${mcpResult.error}`; }
+                    } else {
+                      toolResult = await toolCalling.executeTool(tc.function.name, args, context);
+                    }
+                    updatedMessages.push({ role: 'tool', tool_call_id: tc.id, content: toolResult || '' });
+                  }
+
+                  // Next round — clear indicator before making next LLM call
+                  mainWindow?.webContents.send('gateway:clear-indicator');
+                  chainDepth++;
+
+                  // If we've hit the depth limit, don't make another fetch — fall through to the fallback message
+                  if (chainDepth >= maxChainDepth) {
+                    console.log(`[gateway:chat] Chain depth limit reached (${maxChainDepth})`);
+                    break;
+                  }
+
+                  const nextBody = { model: activeModel, messages: updatedMessages, stream: true, max_completion_tokens: 4096, temperature: 0.7, tools: allTools, tool_choice: 'auto' };
+                  currentRes = await fetch(config.url, { method: 'POST', headers, body: JSON.stringify(nextBody), signal: controller.signal });
+
+                  if (!currentRes.ok) {
+                    console.error(`[gateway:chat] Chained fetch failed: ${currentRes.status} ${currentRes.statusText}`);
+                    break;
+                  }
+                }
+              } catch (chainErr) {
+                console.error('[gateway:chat] Error in tool chain loop:', chainErr.message);
+                mainWindow?.webContents.send('gateway:clear-indicator');
+                mainWindow?.webContents.send('gateway:stream-chunk', { content: '\n\nAn error occurred while processing the action chain. Please try again.' });
+              }
+
+              // If the loop ended because of depth limit or fetch error WHILE tools were still needed, send fallback
+              if (lastRoundHadToolCalls) {
+                mainWindow?.webContents.send('gateway:clear-indicator');
+                mainWindow?.webContents.send('gateway:stream-chunk', { content: '\n\nI completed several steps but ran out of processing rounds. Send another message and I\'ll continue where I left off.' });
+              }
+            } else if (followRes && !followRes.ok) {
+              console.error(`[gateway:chat] Follow-up response error: ${followRes.status}`);
+              mainWindow?.webContents.send('gateway:stream-chunk', { content: '\n\nI ran the action but couldn\'t generate a follow-up response. The action may have completed — please check and let me know if you need more help.' });
+            }
+          }
+
           mainWindow?.webContents.send('gateway:stream-done');
           return { success: true };
         }
@@ -1065,6 +1306,13 @@ function setupIPC() {
   });
 
   ipcMain.handle('engine:getRegistry', () => {
+    // The live manifest (cache → remote → bundled) is the source of truth for
+    // the catalog. Fall back to the static registry only if the manifest is
+    // unavailable, so the browser/advisor always have data.
+    const manifestModels = manifestManager.getModels();
+    if (manifestModels && manifestModels.length > 0) {
+      return manifestModels;
+    }
     return modelRegistry.getAllModels();
   });
 
@@ -1106,6 +1354,7 @@ function setupIPC() {
 
   // Engine — streaming chat (OpenAI-compatible)
   ipcMain.handle('engine:chatStream', async (event, { messages }) => {
+    const toolCalling = require('./tool-calling');
     const controller = new AbortController();
     streamAbort.setActiveStreamController(controller);
 
@@ -1162,12 +1411,18 @@ function setupIPC() {
       }
 
       const numCtx = store.get('ollama.numCtx', '4096');
+      const webSearchEnabled = !!store.get('webSearch.enabled') || !!store.get('local.webSearchEnabled');
+      const kbStats = kbStorage.getKBStats();
+      const hasKBDocuments = kbStats.embeddingCount > 0;
+      const tools = toolCalling.getActiveTools({ webSearchEnabled, hasKBDocuments });
+
       const result = await engineManager.chat({
         messages,
         stream: true,
         options: {
           max_tokens: parseInt(numCtx) || 4096,
           signal: controller.signal,
+          tools: tools.length > 0 ? tools : undefined,
         },
       });
 
@@ -1179,6 +1434,8 @@ function setupIPC() {
       const reader = result.response.body.getReader();
       const decoder = new TextDecoder();
       let buffer = '';
+      let fullContent = '';
+      let toolCallChunks = []; // Accumulate tool call deltas
 
       while (true) {
         const { done, value } = await reader.read();
@@ -1192,19 +1449,100 @@ function setupIPC() {
           if (!line.startsWith('data: ')) continue;
           const data = line.slice(6).trim();
           if (data === '[DONE]') {
-            mainWindow?.webContents.send('ollama:stream-done');
             break;
           }
           try {
             const parsed = JSON.parse(data);
-            const content = parsed.choices?.[0]?.delta?.content || '';
+            const delta = parsed.choices?.[0]?.delta;
+            const finishReason = parsed.choices?.[0]?.finish_reason;
+
+            // Detect tool calls in OpenAI streaming format
+            if (delta?.tool_calls) {
+              for (const tc of delta.tool_calls) {
+                const idx = tc.index || 0;
+                if (!toolCallChunks[idx]) {
+                  toolCallChunks[idx] = { id: tc.id || '', name: '', arguments: '' };
+                }
+                if (tc.function?.name) toolCallChunks[idx].name = tc.function.name;
+                if (tc.function?.arguments) toolCallChunks[idx].arguments += tc.function.arguments;
+              }
+            }
+
+            // Regular content
+            const content = delta?.content || '';
             if (content) {
-              // Send in same format as existing ollama:stream-chunk for compatibility
-              mainWindow?.webContents.send('ollama:stream-chunk', {
-                message: { content },
-              });
+              // Strip Gemma 4 special tokens that leak through (e.g. <unused35>, <unused0>)
+              const cleaned = content.replace(/<unused\d+>|<tool_response\|>|<\/tool_response>|\[multimodal\]/g, '');
+              if (cleaned) {
+                fullContent += cleaned;
+                mainWindow?.webContents.send('ollama:stream-chunk', {
+                  message: { content: cleaned },
+                });
+              }
             }
           } catch {}
+        }
+      }
+
+      // If tool calls were detected, execute them and do a follow-up
+      if (toolCallChunks.length > 0) {
+        mainWindow?.webContents.send('ollama:stream-chunk', { message: { content: '\n\n🔍 *Searching...*\n\n' } });
+
+        const context = { store, kbStorage };
+        const updatedMessages = [...messages];
+        
+        // Add assistant message with tool_calls
+        const assistantToolCalls = toolCallChunks.map((tc, i) => ({
+          id: tc.id || `call_${i}`,
+          type: 'function',
+          function: { name: tc.name, arguments: tc.arguments },
+        }));
+        updatedMessages.push({ role: 'assistant', content: fullContent || null, tool_calls: assistantToolCalls });
+
+        // Execute each tool and add results
+        for (const tc of assistantToolCalls) {
+          let args = {};
+          try { args = JSON.parse(tc.function.arguments); } catch {}
+          console.log(`[engine:chatStream] Executing tool: ${tc.function.name}`, args);
+          const toolResult = await toolCalling.executeTool(tc.function.name, args, context);
+          updatedMessages.push({ role: 'tool', tool_call_id: tc.id, content: toolResult });
+        }
+
+        // Follow-up request with tool results (no tools this time to avoid loops)
+        const followUpResult = await engineManager.chat({
+          messages: updatedMessages,
+          stream: true,
+          options: {
+            max_tokens: parseInt(numCtx) || 4096,
+            signal: controller.signal,
+          },
+        });
+
+        if (followUpResult.success) {
+          const followReader = followUpResult.response.body.getReader();
+          let followBuffer = '';
+          while (true) {
+            const { done: d2, value: v2 } = await followReader.read();
+            if (d2) break;
+            followBuffer += decoder.decode(v2, { stream: true });
+            const followLines = followBuffer.split('\n');
+            followBuffer = followLines.pop() || '';
+            for (const fLine of followLines) {
+              if (!fLine.startsWith('data: ')) continue;
+              const fData = fLine.slice(6).trim();
+              if (fData === '[DONE]') break;
+              try {
+                const fParsed = JSON.parse(fData);
+                const fContent = fParsed.choices?.[0]?.delta?.content || '';
+                if (fContent) {
+                  const fCleaned = fContent.replace(/<unused\d+>|<tool_response\|>|<\/tool_response>|\[multimodal\]/g, '');
+                  if (fCleaned) {
+                    mainWindow?.webContents.send('ollama:stream-chunk', { message: { content: fCleaned } });
+                  }
+                }
+              } catch {}
+            }
+          }
         }
       }
 
@@ -1251,7 +1589,9 @@ function setupIPC() {
   // ── Local AI — unified interface (engine-first, Ollama fallback) ──
   // This is the preferred API for new renderer code.
   ipcMain.handle('localAI:status', async () => {
-    return await localAI.getStatus();
+    const status = await localAI.getStatus();
+    console.log('[localAI:status]', JSON.stringify({ running: status.running, engine: status.engine, modelCount: status.models?.length, installed: status.installed }));
+    return status;
   });
 
   ipcMain.handle('localAI:ensureRunning', async () => {
@@ -1335,9 +1675,12 @@ function setupIPC() {
               const parsed = JSON.parse(data);
               const content = parsed.choices?.[0]?.delta?.content || '';
               if (content) {
-                mainWindow?.webContents.send('ollama:stream-chunk', {
-                  message: { content },
-                });
+                const cleaned = content.replace(/<unused\d+>|<tool_response\|>|<\/tool_response>|\[multimodal\]/g, '');
+                if (cleaned) {
+                  mainWindow?.webContents.send('ollama:stream-chunk', {
+                    message: { content: cleaned },
+                  });
+                }
               }
             } catch {}
           }
@@ -1977,8 +2320,11 @@ END OF DOCUMENTS`;
               const parsed = JSON.parse(data);
               const content = parsed.choices?.[0]?.delta?.content || '';
               if (content) {
-                fullResponse += content;
-                mainWindow?.webContents.send('chat:rag-chunk', { content });
+                const cleaned = content.replace(/<unused\d+>|<tool_response\|>|<\/tool_response>|\[multimodal\]/g, '');
+                if (cleaned) {
+                  fullResponse += cleaned;
+                  mainWindow?.webContents.send('chat:rag-chunk', { content: cleaned });
+                }
               }
             } catch {}
           }
@@ -2187,25 +2533,49 @@ END OF DOCUMENTS`;
   ipcMain.handle('plugins:setEnabled', (event, id, enabled) => pluginManager.setEnabled(id, enabled));
   ipcMain.handle('plugins:getSidebarItems', () => pluginManager.getSidebarItems());
   ipcMain.handle('plugins:renderPage', (event, pluginId) => {
-    const renderer = pluginManager.getPageRenderer(pluginId);
-    if (!renderer) return null;
-    return renderer();
+    try {
+      const renderer = pluginManager.getPageRenderer(pluginId);
+      if (!renderer) return null;
+      return renderer();
+    } catch (err) {
+      console.error(`[Plugin] renderPage error for ${pluginId}:`, err.message);
+      pluginManager._logError(pluginId, `renderPage crash: ${err.message}`);
+      return `<div class="p-6"><div class="bg-rose-50 dark:bg-rose-900/20 border border-rose-200 dark:border-rose-800 rounded-2xl p-5"><h3 class="text-sm font-medium text-rose-700 dark:text-rose-400 mb-2">Plugin Error</h3><p class="text-xs text-rose-600 dark:text-rose-500">${err.message}</p><p class="text-xs text-neutral-500 dark:text-neutral-400 mt-3">Try saying "fix the ${pluginId} plugin" in chat.</p></div></div>`;
+    }
   });
   ipcMain.handle('plugins:event', (event, eventName, data) => {
     // Route plugin events to the appropriate plugin instance
     // Events are namespaced: 'legal:complete-setup' → plugin 'legal-companion'
     const prefix = eventName.split(':')[0];
     const pluginMap = { 'legal': 'legal-companion', 'cortex-lite': 'cortex-lite', 'cw': 'client-workspace' };
-    const pluginId = pluginMap[prefix];
+    let pluginId = pluginMap[prefix];
+
+    // Also check AI-generated plugins (their events use plugin-id as prefix)
+    if (!pluginId) {
+      const matched = pluginManager.plugins.get(prefix);
+      if (matched?.instance?.onEvent) pluginId = prefix;
+    }
+
     if (pluginId) {
       const plugin = pluginManager.plugins.get(pluginId);
       if (plugin?.instance?.onEvent) {
-        return plugin.instance.onEvent(eventName, data);
+        try {
+          return plugin.instance.onEvent(eventName, data);
+        } catch (err) {
+          console.error(`[Plugin] Event handler error (${eventName}):`, err.message);
+          pluginManager._logError(pluginId, `onEvent(${eventName}) crash: ${err.message}`);
+          return { __pluginError: err.message };
+        }
       }
     }
     return null;
   });
   ipcMain.handle('plugins:getDir', () => pluginManager.getPluginsDir());
+  ipcMain.handle('plugins:openFolder', (event, pluginId) => {
+    const dir = pluginManager.getPluginsDir();
+    const pluginPath = require('path').join(dir, pluginId);
+    require('electron').shell.openPath(pluginPath);
+  });
   ipcMain.handle('plugins:uninstall', (event, id) => pluginManager.uninstall(id));
   ipcMain.handle('plugins:checkLicense', async (event, pluginId) => {
     return await pluginManager.checkLicense(pluginId);
@@ -2409,6 +2779,36 @@ END OF DOCUMENTS`;
       return { content: null, error: err.message };
     }
   });
+
+  // ── Plugin Generator — AI-powered plugin creation ───────────────
+  const pluginGenerator = require('./plugin-generator');
+  pluginGenerator.setAgentChat(agentChat);
+  pluginGenerator.setPluginManager(pluginManager);
+
+  ipcMain.handle('pluginGen:generate', async (event, userRequest, existingPluginId) => {
+    return await pluginGenerator.generate(userRequest, existingPluginId);
+  });
+
+  ipcMain.handle('pluginGen:detectIntent', (event, message) => {
+    return pluginGenerator.detectIntent(message);
+  });
+
+  ipcMain.handle('pluginGen:delete', (event, pluginId) => {
+    return pluginGenerator.delete(pluginId);
+  });
+
+  ipcMain.handle('pluginGen:listGenerated', () => {
+    return pluginGenerator.listGenerated();
+  });
+
+  // Emit sidebar refresh to renderer after plugin changes
+  ipcMain.handle('pluginGen:refreshSidebar', () => {
+    if (mainWindow) {
+      mainWindow.webContents.send('plugins:sidebarChanged');
+    }
+    return { success: true };
+  });
+  // ── End Plugin Generator ───────────────────────────────────────
 
   ipcMain.handle('plugins:install', async (event) => {
     const { dialog } = require('electron');
@@ -2784,6 +3184,104 @@ app.whenReady().then(async () => {
   // Register download manager IPC handlers
   downloadManager.registerIPC(ipcMain);
 
+  // Initialize MCP client (background — don't block window creation)
+  mcpClient.init().catch(err => console.error('[MCP] Init error:', err.message));
+
+  // ── MCP IPC Handlers ──────────────────────────────────────────────
+  ipcMain.handle('mcp:getServers', () => mcpClient.getServers());
+  ipcMain.handle('mcp:connect', async (event, serverId) => {
+    try {
+      const result = await mcpClient.connect(serverId);
+      return result;
+    } catch (err) {
+      return { success: false, error: err.message };
+    }
+  });
+  ipcMain.handle('mcp:disconnect', async (event, serverId) => {
+    await mcpClient.disconnect(serverId);
+    return { success: true };
+  });
+  ipcMain.handle('mcp:getTools', () => mcpClient.getAllTools());
+  ipcMain.handle('mcp:getToolsOpenAI', () => mcpClient.getToolsAsOpenAIFunctions());
+  ipcMain.handle('mcp:callTool', async (event, serverId, toolName, args) => {
+    return await mcpClient.callTool(serverId, toolName, args);
+  });
+  ipcMain.handle('mcp:parseToolName', (event, fullName) => mcpClient.parseToolCallName(fullName));
+  ipcMain.handle('mcp:addServer', (event, id, config) => {
+    mcpClient.addServer(id, config);
+    return { success: true };
+  });
+  ipcMain.handle('mcp:removeServer', (event, id) => {
+    mcpClient.removeServer(id);
+    return { success: true };
+  });
+  ipcMain.handle('mcp:updateServer', (event, id, updates) => {
+    try {
+      mcpClient.updateServer(id, updates);
+      return { success: true };
+    } catch (err) {
+      return { success: false, error: err.message };
+    }
+  });
+
+  // ── Google OAuth IPC Handler ─────────────────────────────────────────
+  ipcMain.handle('google:connect', async () => {
+    const { runGoogleOAuth, getCredentials } = require('./google-oauth');
+    const creds = getCredentials();
+    if (!creds) return { success: false, error: 'Google OAuth credentials not available in this build.' };
+
+    try {
+      const tokens = await runGoogleOAuth();
+      // Save refresh token to MCP config so the Google Workspace server uses it
+      mcpClient.updateServer('google-workspace', {
+        env: {
+          GOOGLE_WORKSPACE_CLIENT_ID: creds.client_id,
+          GOOGLE_WORKSPACE_CLIENT_SECRET: creds.client_secret,
+          GOOGLE_WORKSPACE_REFRESH_TOKEN: tokens.refresh_token,
+          GOOGLE_CLIENT_ID: creds.client_id,
+          GOOGLE_CLIENT_SECRET: creds.client_secret,
+        },
+        enabled: true,
+        autoConnect: true,
+      });
+      // Auto-connect after OAuth
+      await mcpClient.connect('google-workspace');
+      return { success: true, toolCount: mcpClient.getServers()['google-workspace']?.toolCount || 0 };
+    } catch (err) {
+      console.error('[GoogleOAuth] Failed:', err.message);
+      return { success: false, error: err.message };
+    }
+  });
+
+  ipcMain.handle('google:disconnect', async () => {
+    try {
+      await mcpClient.disconnect('google-workspace');
+      mcpClient.updateServer('google-workspace', {
+        env: {
+          GOOGLE_WORKSPACE_CLIENT_ID: '',
+          GOOGLE_WORKSPACE_CLIENT_SECRET: '',
+          GOOGLE_WORKSPACE_REFRESH_TOKEN: '',
+          GOOGLE_CLIENT_ID: '',
+          GOOGLE_CLIENT_SECRET: '',
+        },
+        enabled: false,
+        autoConnect: false,
+      });
+      return { success: true };
+    } catch (err) {
+      return { success: false, error: err.message };
+    }
+  });
+
+  ipcMain.handle('google:status', () => {
+    const server = mcpClient.getServers()['google-workspace'];
+    return {
+      connected: server?.status === 'connected',
+      toolCount: server?.toolCount || 0,
+      hasCredentials: !!require('./google-oauth').getCredentials(),
+    };
+  });
+
   createWindow();
   createTray();
 
@@ -2798,6 +3296,7 @@ app.on('window-all-closed', () => {
 // Ensure engine is stopped when app quits
 app.on('will-quit', async (event) => {
   event.preventDefault();
+  await mcpClient.shutdown();
   await engineManager.stopEngine();
   app.exit(0);
 });

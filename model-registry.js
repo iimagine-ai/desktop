@@ -59,6 +59,30 @@ const MODEL_REGISTRY = {
     ],
   },
 
+  'gemma-4-12b': {
+    name: 'Gemma 4 12B',
+    description: 'Google\'s dense 12B. Multimodal, strong general-purpose quality on mid-range hardware.',
+    categories: ['text', 'multimodal'],
+    family: 'gemma',
+    variants: [
+      {
+        quantization: 'Q4_K_M',
+        filename: 'gemma-4-12B-it-Q4_K_M.gguf',
+        url: 'https://huggingface.co/bartowski/gemma-4-12B-it-GGUF/resolve/main/gemma-4-12B-it-Q4_K_M.gguf',
+        sizeGB: 7.66,
+        ramRequired: 12,
+        isDefault: true,
+      },
+      {
+        quantization: 'Q8_0',
+        filename: 'gemma-4-12B-it-Q8_0.gguf',
+        url: 'https://huggingface.co/bartowski/gemma-4-12B-it-GGUF/resolve/main/gemma-4-12B-it-Q8_0.gguf',
+        sizeGB: 12.67,
+        ramRequired: 16,
+      },
+    ],
+  },
+
   'gemma-4-27b-a4b': {
     name: 'Gemma 4 27B-A4B',
     description: 'Google\'s large MoE. 4B active from 26B total. High quality with MoE efficiency.',

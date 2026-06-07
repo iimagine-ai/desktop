@@ -1,6 +1,6 @@
 {
   "name": "iimagine-desktop",
-  "version": "0.8.3",
+  "version": "0.9.8",
   "description": "IIMAGINE Desktop Companion - Local LLM chat with your IIMAGINE account",
   "main": "main.js",
   "scripts": {
@@ -56,7 +56,11 @@
       "model-orchestrator.js",
       "local-ai-adapter.js",
       "download-manager.js",
+      "mcp-client.js",
+      "plugin-generator.js",
+      "google-oauth.js",
       "model-registry-bundled.json",
+      "mcp-servers/**/*",
       "renderer/**/*",
       "plugins/**/*",
       "assets/**/*",
@@ -66,7 +70,8 @@
     "asarUnpack": [
       "node_modules/better-sqlite3/**",
       "node_modules/sqlite-vec/**",
-      "node_modules/keytar/**"
+      "node_modules/keytar/**",
+      "mcp-servers/**"
     ],
     "extraResources": [
       {
@@ -88,6 +93,7 @@
     ]
   },
   "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.29.0",
     "better-sqlite3": "^12.9.0",
     "chokidar": "^3.6.0",
     "electron-store": "^8.2.0",
