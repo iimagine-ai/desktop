@@ -15,6 +15,7 @@ const ChatPage = {
   pendingAttachments: [], // Attached files: [{ type, filename, base64, mimeType, text }]
   _listenersRegistered: false,
   _collections: [],
+  _ttsPlaying: false,
 
   async render(container) {
     container.innerHTML = `
@@ -339,10 +340,21 @@ const ChatPage = {
       });
       this._listenersRegistered = true;
 
+      // Local engine cold-start load progress — render a bar inside the typing bubble.
+      if (window.api.engine?.onLoadProgress) {
+        window.api.engine.onLoadProgress((data) => this._showLoadProgress(data));
+      }
+
+      // Local engine per-response token stats (tokens used, tokens/sec).
+      if (window.api.engine?.onStats) {
+        window.api.engine.onStats((data) => { this._pendingStats = data; });
+      }
+
       // Ollama stream
       window.api.ollama.onStreamChunk((chunk) => {
         if (this.activeTypingEl?.parentNode) this.activeTypingEl.remove();
         if (chunk.message?.content && this.activeAssistantEl) {
+          if (!this._firstTokenTime) this._firstTokenTime = Date.now();
           this.activeAssistantEl.style.display = '';
           this.activeAssistantContent += chunk.message.content;
           this.activeAssistantEl.querySelector('.msg-content').textContent = this.activeAssistantContent;
@@ -682,6 +694,11 @@ const ChatPage = {
   async _send(chatInput, sendBtn, messages, welcomeMessage, convList) {
     const text = chatInput.value.trim();
     if ((!text && !this.pendingAttachments.length) || this.isStreaming) return;
+
+    // Per-response stats: mark submit time, reset first-token + token stats.
+    this._respStartTime = Date.now();
+    this._firstTokenTime = null;
+    this._pendingStats = null;
 
     const pm = window.ProviderManager;
     if (!pm.activeProvider) return;
@@ -1081,7 +1098,67 @@ const ChatPage = {
 
     bar.appendChild(copyBtn);
     bar.appendChild(saveBtn);
+
+    // TTS play button (speaker icon)
+    const ttsBtn = document.createElement('button');
+    ttsBtn.className = 'tts-play-btn p-1 rounded text-neutral-300 hover:text-violet-600 dark:text-neutral-600 dark:hover:text-violet-400 transition-colors';
+    ttsBtn.title = 'Read aloud';
+    ttsBtn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/></svg>';
+    ttsBtn.addEventListener('click', () => this._playTTS(ttsBtn, content));
+    bar.appendChild(ttsBtn);
+
     return bar;
+  },
+
+  async _autoPlayTTS(text, bubbleEl) {
+    try {
+      const settings = await window.api.tts.getSettings();
+      if (!settings || !settings.autoplay) return;
+      // Find the TTS button in the bubble and trigger it
+      const ttsBtn = bubbleEl?.querySelector('.tts-play-btn');
+      if (ttsBtn) {
+        this._playTTS(ttsBtn, text);
+      }
+    } catch {}
+  },
+
+  async _playTTS(btn, text) {
+    if (this._ttsPlaying) return;
+    this._ttsPlaying = true;
+
+    // Show loading state
+    const origHtml = btn.innerHTML;
+    btn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="animate-pulse"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>';
+    btn.title = 'Generating audio...';
+
+    try {
+      const result = await window.api.tts.synthesize(text);
+      if (result && result.audioPath) {
+        // Play the audio file
+        const audio = new Audio('file://' + result.audioPath);
+        audio.onended = () => {
+          this._ttsPlaying = false;
+          btn.innerHTML = origHtml;
+          btn.title = 'Read aloud';
+        };
+        audio.onerror = () => {
+          this._ttsPlaying = false;
+          btn.innerHTML = origHtml;
+          btn.title = 'Read aloud';
+        };
+        // Show stop icon while playing
+        btn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" class="text-violet-600 dark:text-violet-400"><rect x="6" y="6" width="12" height="12" rx="2"/></svg>';
+        btn.title = 'Stop';
+        btn.onclick = () => { audio.pause(); audio.onended(); };
+        await audio.play();
+      }
+    } catch (err) {
+      console.warn('[TTS] Synthesis failed:', err.message);
+      btn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-rose-500"><circle cx="12" cy="12" r="10"/><path d="M15 9l-6 6M9 9l6 6"/></svg>';
+      btn.title = 'TTS failed — check Settings → Voice';
+      setTimeout(() => { btn.innerHTML = origHtml; btn.title = 'Read aloud'; }, 3000);
+      this._ttsPlaying = false;
+    }
   },
 
   _showSaveDialog(content) {
@@ -1207,11 +1284,92 @@ const ChatPage = {
     return div;
   },
 
+  // Render/update a model-load progress bar inside the active typing bubble.
+  // Driven by 'engine:loadProgress' events during a local engine cold start. The bar
+  // eases toward each phase target and gently creeps so it never looks frozen; it is
+  // removed automatically when the first token arrives (activeTypingEl is cleared).
+  _showLoadProgress(data) {
+    const el = this.activeTypingEl;
+    if (!el || !el.parentNode) return; // streaming already started, nothing to show
+
+    if (data?.phase === 'error') {
+      if (this._loadProgressTimer) { clearInterval(this._loadProgressTimer); this._loadProgressTimer = null; }
+      return;
+    }
+
+    // Swap the typing dots for a labelled bar the first time we get progress.
+    let bar = el.querySelector('.load-progress-fill');
+    if (!bar) {
+      el.innerHTML = `
+        <div class="assistant-bubble rounded-2xl rounded-bl-sm px-4 py-3 w-64 max-w-full">
+          <div class="load-progress-label text-xs text-neutral-500 mb-2"></div>
+          <div class="h-1.5 w-full bg-neutral-200 dark:bg-neutral-700 rounded-full overflow-hidden">
+            <div class="load-progress-fill h-full bg-black dark:bg-white rounded-full transition-all duration-500 ease-out" style="width:0%"></div>
+          </div>
+          <div class="text-[10px] text-neutral-400 mt-1.5">First message is slower while the model loads. Later replies are fast.</div>
+        </div>
+      `;
+      bar = el.querySelector('.load-progress-fill');
+      this._loadProgressTarget = 0;
+    }
+
+    const label = el.querySelector('.load-progress-label');
+    if (label && data?.label) label.textContent = data.label;
+
+    const target = Math.max(this._loadProgressTarget || 0, Number(data?.percent) || 0);
+    this._loadProgressTarget = target;
+    bar.style.width = target + '%';
+
+    // Gentle creep between milestones so the bar keeps moving during long phases.
+    if (this._loadProgressTimer) clearInterval(this._loadProgressTimer);
+    this._loadProgressTimer = setInterval(() => {
+      const fill = this.activeTypingEl?.querySelector?.('.load-progress-fill');
+      if (!fill || !this.activeTypingEl?.parentNode) {
+        clearInterval(this._loadProgressTimer);
+        this._loadProgressTimer = null;
+        return;
+      }
+      const cur = parseFloat(fill.style.width) || 0;
+      const ceiling = Math.min((this._loadProgressTarget || 0) + 10, 96);
+      if (cur < ceiling) fill.style.width = (cur + 0.6).toFixed(1) + '%';
+    }, 400);
+  },
+
   async _loadKBCollections() {
     // Refresh the KB selector component
     if (window.KBSelector) {
       await window.KBSelector.refresh();
     }
+  },
+
+  // Build a subtle per-response stats line: time-to-first-token, tokens used, tokens/sec.
+  // Returns null when no stats are available (e.g. cloud providers that don't emit them).
+  _buildStatsLine() {
+    const stats = this._pendingStats;
+    const haveTiming = this._respStartTime && this._firstTokenTime;
+    if (!stats && !haveTiming) return null;
+
+    const parts = [];
+    if (haveTiming) {
+      const secs = (this._firstTokenTime - this._respStartTime) / 1000;
+      parts.push(`${secs.toFixed(1)}s to first token`);
+    }
+    if (stats?.completionTokens != null) {
+      parts.push(`${stats.completionTokens} tokens`);
+    }
+    let tps = stats?.tokensPerSecond;
+    if ((tps == null || !isFinite(tps)) && stats?.completionTokens != null && this._firstTokenTime) {
+      const genSecs = (Date.now() - this._firstTokenTime) / 1000;
+      if (genSecs > 0) tps = stats.completionTokens / genSecs;
+    }
+    if (tps != null && isFinite(tps)) parts.push(`${tps.toFixed(1)} tok/s`);
+
+    if (!parts.length) return null;
+
+    const div = document.createElement('div');
+    div.className = 'text-[11px] text-neutral-400 dark:text-neutral-500 mt-1 select-none';
+    div.textContent = parts.join('  ·  ');
+    return div;
   },
 
   async _onStreamComplete() {
@@ -1240,6 +1398,9 @@ const ChatPage = {
         if (wrapper) {
           const actionBar = this._createMessageActionBar(this.activeAssistantContent);
           wrapper.appendChild(actionBar);
+          // Per-response performance stats (local engine only).
+          const statsLine = this._buildStatsLine();
+          if (statsLine) wrapper.appendChild(statsLine);
         }
       }
 
@@ -1252,6 +1413,9 @@ const ChatPage = {
         model: pm.activeProvider?.name || null,
         providerType: pm.activeProvider?.type || 'local',
       });
+
+      // Auto-play TTS if enabled
+      this._autoPlayTTS(this.activeAssistantContent, this.activeAssistantEl);
     }
     this.isStreaming = false;
     const sendBtn = document.querySelector('#sendBtn');

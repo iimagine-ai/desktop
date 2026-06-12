@@ -25,6 +25,7 @@ const modelRegistry = require('./model-registry');
 const localAI = require('./local-ai-adapter');
 const MCPClientManager = require('./mcp-client');
 const downloadManager = require('./download-manager');
+const ttsService = require('./tts-service');
 
 const mcpClient = new MCPClientManager();
 
@@ -3240,6 +3241,10 @@ app.whenReady().then(async () => {
 
   // Register download manager IPC handlers
   downloadManager.registerIPC(ipcMain);
+
+  // Register TTS service IPC handlers
+  ttsService.registerIPC(ipcMain);
+  ttsService.initialize().catch(err => console.warn('[TTS] Init error:', err.message));
 
   // Initialize MCP client (background — don't block window creation)
   mcpClient.init().catch(err => console.error('[MCP] Init error:', err.message));

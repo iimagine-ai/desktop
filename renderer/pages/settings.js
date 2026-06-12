@@ -439,6 +439,9 @@ const SettingsPage = {
         <div id="runtimeMonitorMount"></div>
       </section>
 
+      <!-- TTS / Voice Settings -->
+      <div id="ttsSettingsMount"></div>
+
       <!-- Vertex AI (Regional Cloud) -->
       <section class="bg-white/50 dark:bg-neutral-800/50 border border-neutral-200/40 dark:border-neutral-700/40 rounded-2xl p-5 shadow-[0_2px_10px_rgb(0,0,0,0.02)] dark:shadow-[0_2px_10px_rgb(0,0,0,0.2)] backdrop-blur-md">
         <div class="flex items-center gap-2 mb-3">
@@ -576,6 +579,12 @@ const SettingsPage = {
     const runtimeMount = content.querySelector('#runtimeMonitorMount');
     if (runtimeMount && window.RuntimeMonitor) {
       window.RuntimeMonitor.mount(runtimeMount);
+    }
+
+    // ── TTS Settings ────────────────────────────────────────────────
+    const ttsMount = content.querySelector('#ttsSettingsMount');
+    if (ttsMount && window.TTSSettings) {
+      window.TTSSettings.mount(ttsMount);
     }
 
     // ── Vertex AI (Regional Cloud) setup ─────────────────────────
@@ -1471,6 +1480,7 @@ const SettingsPage = {
             const newState = btn.dataset.enabled !== 'true';
             await window.api.plugins.setEnabled(btn.dataset.id, newState);
             this._loadPlugins(container);
+            await window.loadPluginSidebarItems?.();
           });
         });
 
@@ -1525,6 +1535,7 @@ const SettingsPage = {
             const newState = btn.dataset.enabled !== 'true';
             await window.api.plugins.setEnabled(btn.dataset.id, newState);
             this._loadPlugins(container);
+            await window.loadPluginSidebarItems?.();
           });
         });
 

@@ -114,6 +114,7 @@ module.exports = { ... };
     if (html) {
       const container = document.currentScript?.closest('[class*="p-6"]')?.parentNode 
         || document.querySelector('#builderPreviewContent') 
+        || document.querySelector('#pluginContent')
         || document.querySelector('#mainContent');
       if (container) { container.innerHTML = html; container.querySelectorAll('script').forEach(s => { const n = document.createElement('script'); n.textContent = s.textContent; s.parentNode.replaceChild(n, s); }); }
     }

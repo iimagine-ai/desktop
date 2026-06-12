@@ -263,10 +263,19 @@ document.addEventListener('click', (e) => {
 async function loadPluginSidebarItems() {
   try {
     const items = await window.api.plugins.getSidebarItems();
-    if (!items || !items.length) return;
-
     const nav = document.querySelector('#sidebar nav');
     if (!nav) return;
+
+    // Remove plugin nav buttons that are no longer active
+    const existingPluginBtns = nav.querySelectorAll('[data-page^="plugin:"]');
+    const activeIds = new Set((items || []).map(i => `plugin:${i.id}`));
+    existingPluginBtns.forEach(btn => {
+      if (!activeIds.has(btn.getAttribute('data-page'))) {
+        btn.remove();
+      }
+    });
+
+    if (!items || !items.length) return;
 
     // Find the settings button to insert before it
     const settingsBtn = nav.querySelector('[data-page="settings"]');
@@ -319,23 +328,53 @@ AppRouter.navigatePlugin = async function(pluginId, activeTab) {
       const plugin = plugins.find(p => p.id === pluginId);
       const isAiGenerated = plugin?.author === 'ai-generated';
 
-      const editBar = isAiGenerated ? `
-        <div class="flex items-center justify-end px-4 py-1.5 border-b border-neutral-200/30 dark:border-neutral-700/30 bg-white/20 dark:bg-neutral-800/20">
-          <button id="enterBuilderBtn" class="text-xs px-3 py-1.5 rounded-lg bg-neutral-900 dark:bg-neutral-100 text-white dark:text-neutral-900 hover:bg-neutral-800 dark:hover:bg-neutral-200 transition-all shadow-sm font-medium flex items-center gap-1.5">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="inline-block"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg> Edit with AI
-          </button>
-        </div>
-      ` : '';
-
-      container.innerHTML = editBar + html;
-
-      // Bind edit button
+      // Use a wrapper structure so plugin re-renders only replace the inner content
       if (isAiGenerated) {
+        container.innerHTML = `
+          <div id="pluginEditBar" class="flex items-center justify-end px-4 py-1.5 border-b border-neutral-200/30 dark:border-neutral-700/30 bg-white/20 dark:bg-neutral-800/20">
+            <button id="enterBuilderBtn" class="text-xs px-3 py-1.5 rounded-lg bg-neutral-900 dark:bg-neutral-100 text-white dark:text-neutral-900 hover:bg-neutral-800 dark:hover:bg-neutral-200 transition-all shadow-sm font-medium flex items-center gap-1.5">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="inline-block"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg> Edit with AI
+            </button>
+          </div>
+          <div id="pluginContent">${html}</div>
+        `;
         const editBtn = container.querySelector('#enterBuilderBtn');
         if (editBtn) {
           editBtn.addEventListener('click', () => {
             if (window.BuilderMode) window.BuilderMode.enter(pluginId);
           });
+        }
+
+        // Watch for plugin re-renders that wipe the edit bar
+        // When a plugin's internal script replaces #mainContent innerHTML directly,
+        // re-inject the edit bar and wrap content in #pluginContent
+        if (window._pluginEditBarObserver) window._pluginEditBarObserver.disconnect();
+        window._pluginEditBarObserver = new MutationObserver(() => {
+          const bar = container.querySelector('#pluginEditBar');
+          if (!bar && container.innerHTML.trim()) {
+            const currentHtml = container.innerHTML;
+            container.innerHTML = `
+              <div id="pluginEditBar" class="flex items-center justify-end px-4 py-1.5 border-b border-neutral-200/30 dark:border-neutral-700/30 bg-white/20 dark:bg-neutral-800/20">
+                <button id="enterBuilderBtn" class="text-xs px-3 py-1.5 rounded-lg bg-neutral-900 dark:bg-neutral-100 text-white dark:text-neutral-900 hover:bg-neutral-800 dark:hover:bg-neutral-200 transition-all shadow-sm font-medium flex items-center gap-1.5">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="inline-block"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg> Edit with AI
+                </button>
+              </div>
+              <div id="pluginContent">${currentHtml}</div>
+            `;
+            const newEditBtn = container.querySelector('#enterBuilderBtn');
+            if (newEditBtn) {
+              newEditBtn.addEventListener('click', () => {
+                if (window.BuilderMode) window.BuilderMode.enter(pluginId);
+              });
+            }
+          }
+        });
+        window._pluginEditBarObserver.observe(container, { childList: true });
+      } else {
+        container.innerHTML = html;
+        if (window._pluginEditBarObserver) {
+          window._pluginEditBarObserver.disconnect();
+          window._pluginEditBarObserver = null;
         }
       }
 

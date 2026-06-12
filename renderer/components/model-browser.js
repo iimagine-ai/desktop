@@ -268,6 +268,56 @@ const ModelBrowser = {
   async _triggerDownload(btn) {
     const modelId = btn.dataset.model;
 
+    // Check if this is a huggingface-cli model (TTS/audio models)
+    const manifest = this._manifest;
+    const manifestModel = manifest?.models?.find(m => m.id === modelId);
+    if (manifestModel && manifestModel.downloadMethod === 'huggingface-cli') {
+      // Handle TTS model download via huggingface-cli (through TTS service)
+      const progressId = 'mb-progress-' + Date.now();
+      btn.outerHTML = `
+        <div class="flex-shrink-0 w-36" id="${progressId}">
+          <div class="w-full bg-neutral-200 dark:bg-neutral-700 rounded-full h-2 mb-1">
+            <div class="mb-prog-bar bg-violet-600 dark:bg-violet-400 h-2 rounded-full transition-all" style="width: 10%"></div>
+          </div>
+          <p class="mb-prog-text text-[9px] text-neutral-500 text-center">Setting up TTS...</p>
+        </div>
+      `;
+
+      const progressEl = document.getElementById(progressId);
+      const bar = progressEl?.querySelector('.mb-prog-bar');
+      const text = progressEl?.querySelector('.mb-prog-text');
+
+      try {
+        // Save the selected model to TTS settings first
+        await window.api.tts.updateSettings({ model: modelId });
+
+        // Update progress
+        if (bar) bar.style.width = '30%';
+        if (text) text.textContent = 'Installing Python env...';
+
+        // Check if setup is needed
+        const setupStatus = await window.api.tts.checkSetup();
+        if (!setupStatus.ready) {
+          if (bar) bar.style.width = '50%';
+          if (text) text.textContent = 'Installing mlx-audio...';
+          const result = await window.api.tts.setup();
+          if (!result.success) {
+            if (progressEl) progressEl.innerHTML = `<span class="text-[10px] text-rose-500">${result.error || 'Setup failed'}</span>`;
+            return;
+          }
+        }
+
+        if (bar) bar.style.width = '100%';
+        if (text) text.textContent = 'Ready';
+        setTimeout(() => {
+          if (progressEl) progressEl.innerHTML = '<span class="text-[10px] text-emerald-600 font-medium">Installed ✓</span>';
+        }, 500);
+      } catch (err) {
+        if (progressEl) progressEl.innerHTML = `<span class="text-[10px] text-rose-500">${err.message || 'Failed'}</span>`;
+      }
+      return;
+    }
+
     // Look up model in the GGUF registry
     const registry = await window.api.engine.getRegistry();
     const registryMatch = registry?.find(m => {

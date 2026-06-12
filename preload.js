@@ -367,4 +367,16 @@ contextBridge.exposeInMainWorld('api', {
     onComplete: (cb) => ipcRenderer.on('model:download-complete', (_, data) => cb(data)),
     onFailed: (cb) => ipcRenderer.on('model:download-failed', (_, data) => cb(data)),
   },
+
+  // TTS (Text-to-Speech) — MOSS-TTS via mlx-audio
+  tts: {
+    checkSetup: () => ipcRenderer.invoke('tts:check-setup'),
+    setup: () => ipcRenderer.invoke('tts:setup'),
+    synthesize: (text, options) => ipcRenderer.invoke('tts:synthesize', text, options),
+    setVoiceClone: (audioPath) => ipcRenderer.invoke('tts:set-voice-clone', audioPath),
+    clearVoiceClone: () => ipcRenderer.invoke('tts:clear-voice-clone'),
+    getSettings: () => ipcRenderer.invoke('tts:get-settings'),
+    updateSettings: (settings) => ipcRenderer.invoke('tts:update-settings', settings),
+    getRecommendedModel: (hardware, llmRam) => ipcRenderer.invoke('tts:get-recommended-model', hardware, llmRam),
+  },
 });

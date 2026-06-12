@@ -394,6 +394,66 @@ const MODEL_REGISTRY = {
     ],
   },
 
+  // ─── Audio / TTS Models (MOSS-TTS Family) ──────────────────────
+  // NOTE: These use huggingface-cli for download (not direct HTTP).
+  // The download is handled by tts-service.js, not download-manager.js.
+  'moss-tts-nano': {
+    name: 'MOSS TTS Nano',
+    description: 'Ultra-lightweight TTS. ~100M params, runs on 4 CPU cores. Multilingual voice cloning, 48kHz stereo.',
+    categories: ['audio'],
+    family: 'moss-tts',
+    downloadMethod: 'huggingface-cli',
+    huggingfaceRepo: 'OpenMOSS-Team/MOSS-TTS-Nano',
+    variants: [
+      {
+        quantization: 'F16',
+        filename: 'moss-tts-nano-f16.bin',
+        url: null, // Downloaded via huggingface-cli, not direct HTTP
+        sizeGB: 0.4,
+        ramRequired: 2,
+        isDefault: true,
+      },
+    ],
+  },
+
+  'moss-tts-local-transformer': {
+    name: 'MOSS TTS Local 1.7B',
+    description: 'High-quality local TTS. Strong voice cloning, streaming output. Needs 6GB+ RAM.',
+    categories: ['audio'],
+    family: 'moss-tts',
+    downloadMethod: 'huggingface-cli',
+    huggingfaceRepo: 'OpenMOSS-Team/MOSS-TTS-Local-Transformer',
+    variants: [
+      {
+        quantization: 'F16',
+        filename: 'moss-tts-local-transformer-f16.bin',
+        url: null,
+        sizeGB: 3.4,
+        ramRequired: 6,
+        isDefault: true,
+      },
+    ],
+  },
+
+  'moss-tts-v1.5': {
+    name: 'MOSS TTS v1.5 (8B)',
+    description: 'Flagship TTS model. Best quality voice cloning, 31 languages. Needs 12GB+ RAM.',
+    categories: ['audio'],
+    family: 'moss-tts',
+    downloadMethod: 'huggingface-cli',
+    huggingfaceRepo: 'OpenMOSS-Team/MOSS-TTS-v1.5',
+    variants: [
+      {
+        quantization: 'F16',
+        filename: 'moss-tts-v1.5-f16.bin',
+        url: null,
+        sizeGB: 16.0,
+        ramRequired: 20,
+        isDefault: true,
+      },
+    ],
+  },
+
   // ─── Embedding Models ─────────────────────────────────────────
   'nomic-embed-text': {
     name: 'Nomic Embed Text',
@@ -498,7 +558,7 @@ function getModelsForRAM(availableRAM) {
  */
 function getRecommendedModels(availableRAM) {
   const compatible = getModelsForRAM(availableRAM)
-    .filter(m => !m.categories.includes('embedding'));
+    .filter(m => !m.categories.includes('embedding') && !m.categories.includes('audio'));
 
   // Sort by size descending (bigger = generally better quality)
   return compatible.sort((a, b) => {
@@ -506,6 +566,27 @@ function getRecommendedModels(availableRAM) {
     const bDefault = b.variants.find(v => v.isDefault) || b.variants[0];
     return bDefault.sizeGB - aDefault.sizeGB;
   });
+}
+
+/**
+ * Get recommended TTS model for available RAM (after LLM usage)
+ */
+function getRecommendedTTSModel(availableRAM) {
+  const audioModels = getAllModels()
+    .filter(m => m.categories.includes('audio'))
+    .filter(m => {
+      const defaultVariant = m.variants.find(v => v.isDefault) || m.variants[0];
+      return defaultVariant.ramRequired <= availableRAM;
+    });
+
+  // Sort by size descending (bigger = better quality)
+  audioModels.sort((a, b) => {
+    const aDefault = a.variants.find(v => v.isDefault) || a.variants[0];
+    const bDefault = b.variants.find(v => v.isDefault) || b.variants[0];
+    return bDefault.sizeGB - aDefault.sizeGB;
+  });
+
+  return audioModels[0] || null;
 }
 
 module.exports = {
@@ -518,4 +599,5 @@ module.exports = {
   getModelsByFamily,
   getModelsForRAM,
   getRecommendedModels,
+  getRecommendedTTSModel,
 };

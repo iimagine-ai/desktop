@@ -27,6 +27,28 @@ This document describes the complete workflow for publishing a new version of th
 
 ## Step-by-Step Release Process
 
+### 0. Pre-flight: sync with origin and verify the lockfile (DO THIS FIRST)
+
+**This step prevents the #1 cause of failed/slow releases: building a tag on a stale base.**
+
+Run these from inside `desktop-companion/` BEFORE committing or tagging anything:
+
+```bash
+# 1. Fetch and make sure local main is not behind origin
+git fetch origin
+git status -sb            # must show "## main...origin/main" with no "[behind N]"
+
+# If behind, reconcile FIRST (do not commit on a stale base):
+git pull --rebase origin main
+
+# 2. Confirm the install step the CI uses actually works locally
+npm install --legacy-peer-deps   # must complete with no errors
+```
+
+Notes:
+- The CI build (`.github/workflows/build-release.yml`) installs with `npm install --legacy-peer-deps`, **not** `npm ci`. This is deliberate: `electron-builder-squirrel-windows` is a Windows-only optional dependency that npm omits from `package-lock.json` when installing on macOS, so `npm ci` fails with "Missing from lock file" on the Windows runner. Do NOT switch the workflow back to `npm ci`.
+- Never delete and re-tag a version more than once. If a tag's build failed, fix the cause, move the tag to the corrected commit, and push the tag once.
+
 ### 1. Bump version in package.json
 
 In `desktop-companion/package.json`, update the `version` field:
@@ -134,6 +156,8 @@ The Windows .exe installer works without special steps. However:
 |-------|-------|-----|
 | "is damaged and can't be opened" | macOS Gatekeeper quarantine | Run `xattr -cr /Applications/IIMAGINE\ Desktop.app` |
 | "Cannot find module './xyz'" | File missing from `build.files` in package.json | Add the file to the `files` array and rebuild |
+| CI build fails at "Install dependencies" / "Missing from lock file" (archiver, squirrel) | Workflow using `npm ci`; the Windows-only optional dep isn't in the macOS-generated lockfile | Workflow must use `npm install --legacy-peer-deps` (already set). Do not revert to `npm ci` |
+| Tagged build fails immediately / weird merge state | Tagged on a stale base (local was behind `origin/main`) | Do Step 0: `git fetch` + `git pull --rebase` before committing/tagging |
 | Old version showing on downloads page | Forgot to update VERSION/links | Update both download page files and push |
 | Multiple versions on releases page | Didn't delete old release | Delete old releases, keep only the latest |
 

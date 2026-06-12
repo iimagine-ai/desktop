@@ -1,7 +1,8 @@
 {
-  "version": "2026-06-07",
+  "version": "2026-06-12",
   "manifest_url": "https://raw.githubusercontent.com/iimagine-ai/model-registry/main/model-registry.json",
   "categories": [
+    "audio",
     "code",
     "embedding",
     "multimodal",
@@ -432,6 +433,63 @@
           "url": "https://huggingface.co/bartowski/Qwen_Qwen3-30B-A3B-GGUF/resolve/main/Qwen_Qwen3-30B-A3B-Q8_0.gguf",
           "sizeGB": 32.48,
           "ramRequired": 36
+        }
+      ]
+    },
+    {
+      "id": "moss-tts-nano",
+      "name": "MOSS TTS Nano",
+      "family": "moss-tts",
+      "categories": ["audio"],
+      "description": "Ultra-lightweight TTS. ~100M params, runs on 4 CPU cores. Multilingual voice cloning, 48kHz stereo.",
+      "downloadMethod": "huggingface-cli",
+      "huggingfaceRepo": "OpenMOSS-Team/MOSS-TTS-Nano",
+      "variants": [
+        {
+          "quantization": "F16",
+          "filename": "moss-tts-nano-f16.bin",
+          "url": null,
+          "sizeGB": 0.4,
+          "ramRequired": 2,
+          "isDefault": true
+        }
+      ]
+    },
+    {
+      "id": "moss-tts-local-transformer",
+      "name": "MOSS TTS Local 1.7B",
+      "family": "moss-tts",
+      "categories": ["audio"],
+      "description": "High-quality local TTS. Strong voice cloning, streaming output. Needs 6GB+ RAM.",
+      "downloadMethod": "huggingface-cli",
+      "huggingfaceRepo": "OpenMOSS-Team/MOSS-TTS-Local-Transformer",
+      "variants": [
+        {
+          "quantization": "F16",
+          "filename": "moss-tts-local-transformer-f16.bin",
+          "url": null,
+          "sizeGB": 3.4,
+          "ramRequired": 6,
+          "isDefault": true
+        }
+      ]
+    },
+    {
+      "id": "moss-tts-v1.5",
+      "name": "MOSS TTS v1.5 (8B)",
+      "family": "moss-tts",
+      "categories": ["audio"],
+      "description": "Flagship TTS model. Best quality voice cloning, 31 languages. Needs 20GB+ RAM.",
+      "downloadMethod": "huggingface-cli",
+      "huggingfaceRepo": "OpenMOSS-Team/MOSS-TTS-v1.5",
+      "variants": [
+        {
+          "quantization": "F16",
+          "filename": "moss-tts-v1.5-f16.bin",
+          "url": null,
+          "sizeGB": 16.0,
+          "ramRequired": 20,
+          "isDefault": true
         }
       ]
     },

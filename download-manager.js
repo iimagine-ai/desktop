@@ -65,8 +65,15 @@ class DownloadManager extends EventEmitter {
     const model = getModel(modelId);
     if (!model) throw new Error(`Model not found: ${modelId}`);
 
+    // Skip models that use huggingface-cli (TTS/audio models) — they are
+    // downloaded via tts-service.js, not the HTTP download manager.
+    if (model.downloadMethod === 'huggingface-cli') {
+      throw new Error(`Model ${modelId} uses huggingface-cli for download. Use the Voice settings to set it up.`);
+    }
+
     const variant = model.variants[variantIndex];
     if (!variant) throw new Error(`Variant index ${variantIndex} not found for ${modelId}`);
+    if (!variant.url) throw new Error(`No download URL for ${modelId} variant ${variantIndex}`);
 
     let dl = this.state.downloads[modelId];
 
