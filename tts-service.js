@@ -1,10 +1,11 @@
-// TTS Service — manages MOSS-TTS inference via Python sidecar (mlx-audio)
-// Provides: text-to-speech generation, voice cloning, model management
+// TTS Service — persistent Kokoro server for low-latency speech synthesis
+// Architecture: spawns a Python HTTP server on first use, keeps it alive, sends requests via HTTP
 
 const { spawn, execSync } = require('child_process');
 const path = require('path');
 const fs = require('fs');
 const os = require('os');
+const http = require('http');
 const { EventEmitter } = require('events');
 
 const TTS_DIR = path.join(os.homedir(), '.iimagine', 'tts');
@@ -12,17 +13,19 @@ const TTS_VENV = path.join(TTS_DIR, 'venv');
 const TTS_OUTPUT_DIR = path.join(TTS_DIR, 'output');
 const VOICE_CLIPS_DIR = path.join(TTS_DIR, 'voice-clips');
 const TTS_PORT = 9876;
+const SERVER_SCRIPT = path.join(TTS_DIR, 'kokoro-server.py');
 
 class TTSService extends EventEmitter {
   constructor() {
     super();
-    this.process = null;
-    this.ready = false;
-    this.activeModel = null;
+    this.serverProcess = null;
+    this.serverReady = false;
+    this.serverStarting = false;
     this.settings = {
       autoplay: false,
       voiceCloneAudioPath: null,
-      model: null, // 'moss-tts-nano', 'moss-tts-local-transformer', 'moss-tts-v1.5-gguf'
+      model: 'kokoro',
+      voice: 'af_heart',
     };
   }
 
@@ -33,138 +36,84 @@ class TTSService extends EventEmitter {
     this._ensureDir(TTS_OUTPUT_DIR);
     this._ensureDir(VOICE_CLIPS_DIR);
     await this._loadSettings();
-    return { ready: this.ready, model: this.activeModel };
+    // Start server in background (don't block app startup)
+    this._ensureServerRunning().catch(err => {
+      console.warn('[TTS] Server startup deferred:', err.message);
+    });
+    return { ready: true, model: 'kokoro' };
   }
 
-  /**
-   * Check if the TTS Python environment is set up.
-   */
   async checkSetup() {
     const pythonPath = this._getPythonPath();
     const hasPython = fs.existsSync(pythonPath);
-    const hasTransformers = hasPython && this._checkPackage('transformers');
+    const hasKokoro = hasPython && this._checkPackage('kokoro');
     return {
       hasPython,
-      hasMlxAudio: hasTransformers, // kept for backward compat
+      hasMlxAudio: hasKokoro,
       venvPath: TTS_VENV,
-      ready: hasPython && hasTransformers,
+      ready: hasPython && hasKokoro,
     };
   }
 
-  /**
-   * Install the TTS Python environment (one-time setup).
-   * Creates a venv and installs mlx-audio.
-   */
   async setup(progressCallback) {
     try {
       if (progressCallback) progressCallback({ step: 'venv', message: 'Creating Python environment...' });
-
-      // Find system python3
       const python3 = this._findSystemPython();
-      if (!python3) {
-        throw new Error('Python 3 not found. Please install Python 3.10+ from python.org');
-      }
+      if (!python3) throw new Error('Python 3 not found. Please install Python 3.10+');
 
-      // Create venv
       if (!fs.existsSync(TTS_VENV)) {
         execSync(`"${python3}" -m venv "${TTS_VENV}"`, { timeout: 30000 });
       }
 
-      if (progressCallback) progressCallback({ step: 'pip', message: 'Installing mlx-audio (this may take a few minutes)...' });
-
+      if (progressCallback) progressCallback({ step: 'pip', message: 'Installing Kokoro TTS...' });
       const pip = this._getPipPath();
-      // Install mlx-audio which bundles MOSS-TTS support for Apple Silicon
       execSync(`"${pip}" install --upgrade pip`, { timeout: 60000 });
-      execSync(`"${pip}" install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu`, { timeout: 600000 });
-      execSync(`"${pip}" install transformers==5.0.0 soundfile huggingface-hub`, { timeout: 300000 });
-
-      if (progressCallback) progressCallback({ step: 'model', message: 'Downloading TTS model...' });
-
-      // Download the selected model (or default to Nano) via huggingface_hub Python API
-      const model = this.settings.model || 'moss-tts-nano';
-      const repoMap = {
-        'moss-tts-nano': 'OpenMOSS-Team/MOSS-TTS-Nano',
-        'moss-tts-local-transformer': 'OpenMOSS-Team/MOSS-TTS-Local-Transformer',
-        'moss-tts-v1.5': 'OpenMOSS-Team/MOSS-TTS-v1.5',
-      };
-      const repo = repoMap[model] || repoMap['moss-tts-nano'];
-      const pythonPath = this._getPythonPath();
-      execSync(`"${pythonPath}" -c "from huggingface_hub import snapshot_download; snapshot_download('${repo}')"`, { timeout: 600000 }); // 10 min timeout for large models
+      execSync(`"${pip}" install kokoro soundfile numpy`, { timeout: 300000 });
 
       if (progressCallback) progressCallback({ step: 'done', message: 'TTS environment ready' });
       return { success: true };
     } catch (err) {
-      console.error('[TTSService] Setup failed:', err.message);
+      console.error('[TTS] Setup failed:', err.message);
       return { success: false, error: err.message };
     }
   }
 
   /**
-   * Generate speech from text using the active TTS model.
+   * Generate speech from text. Uses persistent HTTP server for low latency.
    * Returns: { audioPath, duration }
    */
   async synthesize(text, options = {}) {
     if (!text || !text.trim()) return null;
 
-    const model = options.model || this.settings.model || 'moss-tts-nano';
-    const referenceAudio = options.referenceAudio || this.settings.voiceCloneAudioPath;
+    // Strip markdown/emoji for cleaner speech
+    const cleanText = text.replace(/[*_~`#>\[\]()]/g, '').replace(/\n+/g, ' ').trim();
+    if (!cleanText) return null;
+
+    const voice = options.voice || this.settings.voice || 'af_heart';
     const outputFile = path.join(TTS_OUTPUT_DIR, `tts-${Date.now()}.wav`);
 
-    const pythonPath = this._getPythonPath();
-    if (!fs.existsSync(pythonPath)) {
-      throw new Error('TTS not set up. Run setup first.');
-    }
+    console.log(`[TTS] Synthesizing "${cleanText.slice(0, 50)}..." with voice=${voice}`);
 
-    // Map model IDs to mlx-audio model names
-    const modelMap = {
-      'moss-tts-nano': 'OpenMOSS-Team/MOSS-TTS-Nano',
-      'moss-tts-local-transformer': 'OpenMOSS-Team/MOSS-TTS-Local-Transformer',
-      'moss-tts-v1.5-gguf': 'OpenMOSS-Team/MOSS-TTS-v1.5',
-    };
+    // Ensure server is running
+    await this._ensureServerRunning();
 
-    const mlxModel = modelMap[model] || modelMap['moss-tts-nano'];
-
-    // Build the Python script inline
-    const script = this._buildSynthScript(mlxModel, text, outputFile, referenceAudio);
-    const scriptPath = path.join(TTS_DIR, 'synth-tmp.py');
-    fs.writeFileSync(scriptPath, script, 'utf8');
-
-    return new Promise((resolve, reject) => {
-      const proc = spawn(pythonPath, [scriptPath], {
-        env: { ...process.env, PATH: `${path.dirname(pythonPath)}:${process.env.PATH}` },
-        timeout: 120000,
-      });
-
-      let stdout = '';
-      let stderr = '';
-
-      proc.stdout.on('data', (d) => { stdout += d.toString(); });
-      proc.stderr.on('data', (d) => { stderr += d.toString(); });
-
-      proc.on('close', (code) => {
-        // Clean up temp script
-        try { fs.unlinkSync(scriptPath); } catch {}
-
-        if (code === 0 && fs.existsSync(outputFile)) {
-          resolve({ audioPath: outputFile, model });
-        } else {
-          reject(new Error(`TTS synthesis failed (code ${code}): ${stderr.slice(-500)}`));
-        }
-      });
-
-      proc.on('error', (err) => {
-        reject(new Error(`TTS process error: ${err.message}`));
-      });
+    // Send request to persistent server
+    const result = await this._httpPost('/synthesize', {
+      text: cleanText,
+      voice,
+      output_path: outputFile,
     });
+
+    if (result.ok && fs.existsSync(outputFile)) {
+      console.log(`[TTS] Done in ${result.elapsed}s — ${outputFile} (${result.duration}s audio)`);
+      return { audioPath: outputFile, model: 'kokoro', duration: result.duration };
+    } else {
+      throw new Error(`TTS synthesis failed: ${result.error || 'unknown error'}`);
+    }
   }
 
-  /**
-   * Set a voice clone reference audio file.
-   */
   async setVoiceClone(audioFilePath) {
-    if (!audioFilePath || !fs.existsSync(audioFilePath)) {
-      throw new Error('Audio file not found');
-    }
+    if (!audioFilePath || !fs.existsSync(audioFilePath)) throw new Error('Audio file not found');
     const ext = path.extname(audioFilePath);
     const dest = path.join(VOICE_CLIPS_DIR, `voice-clone${ext}`);
     fs.copyFileSync(audioFilePath, dest);
@@ -173,9 +122,6 @@ class TTSService extends EventEmitter {
     return { path: dest };
   }
 
-  /**
-   * Clear the voice clone reference.
-   */
   async clearVoiceClone() {
     if (this.settings.voiceCloneAudioPath && fs.existsSync(this.settings.voiceCloneAudioPath)) {
       fs.unlinkSync(this.settings.voiceCloneAudioPath);
@@ -184,91 +130,173 @@ class TTSService extends EventEmitter {
     await this._saveSettings();
   }
 
-  /**
-   * Update TTS settings.
-   */
   async updateSettings(newSettings) {
     Object.assign(this.settings, newSettings);
     await this._saveSettings();
     return this.settings;
   }
 
-  /**
-   * Get current TTS settings.
-   */
   getSettings() {
     return { ...this.settings };
   }
 
-  /**
-   * Get the recommended TTS model based on available RAM (after accounting for the active LLM).
-   */
-  getRecommendedModel(hardware, activeLLMRamGB = 0) {
-    const available = (hardware.aiMemoryGB || hardware.ramGB || 8) - activeLLMRamGB - 2; // 2GB OS buffer
-    if (available >= 12) return 'moss-tts-v1.5-gguf';
-    if (available >= 6) return 'moss-tts-local-transformer';
-    return 'moss-tts-nano';
+  getRecommendedModel() {
+    return 'kokoro'; // Only one model now
   }
 
   /**
-   * Register IPC handlers for Electron.
+   * Gracefully shut down the TTS server (called on app quit).
    */
+  shutdown() {
+    if (this.serverProcess) {
+      console.log('[TTS] Shutting down server...');
+      this.serverProcess.kill('SIGTERM');
+      this.serverProcess = null;
+      this.serverReady = false;
+    }
+  }
+
   registerIPC(ipcMain) {
     ipcMain.handle('tts:check-setup', async () => this.checkSetup());
-    ipcMain.handle('tts:setup', async (_event, progressCallbackId) => this.setup());
-    ipcMain.handle('tts:synthesize', async (_event, text, options) => this.synthesize(text, options));
+    ipcMain.handle('tts:setup', async () => this.setup());
+    ipcMain.handle('tts:synthesize', async (_event, text, options) => {
+      console.log('[TTS] IPC synthesize called, text length:', text?.length);
+      return this.synthesize(text, options);
+    });
     ipcMain.handle('tts:set-voice-clone', async (_event, audioPath) => this.setVoiceClone(audioPath));
     ipcMain.handle('tts:clear-voice-clone', async () => this.clearVoiceClone());
     ipcMain.handle('tts:get-settings', async () => this.getSettings());
     ipcMain.handle('tts:update-settings', async (_event, settings) => this.updateSettings(settings));
-    ipcMain.handle('tts:get-recommended-model', async (_event, hardware, llmRam) => this.getRecommendedModel(hardware, llmRam));
+    ipcMain.handle('tts:get-recommended-model', async () => this.getRecommendedModel());
   }
 
-  // ─── Private Methods ────────────────────────────────────────────
+  // ─── Private: Server Management ────────────────────────────────
 
-  _buildSynthScript(model, text, outputPath, referenceAudio) {
-    // Escape text for Python string
-    const escapedText = text.replace(/\\/g, '\\\\').replace(/"/g, '\\"').replace(/\n/g, '\\n');
-    const refLine = referenceAudio
-      ? `reference_audio = "${referenceAudio.replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"`
-      : 'reference_audio = None';
+  async _ensureServerRunning() {
+    // Already running? Check health
+    if (this.serverReady) {
+      try {
+        const health = await this._httpGet('/health');
+        if (health.ok) return;
+      } catch {}
+      // Server died, restart
+      this.serverReady = false;
+      this.serverProcess = null;
+    }
 
-    return `
-import sys
-import soundfile as sf
+    // Already starting? Wait for it
+    if (this.serverStarting) {
+      return this._waitForServer();
+    }
 
-text = "${escapedText}"
-model_name = "${model}"
-output_path = "${outputPath.replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"
-${refLine}
+    this.serverStarting = true;
 
-try:
-    from transformers import AutoModel, AutoProcessor
-    import torch
+    const pythonPath = this._getPythonPath();
+    if (!fs.existsSync(pythonPath)) {
+      this.serverStarting = false;
+      throw new Error('TTS not set up. Run setup first.');
+    }
+    if (!fs.existsSync(SERVER_SCRIPT)) {
+      this.serverStarting = false;
+      throw new Error('Kokoro server script not found at ' + SERVER_SCRIPT);
+    }
 
-    processor = AutoProcessor.from_pretrained(model_name, trust_remote_code=True)
-    model = AutoModel.from_pretrained(model_name, trust_remote_code=True, dtype=torch.float32)
-    model.eval()
+    console.log('[TTS] Starting Kokoro server...');
 
-    conversations = [[processor.build_user_message(text=text)]]
-    batch = processor(conversations, mode="generation")
-    input_ids = batch["input_ids"]
-    attention_mask = batch["attention_mask"]
+    this.serverProcess = spawn(pythonPath, [SERVER_SCRIPT], {
+      env: { ...process.env, PATH: `${path.dirname(pythonPath)}:${process.env.PATH}` },
+      stdio: ['ignore', 'pipe', 'pipe'],
+      detached: false,
+    });
 
-    with torch.no_grad():
-        outputs = model.generate(input_ids=input_ids, attention_mask=attention_mask, max_new_tokens=2048)
+    this.serverProcess.stderr.on('data', (d) => {
+      const msg = d.toString().trim();
+      if (msg && !msg.includes('UserWarning') && !msg.includes('FutureWarning')) {
+        console.error('[TTS:stderr]', msg);
+      }
+    });
 
-    for message in processor.decode(outputs):
-        audio = message.audio_codes_list[0].numpy()
-        sf.write(output_path, audio, processor.model_config.sampling_rate)
-        break
+    this.serverProcess.on('exit', (code) => {
+      console.log(`[TTS] Server exited (code ${code})`);
+      this.serverReady = false;
+      this.serverProcess = null;
+    });
 
-    print("OK")
-except Exception as e:
-    print(f"Error: {e}", file=sys.stderr)
-    sys.exit(1)
-`;
+    // Wait for READY signal on stdout
+    await new Promise((resolve, reject) => {
+      const timeout = setTimeout(() => {
+        reject(new Error('TTS server startup timed out (30s)'));
+      }, 30000);
+
+      this.serverProcess.stdout.on('data', (d) => {
+        const line = d.toString();
+        if (line.includes('READY')) {
+          clearTimeout(timeout);
+          this.serverReady = true;
+          this.serverStarting = false;
+          console.log('[TTS] Server ready');
+          resolve();
+        }
+        // Forward logs
+        if (line.includes('[KokoroServer]')) {
+          console.log('[TTS]', line.trim());
+        }
+      });
+    });
   }
+
+  async _waitForServer(maxWait = 30000) {
+    const start = Date.now();
+    while (Date.now() - start < maxWait) {
+      if (this.serverReady) return;
+      await new Promise(r => setTimeout(r, 200));
+    }
+    throw new Error('TTS server did not become ready in time');
+  }
+
+  _httpGet(urlPath) {
+    return new Promise((resolve, reject) => {
+      const req = http.get(`http://127.0.0.1:${TTS_PORT}${urlPath}`, { timeout: 5000 }, (res) => {
+        let data = '';
+        res.on('data', chunk => data += chunk);
+        res.on('end', () => {
+          try { resolve(JSON.parse(data)); }
+          catch { reject(new Error('Invalid JSON from TTS server')); }
+        });
+      });
+      req.on('error', reject);
+      req.on('timeout', () => { req.destroy(); reject(new Error('TTS server timeout')); });
+    });
+  }
+
+  _httpPost(urlPath, body) {
+    return new Promise((resolve, reject) => {
+      const payload = JSON.stringify(body);
+      const options = {
+        hostname: '127.0.0.1',
+        port: TTS_PORT,
+        path: urlPath,
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(payload) },
+        timeout: 60000, // 60s for synthesis
+      };
+
+      const req = http.request(options, (res) => {
+        let data = '';
+        res.on('data', chunk => data += chunk);
+        res.on('end', () => {
+          try { resolve(JSON.parse(data)); }
+          catch { reject(new Error('Invalid JSON from TTS server')); }
+        });
+      });
+      req.on('error', reject);
+      req.on('timeout', () => { req.destroy(); reject(new Error('TTS synthesis timeout')); });
+      req.write(payload);
+      req.end();
+    });
+  }
+
+  // ─── Private: Utility ───────────────────────────────────────────
 
   _findSystemPython() {
     const candidates = ['python3', 'python'];
@@ -278,57 +306,38 @@ except Exception as e:
         if (version.includes('3.')) return cmd;
       } catch {}
     }
-    // Check common paths
     const paths = ['/usr/bin/python3', '/usr/local/bin/python3', '/opt/homebrew/bin/python3'];
-    for (const p of paths) {
-      if (fs.existsSync(p)) return p;
-    }
+    for (const p of paths) { if (fs.existsSync(p)) return p; }
     return null;
   }
 
-  _getPythonPath() {
-    return path.join(TTS_VENV, 'bin', 'python3');
-  }
-
-  _getPipPath() {
-    return path.join(TTS_VENV, 'bin', 'pip');
-  }
+  _getPythonPath() { return path.join(TTS_VENV, 'bin', 'python3'); }
+  _getPipPath() { return path.join(TTS_VENV, 'bin', 'pip'); }
 
   _checkPackage(packageName) {
     try {
-      const pythonPath = this._getPythonPath();
-      execSync(`"${pythonPath}" -c "import ${packageName}"`, { timeout: 10000 });
+      execSync(`"${this._getPythonPath()}" -c "import ${packageName}"`, { timeout: 10000 });
       return true;
-    } catch {
-      return false;
-    }
+    } catch { return false; }
   }
 
   async _loadSettings() {
     const settingsPath = path.join(TTS_DIR, 'settings.json');
     try {
       if (fs.existsSync(settingsPath)) {
-        const data = fs.readFileSync(settingsPath, 'utf8');
-        Object.assign(this.settings, JSON.parse(data));
+        Object.assign(this.settings, JSON.parse(fs.readFileSync(settingsPath, 'utf8')));
       }
-    } catch (err) {
-      console.warn('[TTSService] Failed to load settings:', err.message);
-    }
+    } catch (err) { console.warn('[TTS] Failed to load settings:', err.message); }
   }
 
   async _saveSettings() {
     const settingsPath = path.join(TTS_DIR, 'settings.json');
-    try {
-      fs.writeFileSync(settingsPath, JSON.stringify(this.settings, null, 2), 'utf8');
-    } catch (err) {
-      console.warn('[TTSService] Failed to save settings:', err.message);
-    }
+    try { fs.writeFileSync(settingsPath, JSON.stringify(this.settings, null, 2), 'utf8'); }
+    catch (err) { console.warn('[TTS] Failed to save settings:', err.message); }
   }
 
   _ensureDir(dir) {
-    if (!fs.existsSync(dir)) {
-      fs.mkdirSync(dir, { recursive: true });
-    }
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
   }
 }
 
@@ -340,10 +349,11 @@ module.exports = {
   checkSetup: () => ttsService.checkSetup(),
   setup: (cb) => ttsService.setup(cb),
   synthesize: (text, opts) => ttsService.synthesize(text, opts),
-  setVoiceClone: (path) => ttsService.setVoiceClone(path),
+  setVoiceClone: (p) => ttsService.setVoiceClone(p),
   clearVoiceClone: () => ttsService.clearVoiceClone(),
   updateSettings: (s) => ttsService.updateSettings(s),
   getSettings: () => ttsService.getSettings(),
-  getRecommendedModel: (hw, ram) => ttsService.getRecommendedModel(hw, ram),
+  getRecommendedModel: () => ttsService.getRecommendedModel(),
   registerIPC: (ipcMain) => ttsService.registerIPC(ipcMain),
+  shutdown: () => ttsService.shutdown(),
 };

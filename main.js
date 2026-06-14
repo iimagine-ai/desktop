@@ -3358,6 +3358,7 @@ app.on('window-all-closed', () => {
 // Ensure engine is stopped when app quits
 app.on('will-quit', async (event) => {
   event.preventDefault();
+  ttsService.shutdown();
   await mcpClient.shutdown();
   await engineManager.stopEngine();
   app.exit(0);

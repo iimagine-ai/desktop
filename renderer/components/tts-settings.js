@@ -25,7 +25,7 @@ const TTSSettings = {
           </div>
           <div>
             <h3 class="text-sm font-semibold text-neutral-900 dark:text-neutral-100">Voice / TTS</h3>
-            <p class="text-xs text-neutral-500 dark:text-neutral-400">Read responses aloud using MOSS-TTS (local, private)</p>
+            <p class="text-xs text-neutral-500 dark:text-neutral-400">Read responses aloud using Kokoro TTS (local, private)</p>
           </div>
         </div>
 
@@ -53,20 +53,28 @@ const TTSSettings = {
   },
 
   _renderConfigSection(hasVoiceClone) {
-    const model = this._settings?.model || 'moss-tts-nano';
+    const voice = this._settings?.voice || 'af_heart';
     const autoplay = this._settings?.autoplay || false;
 
     return `
       <div class="space-y-4">
-        <!-- TTS Model Selection -->
+        <!-- Voice Selection -->
         <div>
-          <label class="text-xs font-medium text-neutral-500 uppercase tracking-wider mb-1.5 block">TTS Model</label>
-          <select id="ttsModelSelect" class="w-full bg-white/60 dark:bg-neutral-800/60 border border-neutral-200/50 dark:border-neutral-700/50 rounded-xl px-3 py-2.5 text-sm text-neutral-700 dark:text-neutral-300 focus:outline-none transition-all shadow-sm">
-            <option value="moss-tts-nano" ${model === 'moss-tts-nano' ? 'selected' : ''}>MOSS TTS Nano (~100M) — fastest, CPU-only</option>
-            <option value="moss-tts-local-transformer" ${model === 'moss-tts-local-transformer' ? 'selected' : ''}>MOSS TTS Local 1.7B — high quality, needs 6GB</option>
-            <option value="moss-tts-v1.5" ${model === 'moss-tts-v1.5' ? 'selected' : ''}>MOSS TTS v1.5 (8B) — best quality, needs 20GB</option>
+          <label class="text-xs font-medium text-neutral-500 uppercase tracking-wider mb-1.5 block">Voice</label>
+          <select id="ttsVoiceSelect" class="w-full bg-white/60 dark:bg-neutral-800/60 border border-neutral-200/50 dark:border-neutral-700/50 rounded-xl px-3 py-2.5 text-sm text-neutral-700 dark:text-neutral-300 focus:outline-none transition-all shadow-sm">
+            <option value="af_heart" ${voice === 'af_heart' ? 'selected' : ''}>Heart (Female, American)</option>
+            <option value="af_bella" ${voice === 'af_bella' ? 'selected' : ''}>Bella (Female, American)</option>
+            <option value="af_nicole" ${voice === 'af_nicole' ? 'selected' : ''}>Nicole (Female, American)</option>
+            <option value="af_sarah" ${voice === 'af_sarah' ? 'selected' : ''}>Sarah (Female, American)</option>
+            <option value="af_sky" ${voice === 'af_sky' ? 'selected' : ''}>Sky (Female, American)</option>
+            <option value="am_adam" ${voice === 'am_adam' ? 'selected' : ''}>Adam (Male, American)</option>
+            <option value="am_michael" ${voice === 'am_michael' ? 'selected' : ''}>Michael (Male, American)</option>
+            <option value="bf_emma" ${voice === 'bf_emma' ? 'selected' : ''}>Emma (Female, British)</option>
+            <option value="bf_isabella" ${voice === 'bf_isabella' ? 'selected' : ''}>Isabella (Female, British)</option>
+            <option value="bm_george" ${voice === 'bm_george' ? 'selected' : ''}>George (Male, British)</option>
+            <option value="bm_lewis" ${voice === 'bm_lewis' ? 'selected' : ''}>Lewis (Male, British)</option>
           </select>
-          <p class="text-[10px] text-neutral-400 mt-1">Choose based on your available RAM (after the chat LLM is loaded)</p>
+          <p class="text-[10px] text-neutral-400 mt-1">Powered by Kokoro TTS (82M params, 100% local)</p>
         </div>
 
         <!-- Autoplay Toggle -->
@@ -172,9 +180,9 @@ const TTSSettings = {
     const saveBtn = this._container.querySelector('#ttsSaveBtn');
     if (saveBtn) {
       saveBtn.addEventListener('click', async () => {
-        const model = this._container.querySelector('#ttsModelSelect')?.value;
+        const voice = this._container.querySelector('#ttsVoiceSelect')?.value;
         const autoplay = this._container.querySelector('#ttsAutoplayToggle')?.getAttribute('aria-checked') === 'true';
-        await window.api.tts.updateSettings({ model, autoplay });
+        await window.api.tts.updateSettings({ voice, autoplay, model: 'kokoro' });
         this._settings = await window.api.tts.getSettings();
         const status = this._container.querySelector('#ttsSaveStatus');
         if (status) { status.classList.remove('hidden'); setTimeout(() => status.classList.add('hidden'), 2000); }

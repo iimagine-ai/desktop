@@ -1111,54 +1111,134 @@ const ChatPage = {
   },
 
   async _autoPlayTTS(text, bubbleEl) {
+    // Guard: only one autoplay per response
+    if (this._ttsPlaying || this._ttsAutoPlayPending) return;
+    this._ttsAutoPlayPending = true;
     try {
       const settings = await window.api.tts.getSettings();
-      if (!settings || !settings.autoplay) return;
-      // Find the TTS button in the bubble and trigger it
+      if (!settings || !settings.autoplay) { this._ttsAutoPlayPending = false; return; }
       const ttsBtn = bubbleEl?.querySelector('.tts-play-btn');
       if (ttsBtn) {
         this._playTTS(ttsBtn, text);
       }
     } catch {}
+    this._ttsAutoPlayPending = false;
+  },
+
+  _splitIntoSentences(text) {
+    // Split on sentence boundaries (.!?) followed by space or end
+    const sentences = text.match(/[^.!?]+[.!?]+[\s]?|[^.!?]+$/g);
+    if (!sentences) return [text];
+    // Merge very short sentences with the next one for smoother playback
+    const merged = [];
+    let buffer = '';
+    for (const s of sentences) {
+      buffer += s;
+      if (buffer.length >= 60) {
+        merged.push(buffer.trim());
+        buffer = '';
+      }
+    }
+    if (buffer.trim()) {
+      if (merged.length > 0 && buffer.trim().length < 40) {
+        merged[merged.length - 1] += ' ' + buffer.trim();
+      } else {
+        merged.push(buffer.trim());
+      }
+    }
+    return merged.length ? merged : [text];
   },
 
   async _playTTS(btn, text) {
-    if (this._ttsPlaying) return;
+    // If already playing/generating, stop everything
+    if (this._ttsPlaying) {
+      this._stopTTS();
+      return;
+    }
     this._ttsPlaying = true;
+    this._ttsCancelled = false;
+    this._ttsCurrentAudio = null;
 
     // Show loading state
     const origHtml = btn.innerHTML;
-    btn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="animate-pulse"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>';
-    btn.title = 'Generating audio...';
+    const showStop = () => {
+      btn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" class="text-violet-600 dark:text-violet-400"><rect x="6" y="6" width="12" height="12" rx="2"/></svg>';
+      btn.title = 'Stop';
+    };
+    const showLoading = () => {
+      btn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="animate-pulse"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>';
+      btn.title = 'Generating audio...';
+    };
+    const resetBtn = () => {
+      btn.innerHTML = origHtml;
+      btn.title = 'Read aloud';
+      this._ttsPlaying = false;
+      this._ttsCurrentAudio = null;
+    };
+
+    // Wire stop on click
+    btn.onclick = () => this._stopTTS();
+
+    showLoading();
 
     try {
-      const result = await window.api.tts.synthesize(text);
-      if (result && result.audioPath) {
-        // Play the audio file
-        const audio = new Audio('file://' + result.audioPath);
-        audio.onended = () => {
-          this._ttsPlaying = false;
-          btn.innerHTML = origHtml;
-          btn.title = 'Read aloud';
-        };
-        audio.onerror = () => {
-          this._ttsPlaying = false;
-          btn.innerHTML = origHtml;
-          btn.title = 'Read aloud';
-        };
-        // Show stop icon while playing
-        btn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" class="text-violet-600 dark:text-violet-400"><rect x="6" y="6" width="12" height="12" rx="2"/></svg>';
-        btn.title = 'Stop';
-        btn.onclick = () => { audio.pause(); audio.onended(); };
-        await audio.play();
+      // Split into sentences for chunked playback
+      const sentences = this._splitIntoSentences(text);
+
+      for (let i = 0; i < sentences.length; i++) {
+        if (this._ttsCancelled) break;
+
+        const chunk = sentences[i];
+        if (!chunk.trim()) continue;
+
+        // Generate audio for this sentence
+        if (i === 0) showLoading();
+        const result = await window.api.tts.synthesize(chunk);
+        if (this._ttsCancelled || !result || !result.audioPath) break;
+
+        // Play this chunk
+        showStop();
+        await new Promise((resolve, reject) => {
+          const audio = new Audio('file://' + result.audioPath);
+          this._ttsCurrentAudio = audio;
+          audio.onended = resolve;
+          audio.onerror = reject;
+          // Wait for audio to be fully buffered before playing to prevent cut-off
+          audio.oncanplaythrough = () => {
+            audio.play().catch(reject);
+          };
+          audio.load();
+        });
+
+        if (this._ttsCancelled) break;
       }
     } catch (err) {
-      console.warn('[TTS] Synthesis failed:', err.message);
-      btn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-rose-500"><circle cx="12" cy="12" r="10"/><path d="M15 9l-6 6M9 9l6 6"/></svg>';
-      btn.title = 'TTS failed — check Settings → Voice';
-      setTimeout(() => { btn.innerHTML = origHtml; btn.title = 'Read aloud'; }, 3000);
-      this._ttsPlaying = false;
+      if (!this._ttsCancelled) {
+        console.warn('[TTS] Synthesis failed:', err.message);
+        btn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-rose-500"><circle cx="12" cy="12" r="10"/><path d="M15 9l-6 6M9 9l6 6"/></svg>';
+        btn.title = 'TTS failed — check Settings → Voice';
+        setTimeout(resetBtn, 3000);
+        return;
+      }
     }
+
+    resetBtn();
+    btn.onclick = () => this._playTTS(btn, text);
+  },
+
+  _stopTTS() {
+    this._ttsCancelled = true;
+    if (this._ttsCurrentAudio) {
+      this._ttsCurrentAudio.pause();
+      this._ttsCurrentAudio.currentTime = 0;
+      this._ttsCurrentAudio = null;
+    }
+    this._ttsPlaying = false;
+    // Reset all TTS buttons to original state
+    document.querySelectorAll('.tts-play-btn').forEach(btn => {
+      btn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/></svg>';
+      btn.title = 'Read aloud';
+    });
   },
 
   _showSaveDialog(content) {
