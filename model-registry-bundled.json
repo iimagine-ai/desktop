@@ -5,6 +5,7 @@
     "audio",
     "code",
     "embedding",
+    "image-generation",
     "multimodal",
     "reasoning",
     "text"
@@ -489,6 +490,67 @@
           "url": null,
           "sizeGB": 16.0,
           "ramRequired": 20,
+          "isDefault": true
+        }
+      ]
+    },
+    {
+      "id": "sdxl-turbo-q4",
+      "name": "SDXL Turbo",
+      "family": "sdxl",
+      "categories": ["image-generation"],
+      "description": "Stability AI's distilled SDXL. 1–4 step generation. Fast img2img on Apple Silicon.",
+      "engineType": "stable-diffusion",
+      "variants": [
+        {
+          "quantization": "Q4_0",
+          "filename": "stable-diffusion-xl-1.0-turbo-Q4_0.gguf",
+          "url": "https://huggingface.co/gpustack/stable-diffusion-xl-1.0-turbo-GGUF/resolve/main/stable-diffusion-xl-1.0-turbo-Q4_0.gguf",
+          "sizeGB": 3.94,
+          "ramRequired": 6,
+          "isDefault": true
+        },
+        {
+          "quantization": "Q8_0",
+          "filename": "stable-diffusion-xl-1.0-turbo-Q8_0.gguf",
+          "url": "https://huggingface.co/gpustack/stable-diffusion-xl-1.0-turbo-GGUF/resolve/main/stable-diffusion-xl-1.0-turbo-Q8_0.gguf",
+          "sizeGB": 5.04,
+          "ramRequired": 8
+        }
+      ]
+    },
+    {
+      "id": "sdxl-lightning",
+      "name": "SDXL Lightning",
+      "family": "sdxl",
+      "categories": ["image-generation"],
+      "description": "ByteDance's 4-step distillation of uncensored SDXL 1.0. Wide unfiltered concept pool, fast generation.",
+      "engineType": "stable-diffusion",
+      "variants": [
+        {
+          "quantization": "Q8_0",
+          "filename": "sdxl_lightning_4step.q8_0.gguf",
+          "url": "https://huggingface.co/OlegSkutte/SDXL-Lightning-GGUF/resolve/main/sdxl_lightning_4step.q8_0.gguf",
+          "sizeGB": 4.1,
+          "ramRequired": 6,
+          "isDefault": true
+        }
+      ]
+    },
+    {
+      "id": "sd-1.5-q8",
+      "name": "Stable Diffusion 1.5",
+      "family": "sd15",
+      "categories": ["image-generation"],
+      "description": "Classic SD 1.5. Smaller footprint, vast LoRA ecosystem. Good for 8GB machines.",
+      "engineType": "stable-diffusion",
+      "variants": [
+        {
+          "quantization": "Q8_0",
+          "filename": "stable-diffusion-v1-5-Q8_0.gguf",
+          "url": "https://huggingface.co/gpustack/stable-diffusion-v1-5-GGUF/resolve/main/stable-diffusion-v1-5-Q8_0.gguf",
+          "sizeGB": 1.7,
+          "ramRequired": 4,
           "isDefault": true
         }
       ]

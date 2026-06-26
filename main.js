@@ -1357,6 +1357,155 @@ function setupIPC() {
     return { success: false };
   });
 
+  // ── SD Engine — local image generation (stable-diffusion.cpp) ────────────
+
+  const sdEngine = require('./sd-engine-manager');
+
+  ipcMain.handle('sd:status', () => {
+    return sdEngine.getStatus();
+  });
+
+  ipcMain.handle('sd:getInstalledModels', () => {
+    return sdEngine.getInstalledModels();
+  });
+
+  ipcMain.handle('sd:getModelsDir', () => {
+    return sdEngine.getModelsDir();
+  });
+
+  ipcMain.handle('sd:txt2img', async (event, params) => {
+    const onProgress = (progress) => {
+      mainWindow?.webContents.send('sd:progress', progress);
+    };
+
+    const result = await sdEngine.txt2img({ ...params, onProgress });
+
+    if (result.success && result.imagePath) {
+      // Read the generated image and return as base64
+      const imageBuffer = fs.readFileSync(result.imagePath);
+      const base64 = imageBuffer.toString('base64');
+      return {
+        success: true,
+        image: base64,
+        mediaType: 'image/png',
+        imagePath: result.imagePath,
+        filename: result.filename,
+      };
+    }
+    return result;
+  });
+
+  ipcMain.handle('sd:img2img', async (event, params) => {
+    const onProgress = (progress) => {
+      mainWindow?.webContents.send('sd:progress', progress);
+    };
+
+    // If inputImage is base64 data, save to temp file first
+    let inputImagePath = params.inputImagePath;
+    if (params.inputImageBase64 && !inputImagePath) {
+      inputImagePath = sdEngine.saveTempInput(params.inputImageBase64, 'png');
+    }
+
+    const result = await sdEngine.img2img({
+      ...params,
+      inputImagePath,
+      onProgress,
+    });
+
+    if (result.success && result.imagePath) {
+      const imageBuffer = fs.readFileSync(result.imagePath);
+      const base64 = imageBuffer.toString('base64');
+      return {
+        success: true,
+        image: base64,
+        mediaType: 'image/png',
+        imagePath: result.imagePath,
+        filename: result.filename,
+      };
+    }
+    return result;
+  });
+
+  ipcMain.handle('sd:cancel', () => {
+    return sdEngine.cancelGeneration();
+  });
+
+  ipcMain.handle('sd:deleteModel', (event, filename) => {
+    return sdEngine.deleteModel(filename);
+  });
+
+  ipcMain.handle('sd:cleanup', () => {
+    sdEngine.cleanupTempFiles();
+    return { success: true };
+  });
+
+  // SD model download — routes to ~/.iimagine/sd-models/
+  let activeSdDownloadController = null;
+
+  ipcMain.handle('sd:downloadModel', async (event, { url, filename }) => {
+    activeSdDownloadController = new AbortController();
+    const sdModelsDir = sdEngine.getModelsDir();
+    const targetPath = path.join(sdModelsDir, filename);
+    const tempPath = targetPath + '.downloading';
+
+    const onProgress = (downloaded, total) => {
+      mainWindow?.webContents.send('sd:download-progress', {
+        filename,
+        downloaded,
+        total,
+        percent: total > 0 ? Math.round((downloaded / total) * 100) : 0,
+      });
+    };
+
+    try {
+      const res = await fetch(url, { signal: activeSdDownloadController.signal });
+      if (!res.ok) {
+        return { success: false, error: `Download failed: HTTP ${res.status}` };
+      }
+
+      const totalSize = parseInt(res.headers.get('content-length') || '0');
+      const writer = fs.createWriteStream(tempPath);
+      const reader = res.body.getReader();
+      let downloaded = 0;
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        writer.write(Buffer.from(value));
+        downloaded += value.length;
+        onProgress(downloaded, totalSize);
+      }
+
+      writer.end();
+      await new Promise((resolve, reject) => {
+        writer.on('finish', resolve);
+        writer.on('error', reject);
+      });
+
+      fs.renameSync(tempPath, targetPath);
+      activeSdDownloadController = null;
+
+      mainWindow?.webContents.send('sd:download-done', { filename, success: true });
+      return { success: true, path: targetPath, filename };
+    } catch (err) {
+      try { fs.unlinkSync(tempPath); } catch {}
+      activeSdDownloadController = null;
+
+      const error = err.name === 'AbortError' ? 'Download cancelled' : err.message;
+      mainWindow?.webContents.send('sd:download-done', { filename, success: false, error });
+      return { success: false, error };
+    }
+  });
+
+  ipcMain.handle('sd:cancelDownload', () => {
+    if (activeSdDownloadController) {
+      activeSdDownloadController.abort();
+      activeSdDownloadController = null;
+      return { success: true };
+    }
+    return { success: false };
+  });
+
   // Engine — streaming chat (OpenAI-compatible)
   ipcMain.handle('engine:chatStream', async (event, { messages }) => {
     const toolCalling = require('./tool-calling');

@@ -163,6 +163,23 @@ contextBridge.exposeInMainWorld('api', {
     getDir: () => ipcRenderer.invoke('media:getDir'),
   },
 
+  // SD Engine — local image generation (stable-diffusion.cpp)
+  sd: {
+    status: () => ipcRenderer.invoke('sd:status'),
+    getInstalledModels: () => ipcRenderer.invoke('sd:getInstalledModels'),
+    getModelsDir: () => ipcRenderer.invoke('sd:getModelsDir'),
+    txt2img: (params) => ipcRenderer.invoke('sd:txt2img', params),
+    img2img: (params) => ipcRenderer.invoke('sd:img2img', params),
+    cancel: () => ipcRenderer.invoke('sd:cancel'),
+    deleteModel: (filename) => ipcRenderer.invoke('sd:deleteModel', filename),
+    cleanup: () => ipcRenderer.invoke('sd:cleanup'),
+    downloadModel: (url, filename) => ipcRenderer.invoke('sd:downloadModel', { url, filename }),
+    cancelDownload: () => ipcRenderer.invoke('sd:cancelDownload'),
+    onProgress: (cb) => ipcRenderer.on('sd:progress', (_, progress) => cb(progress)),
+    onDownloadProgress: (cb) => ipcRenderer.on('sd:download-progress', (_, data) => cb(data)),
+    onDownloadDone: (cb) => ipcRenderer.on('sd:download-done', (_, data) => cb(data)),
+  },
+
   // Chat RAG — KB-augmented chat for general chat page
   chatRag: {
     send: (data) => ipcRenderer.invoke('chat:ragSend', data),

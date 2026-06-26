@@ -1,6 +1,6 @@
 {
   "name": "iimagine-desktop",
-  "version": "0.9.9",
+  "version": "0.10.0",
   "description": "IIMAGINE Desktop Companion - Local LLM chat with your IIMAGINE account",
   "main": "main.js",
   "scripts": {
@@ -56,6 +56,7 @@
       "model-orchestrator.js",
       "local-ai-adapter.js",
       "download-manager.js",
+      "sd-engine-manager.js",
       "mcp-client.js",
       "plugin-generator.js",
       "google-oauth.js",

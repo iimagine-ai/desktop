@@ -13,6 +13,7 @@ const manifestManager = require('./manifest-manager');
 const getModel = (modelId) => manifestManager.getModel(modelId);
 
 const MODELS_DIR = path.join(os.homedir(), '.iimagine', 'models');
+const SD_MODELS_DIR = path.join(os.homedir(), '.iimagine', 'sd-models');
 const STATE_FILE = path.join(os.homedir(), '.iimagine', 'download-state.json');
 const INSTALLED_FILE = path.join(os.homedir(), '.iimagine', 'installed-models.json');
 
@@ -40,6 +41,7 @@ class DownloadManager extends EventEmitter {
    */
   async initialize() {
     this._ensureDir(MODELS_DIR);
+    this._ensureDir(SD_MODELS_DIR);
     this._ensureDir(path.dirname(STATE_FILE));
     this._loadState();
     this._loadInstalled();
@@ -82,6 +84,8 @@ class DownloadManager extends EventEmitter {
     }
 
     if (!dl) {
+      // Route to correct directory based on model engine type
+      const targetDir = model.engineType === 'stable-diffusion' ? SD_MODELS_DIR : MODELS_DIR;
       dl = {
         modelId,
         variantIndex,
@@ -89,7 +93,7 @@ class DownloadManager extends EventEmitter {
         bytesDownloaded: 0,
         totalBytes: 0,
         filename: variant.filename,
-        filepath: path.join(MODELS_DIR, variant.filename),
+        filepath: path.join(targetDir, variant.filename),
         url: variant.url,
         startedAt: new Date().toISOString(),
         error: null,
@@ -175,7 +179,8 @@ class DownloadManager extends EventEmitter {
     const variant = model.variants[variantIndex];
     if (!variant) throw new Error(`Variant not found`);
 
-    const filepath = path.join(MODELS_DIR, variant.filename);
+    const targetDir = model.engineType === 'stable-diffusion' ? SD_MODELS_DIR : MODELS_DIR;
+    const filepath = path.join(targetDir, variant.filename);
     if (fs.existsSync(filepath)) {
       fs.unlinkSync(filepath);
     }
