@@ -2784,6 +2784,63 @@ END OF DOCUMENTS`;
     require('electron').shell.openPath(pluginPath);
   });
   ipcMain.handle('plugins:uninstall', (event, id) => pluginManager.uninstall(id));
+
+  // Plugin file operations — sandboxed to ~/.iimagine/plugin-data/<pluginId>/
+  ipcMain.handle('plugins:fileSave', (event, { pluginId, filename, base64Data }) => {
+    const dataDir = path.join(os.homedir(), '.iimagine', 'plugin-data', pluginId);
+    if (!fs.existsSync(dataDir)) fs.mkdirSync(dataDir, { recursive: true });
+    const safeName = path.basename(filename);
+    const filePath = path.join(dataDir, safeName);
+    try {
+      const buffer = Buffer.from(base64Data, 'base64');
+      fs.writeFileSync(filePath, buffer);
+      return { success: true, path: filePath, filename: safeName };
+    } catch (err) {
+      return { success: false, error: err.message };
+    }
+  });
+
+  ipcMain.handle('plugins:fileList', (event, { pluginId }) => {
+    const dataDir = path.join(os.homedir(), '.iimagine', 'plugin-data', pluginId);
+    try {
+      if (!fs.existsSync(dataDir)) return [];
+      return fs.readdirSync(dataDir).map(f => {
+        const stats = fs.statSync(path.join(dataDir, f));
+        return { filename: f, size: stats.size, modified: stats.mtime };
+      });
+    } catch { return []; }
+  });
+
+  ipcMain.handle('plugins:fileRead', (event, { pluginId, filename }) => {
+    const dataDir = path.join(os.homedir(), '.iimagine', 'plugin-data', pluginId);
+    const safeName = path.basename(filename);
+    const filePath = path.join(dataDir, safeName);
+    try {
+      if (!fs.existsSync(filePath)) return { success: false, error: 'Not found' };
+      const buffer = fs.readFileSync(filePath);
+      return { success: true, base64: buffer.toString('base64'), filename: safeName };
+    } catch (err) {
+      return { success: false, error: err.message };
+    }
+  });
+
+  ipcMain.handle('plugins:fileDelete', (event, { pluginId, filename }) => {
+    const dataDir = path.join(os.homedir(), '.iimagine', 'plugin-data', pluginId);
+    const safeName = path.basename(filename);
+    const filePath = path.join(dataDir, safeName);
+    try {
+      if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
+      return { success: true };
+    } catch (err) {
+      return { success: false, error: err.message };
+    }
+  });
+
+  ipcMain.handle('plugins:fileGetPath', (event, { pluginId, filename }) => {
+    const dataDir = path.join(os.homedir(), '.iimagine', 'plugin-data', pluginId);
+    const safeName = path.basename(filename);
+    return path.join(dataDir, safeName);
+  });
   ipcMain.handle('plugins:checkLicense', async (event, pluginId) => {
     return await pluginManager.checkLicense(pluginId);
   });
@@ -2895,7 +2952,7 @@ END OF DOCUMENTS`;
             method: 'POST',
             headers,
             body: JSON.stringify({ model: gatewayModel, messages, max_completion_tokens: 4096, temperature: 0.7 }),
-            signal: AbortSignal.timeout(60000),
+            signal: AbortSignal.timeout(120000),
           });
           if (!res.ok) {
             const errBody = await res.text().catch(() => '');
@@ -3341,6 +3398,46 @@ app.whenReady().then(async () => {
   });
 
   // Initialize plugin system
+  // Define gatewayChat as a variable so it can reference agentChat (defined above)
+  const pluginGatewayChat = async (messages) => {
+    try {
+      console.log('[Plugin:gatewayChat] Calling with', messages.length, 'messages, content type:', typeof messages[0]?.content === 'object' ? 'vision-array' : 'text');
+      const gatewayModel = store.get('gateway.model');
+      const vendor = store.get('gateway.vendor') || 'openai';
+      const PROVIDER_CONFIG = {
+        openai: { url: 'https://api.openai.com/v1/chat/completions', keyStore: 'openai.apiKey', authHeader: 'Bearer' },
+        anthropic: { url: 'https://api.anthropic.com/v1/messages', keyStore: 'anthropic.apiKey', isAnthropic: true },
+        openrouter: { url: 'https://openrouter.ai/api/v1/chat/completions', keyStore: 'openrouter.apiKey', authHeader: 'Bearer' },
+      };
+      const config = PROVIDER_CONFIG[vendor];
+      const apiKey = config ? store.get(config.keyStore) : null;
+      if (!apiKey || !config) {
+        console.log('[Plugin:gatewayChat] No API key configured for', vendor);
+        return null;
+      }
+
+      const headers = { 'Content-Type': 'application/json', 'Authorization': `${config.authHeader} ${apiKey}` };
+      const res = await fetch(config.url, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ model: gatewayModel, messages, max_completion_tokens: 4096, temperature: 0.7 }),
+        signal: AbortSignal.timeout(120000),
+      });
+      if (!res.ok) {
+        const errText = await res.text().catch(() => '');
+        console.log('[Plugin:gatewayChat] API error:', res.status, errText.substring(0, 200));
+        return null;
+      }
+      const data = await res.json();
+      const content = data.choices?.[0]?.message?.content || '';
+      console.log('[Plugin:gatewayChat] Success, response length:', content.length);
+      return content;
+    } catch (err) {
+      console.error('[Plugin:gatewayChat] Exception:', err.message);
+      return null;
+    }
+  };
+
   pluginManager.setContext({
     db: storage.getDb(),
     store,
@@ -3348,6 +3445,84 @@ app.whenReady().then(async () => {
     assistantStorage,
     getOllamaUrl: () => store.get('local.ollamaHost') || OLLAMA_URL,
     autoEmbedCollection: (collectionId) => autoEmbedCollection(collectionId),
+    gatewayChat: pluginGatewayChat,
+    // File helpers for plugins — sandboxed to ~/.iimagine/plugin-data/<pluginId>/
+    files: {
+      /**
+       * Save a file to the plugin's sandboxed data directory.
+       * @param {string} pluginId - the plugin's ID
+       * @param {string} filename - target filename
+       * @param {Buffer|string} data - file contents (Buffer for binary, string for text)
+       * @returns {{ success: boolean, path?: string, error?: string }}
+       */
+      save(pluginId, filename, data) {
+        const dataDir = path.join(os.homedir(), '.iimagine', 'plugin-data', pluginId);
+        if (!fs.existsSync(dataDir)) fs.mkdirSync(dataDir, { recursive: true });
+        const safeName = path.basename(filename); // prevent path traversal
+        const filePath = path.join(dataDir, safeName);
+        try {
+          fs.writeFileSync(filePath, data);
+          return { success: true, path: filePath };
+        } catch (err) {
+          return { success: false, error: err.message };
+        }
+      },
+      /**
+       * Read a file from the plugin's sandboxed data directory.
+       * @param {string} pluginId - the plugin's ID
+       * @param {string} filename - filename to read
+       * @returns {{ success: boolean, data?: Buffer, error?: string }}
+       */
+      read(pluginId, filename) {
+        const dataDir = path.join(os.homedir(), '.iimagine', 'plugin-data', pluginId);
+        const safeName = path.basename(filename);
+        const filePath = path.join(dataDir, safeName);
+        try {
+          if (!fs.existsSync(filePath)) return { success: false, error: 'File not found' };
+          const data = fs.readFileSync(filePath);
+          return { success: true, data };
+        } catch (err) {
+          return { success: false, error: err.message };
+        }
+      },
+      /**
+       * List files in the plugin's data directory.
+       * @param {string} pluginId - the plugin's ID
+       * @returns {string[]}
+       */
+      list(pluginId) {
+        const dataDir = path.join(os.homedir(), '.iimagine', 'plugin-data', pluginId);
+        try {
+          if (!fs.existsSync(dataDir)) return [];
+          return fs.readdirSync(dataDir);
+        } catch { return []; }
+      },
+      /**
+       * Delete a file from the plugin's data directory.
+       * @param {string} pluginId - the plugin's ID
+       * @param {string} filename - filename to delete
+       */
+      delete(pluginId, filename) {
+        const dataDir = path.join(os.homedir(), '.iimagine', 'plugin-data', pluginId);
+        const safeName = path.basename(filename);
+        const filePath = path.join(dataDir, safeName);
+        try {
+          if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
+          return { success: true };
+        } catch (err) {
+          return { success: false, error: err.message };
+        }
+      },
+      /**
+       * Get the absolute path to the plugin's data directory.
+       * @param {string} pluginId
+       */
+      getDir(pluginId) {
+        const dataDir = path.join(os.homedir(), '.iimagine', 'plugin-data', pluginId);
+        if (!fs.existsSync(dataDir)) fs.mkdirSync(dataDir, { recursive: true });
+        return dataDir;
+      },
+    },
   });
 
   // Copy bundled sample plugins to user plugins dir if not present

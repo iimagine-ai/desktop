@@ -60,7 +60,11 @@ module.exports = { ... };
 
 ### Entry Point (index.js)
 - Must export: activate(context), deactivate()
-- context provides: { db, store, kbStorage, getOllamaUrl }
+- context provides: { db, store, kbStorage, getOllamaUrl, gatewayChat, files }
+- IMPORTANT: Store the context reference in activate() so onEvent can use it:
+  let ctx = null;
+  function activate(context) { ctx = context; ... }
+  async function onEvent(eventName, data) { const result = await ctx.gatewayChat(messages); ... }
 - For sidebar plugins: must export renderPage() returning an HTML string
 - For settings: must export renderSettings() returning an HTML string
 - For events: must export onEvent(eventName, data)
@@ -71,6 +75,51 @@ module.exports = { ... };
 - Table names MUST be prefixed with plugin id using underscores: "expense_tracker_items"
 - Store keys MUST be prefixed: "expense-tracker.someKey"
 - Use CREATE TABLE IF NOT EXISTS in activate()
+
+### File Upload & Storage
+- Plugins can save and read files using the sandboxed file API
+- Files are stored per-plugin at ~/.iimagine/plugin-data/<plugin-id>/
+- From rendered HTML scripts, use these APIs:
+  - Upload/save: await window.api.plugins.fileSave('plugin-id', filename, base64Data)
+  - List files: await window.api.plugins.fileList('plugin-id')
+  - Read file: await window.api.plugins.fileRead('plugin-id', filename) → { base64 }
+  - Delete: await window.api.plugins.fileDelete('plugin-id', filename)
+- To handle file input from the user, use a standard HTML <input type="file"> and read it as base64:
+  const file = inputEl.files[0];
+  const reader = new FileReader();
+  reader.onload = async (e) => {
+    const base64 = e.target.result.split(',')[1];
+    await window.api.plugins.fileSave('plugin-id', file.name, base64);
+  };
+  reader.readAsDataURL(file);
+- From the onEvent handler (backend): use context.files.save(pluginId, filename, data), context.files.read(pluginId, filename), context.files.list(pluginId), context.files.delete(pluginId, filename)
+- To display an uploaded image in the UI, read it back as base64 and use a data: URL
+
+### AI Vision (Analyzing Images with GPT)
+- Plugins can send images to the AI model for analysis using the gateway chat API
+- This works with vision-capable models (GPT-4o, GPT-5, etc.)
+- From rendered HTML scripts, send a message with an image:
+  const result = await window.api.plugins.sendEvent('plugin-id:analyze-image', { base64, prompt });
+- In the onEvent handler, use ctx.gatewayChat (stored from activate):
+  let ctx = null;
+  function activate(context) { ctx = context; }
+  async function onEvent(eventName, data) {
+    if (eventName === 'plugin-id:analyze-image') {
+      const { base64, prompt } = data;
+      const messages = [
+        { role: 'user', content: [
+          { type: 'text', text: prompt || 'Describe this image' },
+          { type: 'image_url', image_url: { url: \`data:image/png;base64,\${base64}\` } }
+        ]}
+      ];
+      const response = await ctx.gatewayChat(messages);
+      return { success: true, analysis: response };
+    }
+  }
+- ctx.gatewayChat(messages) sends messages to the active cloud AI model and returns the text response
+- This supports the OpenAI vision message format with content arrays containing text and image_url parts
+- Use this for: image analysis, OCR, object detection, document parsing, visual Q&A
+- IMPORTANT: Always check if ctx is available before calling gatewayChat (user may not have a cloud model configured)
 
 ### UI Rendering (renderPage returns HTML string)
 - Use Tailwind CSS classes (already loaded globally)

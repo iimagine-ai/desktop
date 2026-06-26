@@ -267,6 +267,12 @@ contextBridge.exposeInMainWorld('api', {
     getMentions: () => ipcRenderer.invoke('plugins:getMentions'),
     checkLicense: (pluginId) => ipcRenderer.invoke('plugins:checkLicense', pluginId),
     getAllLicenses: () => ipcRenderer.invoke('plugins:getAllLicenses'),
+    // File operations — sandboxed per plugin
+    fileSave: (pluginId, filename, base64Data) => ipcRenderer.invoke('plugins:fileSave', { pluginId, filename, base64Data }),
+    fileList: (pluginId) => ipcRenderer.invoke('plugins:fileList', { pluginId }),
+    fileRead: (pluginId, filename) => ipcRenderer.invoke('plugins:fileRead', { pluginId, filename }),
+    fileDelete: (pluginId, filename) => ipcRenderer.invoke('plugins:fileDelete', { pluginId, filename }),
+    fileGetPath: (pluginId, filename) => ipcRenderer.invoke('plugins:fileGetPath', { pluginId, filename }),
   },
 
   // Plugin Generator — AI-powered plugin creation

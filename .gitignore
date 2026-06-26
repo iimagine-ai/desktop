@@ -25,3 +25,4 @@ plugins/legal-companion/
 
 # OAuth credentials (injected at build time, not in public repo)
 oauth-credentials.json
+.sd-build/

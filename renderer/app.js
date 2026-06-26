@@ -16,7 +16,6 @@ const AppRouter = {
     recent: window.RecentPage,
     images: window.ImagesPage,
     videos: window.VideosPage,
-    audio: window.AudioPage,
     knowledge: window.KnowledgePage,
     assistants: window.AssistantsPage,
     prompts: window.PromptsPage,
