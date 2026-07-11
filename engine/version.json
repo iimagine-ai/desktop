@@ -1,0 +1,27 @@
+{
+  "version": "b9524",
+  "release_tag": "b9524",
+  "release_date": "2026-06-05",
+  "source": "https://github.com/ggml-org/llama.cpp/releases",
+  "binaries": {
+    "darwin-arm64": "https://github.com/ggml-org/llama.cpp/releases/download/b9524/llama-b9524-bin-macos-arm64.tar.gz",
+    "darwin-x64": "https://github.com/ggml-org/llama.cpp/releases/download/b9524/llama-b9524-bin-macos-x64.tar.gz",
+    "win32-x64": "https://github.com/ggml-org/llama.cpp/releases/download/b9524/llama-b9524-bin-win-cpu-x64.zip",
+    "win32-x64-cuda": "https://github.com/ggml-org/llama.cpp/releases/download/b9524/llama-b9524-bin-win-cuda-12.4-x64.zip",
+    "linux-x64": "https://github.com/ggml-org/llama.cpp/releases/download/b9524/llama-b9524-bin-ubuntu-x64.tar.gz"
+  },
+  "sha256": {
+    "darwin-arm64": "a36cb59576d2c6dc80f794f0949c2fa9161a37c0c2c34d091a5383dd0c610123",
+    "darwin-x64": "",
+    "win32-x64": "",
+    "linux-x64": ""
+  },
+  "binary_name_in_archive": "llama-server",
+  "renamed_to": "iimagine-engine",
+  "notes": "Latest release as of 2026-06-05. Fixes Gemma 4 token leaking issues at source. OpenAI-compat API stable.",
+  "api_endpoints": {
+    "chat": "POST /v1/chat/completions",
+    "embeddings": "POST /v1/embeddings",
+    "health": "GET /health"
+  }
+}

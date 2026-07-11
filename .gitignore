@@ -1,0 +1,45 @@
+node_modules/
+dist/
+out/
+*.dmg
+*.AppImage
+*.exe
+.DS_Store
+
+# Engine binaries and libraries (downloaded via scripts/setup-engine.sh)
+bin/iimagine-engine
+bin/iimagine-engine.exe
+bin/*.dylib
+bin/*.so
+bin/*.so.*
+bin/*.dll
+bin/*.metal
+bin/.engine-version
+
+# Stable Diffusion build artifacts
+.sd-build/
+
+# Stable Diffusion engine (removed from public repo, stays local)
+sd-engine-manager.js
+scripts/build-sd-engine.sh
+
+# Paid plugins (distributed via marketplace, not open source)
+plugins/client-workspace/
+plugins/cortex-lite/
+plugins/legal-companion/
+
+# Credentials and secrets
+oauth-credentials.json
+config.json
+
+# Internal tooling (not part of the open source project)
+scripts/upload-to-blob.js
+
+# Internal docs (roadmap, release process, historical migrations)
+docs/internal/
+
+# Paid plugin documentation
+docs/client-workspace-plugin.md
+docs/cortex-lite-plugin.md
+docs/legal-companion-plugin.md
+docs/client-coms-example.md

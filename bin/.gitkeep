@@ -1,0 +1,3 @@
+# Binary directory for iimagine-engine (llama-server from llama.cpp)
+# Run scripts/setup-engine.sh to download the binary
+# The binary is NOT committed to git (see .gitignore)

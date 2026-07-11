@@ -1,0 +1,120 @@
+name: Build & Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  build:
+    strategy:
+      matrix:
+        include:
+          - os: macos-latest
+            build_cmd: npx electron-builder --mac --publish never
+          - os: windows-latest
+            build_cmd: npx electron-builder --win --publish never
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install dependencies
+        run: npm install --legacy-peer-deps
+
+      - name: Setup engine binary
+        if: matrix.os == 'macos-latest'
+        run: |
+          chmod +x scripts/setup-engine.sh
+          ./scripts/setup-engine.sh
+
+      - name: Setup engine binary (Windows)
+        if: matrix.os == 'windows-latest'
+        shell: pwsh
+        run: |
+          $versionJson = Get-Content engine/version.json | ConvertFrom-Json
+          $binDir = "bin"
+          New-Item -ItemType Directory -Force -Path $binDir | Out-Null
+
+          # Download CPU variant (fallback)
+          $cpuUrl = $versionJson.binaries.'win32-x64'
+          Write-Host "Downloading llama.cpp CPU for Windows..."
+          Invoke-WebRequest -Uri $cpuUrl -OutFile "$binDir\llama-cpp-cpu.zip"
+          Expand-Archive -Path "$binDir\llama-cpp-cpu.zip" -DestinationPath "$binDir\extracted-cpu" -Force
+          $server = Get-ChildItem -Path "$binDir\extracted-cpu" -Recurse -Filter "llama-server.exe" | Select-Object -First 1
+          if ($server) {
+            Copy-Item $server.FullName "$binDir\iimagine-engine.exe"
+            Get-ChildItem -Path "$binDir\extracted-cpu" -Recurse -Filter "*.dll" | ForEach-Object { Copy-Item $_.FullName $binDir }
+          }
+          Remove-Item "$binDir\llama-cpp-cpu.zip" -Force
+          Remove-Item "$binDir\extracted-cpu" -Recurse -Force
+
+          # Download CUDA variant
+          $cudaUrl = $versionJson.binaries.'win32-x64-cuda'
+          $cudaDir = "$binDir\cuda"
+          New-Item -ItemType Directory -Force -Path $cudaDir | Out-Null
+          Write-Host "Downloading llama.cpp CUDA for Windows..."
+          Invoke-WebRequest -Uri $cudaUrl -OutFile "$binDir\llama-cpp-cuda.zip"
+          Expand-Archive -Path "$binDir\llama-cpp-cuda.zip" -DestinationPath "$binDir\extracted-cuda" -Force
+          $cudaServer = Get-ChildItem -Path "$binDir\extracted-cuda" -Recurse -Filter "llama-server.exe" | Select-Object -First 1
+          if ($cudaServer) {
+            Copy-Item $cudaServer.FullName "$cudaDir\iimagine-engine.exe"
+            Get-ChildItem -Path "$binDir\extracted-cuda" -Recurse -Filter "*.dll" | ForEach-Object { Copy-Item $_.FullName $cudaDir }
+          }
+          Remove-Item "$binDir\llama-cpp-cuda.zip" -Force
+          Remove-Item "$binDir\extracted-cuda" -Recurse -Force
+          Write-Host "Engine binaries ready: CPU at $binDir\iimagine-engine.exe, CUDA at $cudaDir\iimagine-engine.exe"
+
+          # Bundle VC++ Runtime DLLs so users don't need to install separately
+          Write-Host "Bundling VC++ Runtime DLLs..."
+          $vcRedistDir = "${env:SystemRoot}\System32"
+          $vcDlls = @("vcruntime140.dll", "vcruntime140_1.dll", "msvcp140.dll", "msvcp140_1.dll")
+          foreach ($dll in $vcDlls) {
+            $dllPath = Join-Path $vcRedistDir $dll
+            if (Test-Path $dllPath) {
+              Copy-Item $dllPath $binDir
+              Copy-Item $dllPath $cudaDir
+              Write-Host "  Copied $dll"
+            } else {
+              Write-Host "  WARNING: $dll not found at $dllPath"
+            }
+          }
+          Write-Host "VC++ Runtime DLLs bundled."
+
+      - name: Build
+        run: ${{ matrix.build_cmd }}
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: "false"
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: dist-${{ matrix.os }}
+          path: |
+            dist/*.dmg
+            dist/*.zip
+            dist/*.exe
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          draft: false
+          files: artifacts/**/*
+          generate_release_notes: true

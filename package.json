@@ -1,0 +1,114 @@
+{
+  "name": "iimagine-desktop",
+  "version": "0.1.0",
+  "description": "IIMAGINE Desktop - Privacy-first AI with bundled local inference engine",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "dev": "NODE_ENV=development electron .",
+    "setup-engine": "./scripts/setup-engine.sh",
+    "build:mac": "./scripts/setup-engine.sh && electron-builder --mac",
+    "build:win": "electron-builder --win",
+    "build:linux": "./scripts/setup-engine.sh && electron-builder --linux"
+  },
+  "build": {
+    "appId": "ai.iimagine.desktop",
+    "productName": "IIMAGINE Desktop",
+    "mac": {
+      "category": "public.app-category.productivity",
+      "icon": "assets/icon.icns",
+      "target": [
+        "dmg",
+        "zip"
+      ]
+    },
+    "win": {
+      "target": [
+        "nsis"
+      ],
+      "icon": "assets/icon.ico"
+    },
+    "linux": {
+      "target": [
+        "AppImage"
+      ],
+      "icon": "assets/icon.png"
+    },
+    "files": [
+      "main.js",
+      "preload.js",
+      "storage.js",
+      "kb-storage.js",
+      "assistant-storage.js",
+      "persona-storage.js",
+      "folder-connect.js",
+      "prompt-storage.js",
+      "rag-prompt-storage.js",
+      "tool-calling.js",
+      "plugin-manager.js",
+      "stream-abort.js",
+      "engine-manager.js",
+      "model-registry.js",
+      "license-checker.js",
+      "hardware-scanner.js",
+      "manifest-manager.js",
+      "model-orchestrator.js",
+      "local-ai-adapter.js",
+      "download-manager.js",
+
+      "tts-service.js",
+      "skills-manager.js",
+      "mcp-client.js",
+      "plugin-generator.js",
+      "google-oauth.js",
+      "model-registry-bundled.json",
+      "mcp-servers/**/*",
+      "renderer/**/*",
+      "plugins/word-count/**/*",
+      "plugins/privacy-proxy/**/*",
+      "assets/**/*",
+      "node_modules/**/*",
+      "!**/{docs,scripts,.github,ARCHITECTURE.md,PLUGIN_DEVELOPMENT.md,STYLE_GUIDE.md,README.md,LICENSE,.gitignore}",
+      "!**/node_modules/**/{README,readme,CHANGELOG,changelog,HISTORY,history,test,tests,__tests__,spec,example,examples,doc,docs}/**"
+    ],
+    "asar": true,
+    "asarUnpack": [
+      "node_modules/better-sqlite3/**",
+      "node_modules/sqlite-vec/**",
+      "node_modules/keytar/**",
+      "mcp-servers/**"
+    ],
+    "extraResources": [
+      {
+        "from": "bin/",
+        "to": "bin/",
+        "filter": [
+          "**/*",
+          "!.gitkeep"
+        ]
+      }
+    ],
+    "protocols": [
+      {
+        "name": "IIMAGINE Desktop",
+        "schemes": [
+          "iimagine-desktop"
+        ]
+      }
+    ]
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.29.0",
+    "better-sqlite3": "^12.9.0",
+    "chokidar": "^3.6.0",
+    "electron-store": "^8.2.0",
+    "keytar": "^7.9.0",
+    "mammoth": "^1.9.1",
+    "pdf-parse": "^1.1.4",
+    "sqlite-vec": "^0.1.9"
+  },
+  "devDependencies": {
+    "electron": "^33.0.0",
+    "electron-builder": "^25.1.8"
+  }
+}

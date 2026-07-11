@@ -1,0 +1,597 @@
+{
+  "version": "2026-06-12",
+  "manifest_url": "https://raw.githubusercontent.com/iimagine-ai/model-registry/main/model-registry.json",
+  "categories": [
+    "audio",
+    "code",
+    "embedding",
+    "image-generation",
+    "multimodal",
+    "reasoning",
+    "text"
+  ],
+  "models": [
+    {
+      "id": "gemma-4-e2b",
+      "name": "Gemma 4 E2B",
+      "family": "gemma",
+      "categories": [
+        "text",
+        "multimodal"
+      ],
+      "description": "Google's edge MoE model. 2B active params from 9B total. Fast and efficient.",
+      "variants": [
+        {
+          "quantization": "Q4_K_M",
+          "filename": "google_gemma-4-E2B-it-Q4_K_M.gguf",
+          "url": "https://huggingface.co/bartowski/google_gemma-4-E2B-it-GGUF/resolve/main/google_gemma-4-E2B-it-Q4_K_M.gguf",
+          "sizeGB": 3.46,
+          "ramRequired": 6,
+          "isDefault": true
+        },
+        {
+          "quantization": "Q8_0",
+          "filename": "google_gemma-4-E2B-it-Q8_0.gguf",
+          "url": "https://huggingface.co/bartowski/google_gemma-4-E2B-it-GGUF/resolve/main/google_gemma-4-E2B-it-Q8_0.gguf",
+          "sizeGB": 4.97,
+          "ramRequired": 8
+        }
+      ]
+    },
+    {
+      "id": "gemma-4-e4b",
+      "name": "Gemma 4 E4B",
+      "family": "gemma",
+      "categories": [
+        "text",
+        "multimodal"
+      ],
+      "description": "Google's mid-range MoE. 4B active params from 9B total. Great quality/speed balance.",
+      "variants": [
+        {
+          "quantization": "Q4_K_M",
+          "filename": "google_gemma-4-E4B-it-Q4_K_M.gguf",
+          "url": "https://huggingface.co/bartowski/google_gemma-4-E4B-it-GGUF/resolve/main/google_gemma-4-E4B-it-Q4_K_M.gguf",
+          "sizeGB": 5.41,
+          "ramRequired": 8,
+          "isDefault": true
+        },
+        {
+          "quantization": "Q8_0",
+          "filename": "google_gemma-4-E4B-it-Q8_0.gguf",
+          "url": "https://huggingface.co/bartowski/google_gemma-4-E4B-it-GGUF/resolve/main/google_gemma-4-E4B-it-Q8_0.gguf",
+          "sizeGB": 8.03,
+          "ramRequired": 12
+        }
+      ]
+    },
+    {
+      "id": "gemma-4-12b",
+      "name": "Gemma 4 12B",
+      "family": "gemma",
+      "categories": [
+        "text",
+        "multimodal"
+      ],
+      "description": "Google's dense 12B. Multimodal, strong general-purpose quality on mid-range hardware.",
+      "variants": [
+        {
+          "quantization": "UD-Q4_K_XL",
+          "filename": "gemma-4-12b-it-UD-Q4_K_XL.gguf",
+          "url": "https://huggingface.co/unsloth/gemma-4-12B-it-GGUF/resolve/main/gemma-4-12b-it-UD-Q4_K_XL.gguf",
+          "sizeGB": 7.37,
+          "ramRequired": 12,
+          "isDefault": true
+        },
+        {
+          "quantization": "Q8_0",
+          "filename": "gemma-4-12B-it-Q8_0.gguf",
+          "url": "https://huggingface.co/bartowski/gemma-4-12B-it-GGUF/resolve/main/gemma-4-12B-it-Q8_0.gguf",
+          "sizeGB": 12.67,
+          "ramRequired": 16
+        }
+      ]
+    },
+    {
+      "id": "gemma-4-27b-a4b",
+      "name": "Gemma 4 27B-A4B",
+      "family": "gemma",
+      "categories": [
+        "text",
+        "multimodal"
+      ],
+      "description": "Google's large MoE. 4B active from 26B total. High quality with MoE efficiency.",
+      "variants": [
+        {
+          "quantization": "Q4_K_M",
+          "filename": "google_gemma-4-26B-A4B-it-Q4_K_M.gguf",
+          "url": "https://huggingface.co/bartowski/google_gemma-4-26B-A4B-it-GGUF/resolve/main/google_gemma-4-26B-A4B-it-Q4_K_M.gguf",
+          "sizeGB": 17.04,
+          "ramRequired": 20,
+          "isDefault": true
+        },
+        {
+          "quantization": "Q8_0",
+          "filename": "google_gemma-4-26B-A4B-it-Q8_0.gguf",
+          "url": "https://huggingface.co/bartowski/google_gemma-4-26B-A4B-it-GGUF/resolve/main/google_gemma-4-26B-A4B-it-Q8_0.gguf",
+          "sizeGB": 26.86,
+          "ramRequired": 32
+        }
+      ]
+    },
+    {
+      "id": "gemma-4-31b",
+      "name": "Gemma 4 31B",
+      "family": "gemma",
+      "categories": [
+        "text",
+        "multimodal"
+      ],
+      "description": "Google's dense 31B model. Maximum quality, needs 24GB+ RAM.",
+      "variants": [
+        {
+          "quantization": "Q4_K_M",
+          "filename": "google_gemma-4-31B-it-Q4_K_M.gguf",
+          "url": "https://huggingface.co/bartowski/google_gemma-4-31B-it-GGUF/resolve/main/google_gemma-4-31B-it-Q4_K_M.gguf",
+          "sizeGB": 19.6,
+          "ramRequired": 24,
+          "isDefault": true
+        },
+        {
+          "quantization": "Q8_0",
+          "filename": "google_gemma-4-31B-it-Q8_0.gguf",
+          "url": "https://huggingface.co/bartowski/google_gemma-4-31B-it-GGUF/resolve/main/google_gemma-4-31B-it-Q8_0.gguf",
+          "sizeGB": 32.64,
+          "ramRequired": 36
+        }
+      ]
+    },
+    {
+      "id": "qwen3-8b",
+      "name": "Qwen 3 8B",
+      "family": "qwen",
+      "categories": [
+        "text",
+        "code"
+      ],
+      "description": "Alibaba's latest 8B. Excellent reasoning and multilingual support.",
+      "variants": [
+        {
+          "quantization": "Q4_K_M",
+          "filename": "Qwen_Qwen3-8B-Q4_K_M.gguf",
+          "url": "https://huggingface.co/bartowski/Qwen_Qwen3-8B-GGUF/resolve/main/Qwen_Qwen3-8B-Q4_K_M.gguf",
+          "sizeGB": 5.03,
+          "ramRequired": 8,
+          "isDefault": true
+        },
+        {
+          "quantization": "Q8_0",
+          "filename": "Qwen_Qwen3-8B-Q8_0.gguf",
+          "url": "https://huggingface.co/bartowski/Qwen_Qwen3-8B-GGUF/resolve/main/Qwen_Qwen3-8B-Q8_0.gguf",
+          "sizeGB": 8.71,
+          "ramRequired": 12
+        }
+      ]
+    },
+    {
+      "id": "qwen3-14b",
+      "name": "Qwen 3 14B",
+      "family": "qwen",
+      "categories": [
+        "text",
+        "code"
+      ],
+      "description": "Alibaba's mid-size model. Strong at complex reasoning and code.",
+      "variants": [
+        {
+          "quantization": "Q4_K_M",
+          "filename": "Qwen_Qwen3-14B-Q4_K_M.gguf",
+          "url": "https://huggingface.co/bartowski/Qwen_Qwen3-14B-GGUF/resolve/main/Qwen_Qwen3-14B-Q4_K_M.gguf",
+          "sizeGB": 9,
+          "ramRequired": 12,
+          "isDefault": true
+        },
+        {
+          "quantization": "Q8_0",
+          "filename": "Qwen_Qwen3-14B-Q8_0.gguf",
+          "url": "https://huggingface.co/bartowski/Qwen_Qwen3-14B-GGUF/resolve/main/Qwen_Qwen3-14B-Q8_0.gguf",
+          "sizeGB": 15.7,
+          "ramRequired": 20
+        }
+      ]
+    },
+    {
+      "id": "qwen3.6-35b-a3b",
+      "name": "Qwen 3.6 35B-A3B",
+      "family": "qwen",
+      "categories": [
+        "text",
+        "code",
+        "multimodal"
+      ],
+      "description": "Alibaba's MoE powerhouse. 3B active from 35B total. Top-tier quality with MoE speed.",
+      "variants": [
+        {
+          "quantization": "Q4_K_M",
+          "filename": "Qwen_Qwen3.6-35B-A3B-Q4_K_M.gguf",
+          "url": "https://huggingface.co/bartowski/Qwen_Qwen3.6-35B-A3B-GGUF/resolve/main/Qwen_Qwen3.6-35B-A3B-Q4_K_M.gguf",
+          "sizeGB": 22.29,
+          "ramRequired": 26,
+          "isDefault": true
+        },
+        {
+          "quantization": "Q8_0",
+          "filename": "Qwen_Qwen3.6-35B-A3B-Q8_0.gguf",
+          "url": "https://huggingface.co/bartowski/Qwen_Qwen3.6-35B-A3B-GGUF/resolve/main/Qwen_Qwen3.6-35B-A3B-Q8_0.gguf",
+          "sizeGB": 37.81,
+          "ramRequired": 42
+        }
+      ]
+    },
+    {
+      "id": "llama-3.1-8b",
+      "name": "Llama 3.1 8B",
+      "family": "llama",
+      "categories": [
+        "text",
+        "code"
+      ],
+      "description": "Meta's workhorse model. Excellent balance of quality and speed.",
+      "variants": [
+        {
+          "quantization": "Q4_K_M",
+          "filename": "Meta-Llama-3.1-8B-Instruct-Q4_K_M.gguf",
+          "url": "https://huggingface.co/bartowski/Meta-Llama-3.1-8B-Instruct-GGUF/resolve/main/Meta-Llama-3.1-8B-Instruct-Q4_K_M.gguf",
+          "sizeGB": 4.92,
+          "ramRequired": 8,
+          "isDefault": true
+        },
+        {
+          "quantization": "Q8_0",
+          "filename": "Meta-Llama-3.1-8B-Instruct-Q8_0.gguf",
+          "url": "https://huggingface.co/bartowski/Meta-Llama-3.1-8B-Instruct-GGUF/resolve/main/Meta-Llama-3.1-8B-Instruct-Q8_0.gguf",
+          "sizeGB": 8.54,
+          "ramRequired": 12
+        }
+      ]
+    },
+    {
+      "id": "llama-3.3-70b",
+      "name": "Llama 3.3 70B",
+      "family": "llama",
+      "categories": [
+        "text",
+        "code"
+      ],
+      "description": "Meta's flagship. Near-GPT-4 quality. Needs 48GB+ RAM.",
+      "variants": [
+        {
+          "quantization": "Q4_K_M",
+          "filename": "Llama-3.3-70B-Instruct-Q4_K_M.gguf",
+          "url": "https://huggingface.co/bartowski/Llama-3.3-70B-Instruct-GGUF/resolve/main/Llama-3.3-70B-Instruct-Q4_K_M.gguf",
+          "sizeGB": 42.52,
+          "ramRequired": 48,
+          "isDefault": true
+        }
+      ]
+    },
+    {
+      "id": "mistral-small-3.1-24b",
+      "name": "Mistral Small 3.1 24B",
+      "family": "mistral",
+      "categories": [
+        "text",
+        "multimodal"
+      ],
+      "description": "Mistral's latest small model. Multimodal, fast, strong at instruction following.",
+      "variants": [
+        {
+          "quantization": "Q4_K_M",
+          "filename": "mistralai_Mistral-Small-3.1-24B-Instruct-2503-Q4_K_M.gguf",
+          "url": "https://huggingface.co/bartowski/mistralai_Mistral-Small-3.1-24B-Instruct-2503-GGUF/resolve/main/mistralai_Mistral-Small-3.1-24B-Instruct-2503-Q4_K_M.gguf",
+          "sizeGB": 14.33,
+          "ramRequired": 18,
+          "isDefault": true
+        },
+        {
+          "quantization": "Q8_0",
+          "filename": "mistralai_Mistral-Small-3.1-24B-Instruct-2503-Q8_0.gguf",
+          "url": "https://huggingface.co/bartowski/mistralai_Mistral-Small-3.1-24B-Instruct-2503-GGUF/resolve/main/mistralai_Mistral-Small-3.1-24B-Instruct-2503-Q8_0.gguf",
+          "sizeGB": 25.05,
+          "ramRequired": 30
+        }
+      ]
+    },
+    {
+      "id": "deepseek-r1-distill-8b",
+      "name": "DeepSeek R1 Distill 8B",
+      "family": "deepseek",
+      "categories": [
+        "text",
+        "reasoning"
+      ],
+      "description": "DeepSeek R1 reasoning distilled into Llama 8B. Chain-of-thought built in.",
+      "variants": [
+        {
+          "quantization": "Q4_K_M",
+          "filename": "DeepSeek-R1-Distill-Llama-8B-Q4_K_M.gguf",
+          "url": "https://huggingface.co/bartowski/DeepSeek-R1-Distill-Llama-8B-GGUF/resolve/main/DeepSeek-R1-Distill-Llama-8B-Q4_K_M.gguf",
+          "sizeGB": 4.92,
+          "ramRequired": 8,
+          "isDefault": true
+        },
+        {
+          "quantization": "Q8_0",
+          "filename": "DeepSeek-R1-Distill-Llama-8B-Q8_0.gguf",
+          "url": "https://huggingface.co/bartowski/DeepSeek-R1-Distill-Llama-8B-GGUF/resolve/main/DeepSeek-R1-Distill-Llama-8B-Q8_0.gguf",
+          "sizeGB": 8.54,
+          "ramRequired": 12
+        }
+      ]
+    },
+    {
+      "id": "deepseek-r1-distill-14b",
+      "name": "DeepSeek R1 Distill 14B",
+      "family": "deepseek",
+      "categories": [
+        "text",
+        "reasoning"
+      ],
+      "description": "DeepSeek R1 reasoning distilled into Qwen 14B. Excellent for complex problems.",
+      "variants": [
+        {
+          "quantization": "Q4_K_M",
+          "filename": "DeepSeek-R1-Distill-Qwen-14B-Q4_K_M.gguf",
+          "url": "https://huggingface.co/bartowski/DeepSeek-R1-Distill-Qwen-14B-GGUF/resolve/main/DeepSeek-R1-Distill-Qwen-14B-Q4_K_M.gguf",
+          "sizeGB": 8.99,
+          "ramRequired": 12,
+          "isDefault": true
+        },
+        {
+          "quantization": "Q8_0",
+          "filename": "DeepSeek-R1-Distill-Qwen-14B-Q8_0.gguf",
+          "url": "https://huggingface.co/bartowski/DeepSeek-R1-Distill-Qwen-14B-GGUF/resolve/main/DeepSeek-R1-Distill-Qwen-14B-Q8_0.gguf",
+          "sizeGB": 15.7,
+          "ramRequired": 20
+        }
+      ]
+    },
+    {
+      "id": "phi-4",
+      "name": "Phi 4 (14B)",
+      "family": "phi",
+      "categories": [
+        "text",
+        "code"
+      ],
+      "description": "Microsoft's latest. Punches well above its weight at reasoning and code.",
+      "variants": [
+        {
+          "quantization": "Q4_K_M",
+          "filename": "phi-4-Q4_K_M.gguf",
+          "url": "https://huggingface.co/bartowski/phi-4-GGUF/resolve/main/phi-4-Q4_K_M.gguf",
+          "sizeGB": 9.05,
+          "ramRequired": 12,
+          "isDefault": true
+        },
+        {
+          "quantization": "Q8_0",
+          "filename": "phi-4-Q8_0.gguf",
+          "url": "https://huggingface.co/bartowski/phi-4-GGUF/resolve/main/phi-4-Q8_0.gguf",
+          "sizeGB": 15.58,
+          "ramRequired": 20
+        }
+      ]
+    },
+    {
+      "id": "phi-4-mini",
+      "name": "Phi 4 Mini (3.8B)",
+      "family": "phi",
+      "categories": [
+        "text",
+        "code"
+      ],
+      "description": "Microsoft's tiny powerhouse. Surprisingly capable for 4GB RAM machines.",
+      "variants": [
+        {
+          "quantization": "Q4_K_M",
+          "filename": "microsoft_Phi-4-mini-instruct-Q4_K_M.gguf",
+          "url": "https://huggingface.co/bartowski/microsoft_Phi-4-mini-instruct-GGUF/resolve/main/microsoft_Phi-4-mini-instruct-Q4_K_M.gguf",
+          "sizeGB": 2.49,
+          "ramRequired": 4,
+          "isDefault": true
+        },
+        {
+          "quantization": "Q8_0",
+          "filename": "microsoft_Phi-4-mini-instruct-Q8_0.gguf",
+          "url": "https://huggingface.co/bartowski/microsoft_Phi-4-mini-instruct-GGUF/resolve/main/microsoft_Phi-4-mini-instruct-Q8_0.gguf",
+          "sizeGB": 4.08,
+          "ramRequired": 6
+        }
+      ]
+    },
+    {
+      "id": "qwen3-30b-a3b",
+      "name": "Qwen 3 30B-A3B",
+      "family": "qwen",
+      "categories": [
+        "text",
+        "code"
+      ],
+      "description": "Alibaba's MoE model. 3B active from 30B total. High quality with low RAM usage.",
+      "variants": [
+        {
+          "quantization": "Q4_K_M",
+          "filename": "Qwen_Qwen3-30B-A3B-Q4_K_M.gguf",
+          "url": "https://huggingface.co/bartowski/Qwen_Qwen3-30B-A3B-GGUF/resolve/main/Qwen_Qwen3-30B-A3B-Q4_K_M.gguf",
+          "sizeGB": 18.63,
+          "ramRequired": 22,
+          "isDefault": true
+        },
+        {
+          "quantization": "Q8_0",
+          "filename": "Qwen_Qwen3-30B-A3B-Q8_0.gguf",
+          "url": "https://huggingface.co/bartowski/Qwen_Qwen3-30B-A3B-GGUF/resolve/main/Qwen_Qwen3-30B-A3B-Q8_0.gguf",
+          "sizeGB": 32.48,
+          "ramRequired": 36
+        }
+      ]
+    },
+    {
+      "id": "moss-tts-nano",
+      "name": "MOSS TTS Nano",
+      "family": "moss-tts",
+      "categories": ["audio"],
+      "description": "Ultra-lightweight TTS. ~100M params, runs on 4 CPU cores. Multilingual voice cloning, 48kHz stereo.",
+      "downloadMethod": "huggingface-cli",
+      "huggingfaceRepo": "OpenMOSS-Team/MOSS-TTS-Nano",
+      "variants": [
+        {
+          "quantization": "F16",
+          "filename": "moss-tts-nano-f16.bin",
+          "url": null,
+          "sizeGB": 0.4,
+          "ramRequired": 2,
+          "isDefault": true
+        }
+      ]
+    },
+    {
+      "id": "moss-tts-local-transformer",
+      "name": "MOSS TTS Local 1.7B",
+      "family": "moss-tts",
+      "categories": ["audio"],
+      "description": "High-quality local TTS. Strong voice cloning, streaming output. Needs 6GB+ RAM.",
+      "downloadMethod": "huggingface-cli",
+      "huggingfaceRepo": "OpenMOSS-Team/MOSS-TTS-Local-Transformer",
+      "variants": [
+        {
+          "quantization": "F16",
+          "filename": "moss-tts-local-transformer-f16.bin",
+          "url": null,
+          "sizeGB": 3.4,
+          "ramRequired": 6,
+          "isDefault": true
+        }
+      ]
+    },
+    {
+      "id": "moss-tts-v1.5",
+      "name": "MOSS TTS v1.5 (8B)",
+      "family": "moss-tts",
+      "categories": ["audio"],
+      "description": "Flagship TTS model. Best quality voice cloning, 31 languages. Needs 20GB+ RAM.",
+      "downloadMethod": "huggingface-cli",
+      "huggingfaceRepo": "OpenMOSS-Team/MOSS-TTS-v1.5",
+      "variants": [
+        {
+          "quantization": "F16",
+          "filename": "moss-tts-v1.5-f16.bin",
+          "url": null,
+          "sizeGB": 16.0,
+          "ramRequired": 20,
+          "isDefault": true
+        }
+      ]
+    },
+    {
+      "id": "sdxl-turbo-q4",
+      "name": "SDXL Turbo",
+      "family": "sdxl",
+      "categories": ["image-generation"],
+      "description": "Stability AI's distilled SDXL. 1–4 step generation. Fast img2img on Apple Silicon.",
+      "engineType": "stable-diffusion",
+      "variants": [
+        {
+          "quantization": "Q4_0",
+          "filename": "stable-diffusion-xl-1.0-turbo-Q4_0.gguf",
+          "url": "https://huggingface.co/gpustack/stable-diffusion-xl-1.0-turbo-GGUF/resolve/main/stable-diffusion-xl-1.0-turbo-Q4_0.gguf",
+          "sizeGB": 3.94,
+          "ramRequired": 6,
+          "isDefault": true
+        },
+        {
+          "quantization": "Q8_0",
+          "filename": "stable-diffusion-xl-1.0-turbo-Q8_0.gguf",
+          "url": "https://huggingface.co/gpustack/stable-diffusion-xl-1.0-turbo-GGUF/resolve/main/stable-diffusion-xl-1.0-turbo-Q8_0.gguf",
+          "sizeGB": 5.04,
+          "ramRequired": 8
+        }
+      ]
+    },
+    {
+      "id": "sdxl-lightning",
+      "name": "SDXL Lightning",
+      "family": "sdxl",
+      "categories": ["image-generation"],
+      "description": "ByteDance's 4-step distillation of uncensored SDXL 1.0. Wide unfiltered concept pool, fast generation.",
+      "engineType": "stable-diffusion",
+      "variants": [
+        {
+          "quantization": "Q8_0",
+          "filename": "sdxl_lightning_4step.q8_0.gguf",
+          "url": "https://huggingface.co/OlegSkutte/SDXL-Lightning-GGUF/resolve/main/sdxl_lightning_4step.q8_0.gguf",
+          "sizeGB": 4.1,
+          "ramRequired": 6,
+          "isDefault": true
+        }
+      ]
+    },
+    {
+      "id": "sd-1.5-q8",
+      "name": "Stable Diffusion 1.5",
+      "family": "sd15",
+      "categories": ["image-generation"],
+      "description": "Classic SD 1.5. Smaller footprint, vast LoRA ecosystem. Good for 8GB machines.",
+      "engineType": "stable-diffusion",
+      "variants": [
+        {
+          "quantization": "Q8_0",
+          "filename": "stable-diffusion-v1-5-Q8_0.gguf",
+          "url": "https://huggingface.co/gpustack/stable-diffusion-v1-5-GGUF/resolve/main/stable-diffusion-v1-5-Q8_0.gguf",
+          "sizeGB": 1.7,
+          "ramRequired": 4,
+          "isDefault": true
+        }
+      ]
+    },
+    {
+      "id": "nomic-embed-text",
+      "name": "Nomic Embed Text",
+      "family": "embedding",
+      "categories": [
+        "embedding"
+      ],
+      "description": "High-quality text embeddings for knowledge base search.",
+      "variants": [
+        {
+          "quantization": "F16",
+          "filename": "nomic-embed-text-v1.5-f16.gguf",
+          "url": "https://huggingface.co/nomic-ai/nomic-embed-text-v1.5-GGUF/resolve/main/nomic-embed-text-v1.5.f16.gguf",
+          "sizeGB": 0.27,
+          "ramRequired": 1,
+          "isDefault": true
+        }
+      ]
+    },
+    {
+      "id": "all-minilm-l6",
+      "name": "All MiniLM L6",
+      "family": "embedding",
+      "categories": [
+        "embedding"
+      ],
+      "description": "Tiny, fast embedding model. Good for basic similarity search.",
+      "variants": [
+        {
+          "quantization": "F32",
+          "filename": "all-minilm-l6-v2-f32.gguf",
+          "url": "https://huggingface.co/leliuga/all-MiniLM-L6-v2-GGUF/resolve/main/all-MiniLM-L6-v2.F32.gguf",
+          "sizeGB": 0.09,
+          "ramRequired": 1,
+          "isDefault": true
+        }
+      ]
+    }
+  ]
+}

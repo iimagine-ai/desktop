@@ -1,0 +1,318 @@
+<!DOCTYPE html>
+<html lang="en" class="antialiased">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>IIMAGINE Desktop</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+    }
+  </script>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+  <style>
+    body { font-family: 'Inter', sans-serif; }
+
+    /* Dark mode body background */
+    .dark body { background-color: #0f0f0f; color: #e5e5e5; }
+
+    /* Dark mode chat area background */
+
+    /* Chat bubble styles — respond to theme changes automatically */
+    .assistant-bubble {
+      background: rgba(255,255,255,1);
+      border: 1px solid rgba(0,0,0,0.08);
+    }
+    .dark .assistant-bubble {
+      background: rgba(38,38,38,0.85);
+      border: 1px solid rgba(55,55,55,0.9);
+      color: #d4d4d4;
+    }
+    .conv-item-active {
+      background: rgba(255,255,255,0.95);
+    }
+    .dark .conv-item-active {
+      background: rgba(38,38,38,0.75);
+    }
+
+    /* Electron titlebar drag */
+    .titlebar-drag { -webkit-app-region: drag; }
+    .titlebar-drag button, .titlebar-drag select, .titlebar-drag input, .titlebar-drag a {
+      -webkit-app-region: no-drag;
+    }
+
+    /* Scrollbar */
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: rgba(0, 0, 0, 0.1); border-radius: 10px; }
+    ::-webkit-scrollbar-thumb:hover { background: rgba(0, 0, 0, 0.2); }
+    .dark ::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.15); }
+    .dark ::-webkit-scrollbar-thumb:hover { background: rgba(255, 255, 255, 0.25); }
+
+    /* Animations */
+    .message-enter { animation: fadeIn 0.2s ease-out; }
+
+    /* Sidebar collapse */
+    #sidebar.collapsed { width: 4rem; }
+    #sidebar.collapsed .sidebar-label { display: none; }
+    #sidebar.collapsed .sidebar-logo-area { padding-left: 1.25rem; padding-right: 1.25rem; justify-content: center; }
+    #sidebar.collapsed #modelDropdown { display: none; }
+    #sidebar.collapsed nav { padding-left: 0.5rem; padding-right: 0.5rem; }
+    #sidebar.collapsed .nav-btn { justify-content: center; padding-left: 0; padding-right: 0; gap: 0; }
+    #sidebar.collapsed #collapseIcon { transform: rotate(180deg); }
+    #sidebar.collapsed .p-3 { padding: 0.5rem; }
+    #sidebar.collapsed .p-3 > div { justify-content: center; padding: 0.5rem; }
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(4px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    .typing-dot { animation: typingBounce 1.4s infinite ease-in-out both; }
+    .typing-dot:nth-child(1) { animation-delay: -0.32s; }
+    .typing-dot:nth-child(2) { animation-delay: -0.16s; }
+    @keyframes typingBounce {
+      0%, 80%, 100% { transform: scale(0); }
+      40% { transform: scale(1); }
+    }
+    .progress-bar { transition: width 0.3s ease; }
+
+    /* Model Swap Indicator — inline in model selector */
+    .model-swap-progress-bar {
+      position: absolute;
+      bottom: -2px;
+      left: 0;
+      right: 0;
+      height: 2px;
+      background: rgba(0,0,0,0.06);
+      border-radius: 1px;
+      overflow: hidden;
+    }
+    .dark .model-swap-progress-bar { background: rgba(255,255,255,0.06); }
+    .model-swap-progress-fill {
+      height: 100%;
+      background: #6366f1;
+      border-radius: 1px;
+      transition: width 0.4s ease;
+      width: 0%;
+    }
+    .model-swap-progress-fill.animating {
+      animation: progressPulse 2s ease-in-out infinite;
+    }
+    .model-swap-spinner { animation: spin 1s linear infinite; }
+    @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+    @keyframes progressPulse {
+      0% { opacity: 1; }
+      50% { opacity: 0.6; }
+      100% { opacity: 1; }
+    }
+
+    /* Ambient gradient blobs */
+    @keyframes float1 {
+      0% { transform: translate(0, 0) scale(1) rotate(0deg); }
+      33% { transform: translate(5%, 5%) scale(1.05) rotate(5deg); }
+      66% { transform: translate(-2%, 8%) scale(0.95) rotate(-5deg); }
+      100% { transform: translate(0, 0) scale(1) rotate(0deg); }
+    }
+    @keyframes float2 {
+      0% { transform: translate(0, 0) scale(1) rotate(0deg); }
+      33% { transform: translate(-5%, -10%) scale(0.95) rotate(-10deg); }
+      66% { transform: translate(4%, -5%) scale(1.05) rotate(5deg); }
+      100% { transform: translate(0, 0) scale(1) rotate(0deg); }
+    }
+    @keyframes float3 {
+      0% { transform: translate(0, 0) scale(1); }
+      50% { transform: translate(8%, -4%) scale(1.1); }
+      100% { transform: translate(0, 0) scale(1); }
+    }
+    @keyframes float4 {
+      0% { transform: translate(0, 0) scale(1) rotate(0deg); }
+      50% { transform: translate(-10%, 15%) scale(1.15) rotate(180deg); }
+      100% { transform: translate(0, 0) scale(1) rotate(360deg); }
+    }
+    @keyframes float5 {
+      0% { transform: translate(0, 0) scale(1) rotate(0deg); }
+      50% { transform: translate(12%, -12%) scale(0.85) rotate(-90deg); }
+      100% { transform: translate(0, 0) scale(1) rotate(-180deg); }
+    }
+  </style>
+</head>
+<body class="bg-[#fafafa] dark:bg-[#0f0f0f] text-neutral-800 dark:text-neutral-200 h-screen w-full overflow-hidden relative selection:bg-neutral-200 dark:selection:bg-neutral-700 selection:text-neutral-900 dark:selection:text-neutral-100">
+
+  <!-- Ambient Moving Gradients Background -->
+  <div class="fixed inset-0 z-0 overflow-hidden pointer-events-none opacity-80 dark:opacity-30">
+    <div class="absolute -top-[10%] -left-[10%] w-[50vw] h-[50vw] rounded-full bg-gradient-to-tr from-blue-100/70 dark:from-blue-900/40 to-indigo-50/40 dark:to-indigo-950/20 blur-[100px]" style="animation: float1 25s ease-in-out infinite;"></div>
+    <div class="absolute top-[10%] -right-[10%] w-[60vw] h-[55vw] rounded-[30rem] bg-gradient-to-bl from-purple-100/60 dark:from-purple-900/30 to-fuchsia-100/40 dark:to-fuchsia-950/20 blur-[120px]" style="animation: float2 32s ease-in-out infinite;"></div>
+    <div class="absolute top-[30%] left-[20%] w-[45vw] h-[35vw] rounded-[40rem] bg-gradient-to-tr from-rose-100/50 dark:from-rose-900/30 to-amber-50/40 dark:to-amber-950/20 blur-[110px]" style="animation: float4 38s ease-in-out infinite;"></div>
+    <div class="absolute -bottom-[20%] right-[15%] w-[55vw] h-[50vw] rounded-[35rem] bg-gradient-to-tl from-emerald-100/50 dark:from-emerald-900/30 to-teal-50/30 dark:to-teal-950/20 blur-[100px]" style="animation: float5 28s ease-in-out infinite;"></div>
+    <div class="absolute -bottom-[30%] -left-[10%] w-[70vw] h-[70vw] rounded-full bg-gradient-to-tr from-violet-100/60 dark:from-violet-900/30 to-transparent blur-[130px]" style="animation: float3 35s ease-in-out infinite;"></div>
+  </div>
+
+  <!-- Auth Screen -->
+  <div id="authScreen" class="hidden relative z-10 flex items-center justify-center h-full w-full p-6">
+    <div class="bg-white/50 dark:bg-neutral-900/60 backdrop-blur-2xl border border-white/60 dark:border-neutral-700/40 shadow-[0_8px_30px_rgb(0,0,0,0.04)] dark:shadow-[0_8px_30px_rgb(0,0,0,0.3)] rounded-[2rem] p-10 w-full max-w-sm text-center">
+      <!-- Logo -->
+      <div class="w-10 h-10 rounded-lg bg-gradient-to-br from-neutral-800 to-neutral-950 flex items-center justify-center mx-auto mb-6">
+        <div class="w-2.5 h-2.5 bg-white rounded-full"></div>
+      </div>
+
+      <h1 class="text-xl font-semibold tracking-tight text-neutral-900 mb-1">IIMAGINE Desktop</h1>
+      <p class="text-sm text-neutral-500 mb-8">Your private AI companion. Sign in to get started.</p>
+
+      <div class="space-y-3">
+        <button id="loginProdBtn" class="w-full px-4 py-2.5 rounded-lg bg-neutral-900 text-sm font-medium text-white hover:bg-neutral-800 transition-all shadow-sm flex items-center justify-center gap-2">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><polyline points="10 17 15 12 10 7"/><line x1="15" y1="12" x2="3" y2="12"/></svg> Sign in
+        </button>
+        <button id="loginLocalBtn" class="w-full px-4 py-2.5 rounded-lg bg-white/60 border border-neutral-200/50 text-sm font-medium text-neutral-700 hover:bg-white/90 transition-all shadow-sm">
+          Local Dev (port 3000)
+        </button>
+      </div>
+
+      <div class="mt-8 pt-6 border-t border-neutral-200/40">
+        <p class="text-xs text-neutral-400 mb-3">Or paste auth code from browser</p>
+        <div class="flex gap-2">
+          <input id="manualCodeInput" type="text" placeholder="Paste code here"
+            class="flex-1 bg-white/60 border border-neutral-200/50 rounded-lg px-3 py-2 text-sm text-neutral-700 placeholder-neutral-400 focus:bg-white/90 focus:outline-none transition-all shadow-sm font-mono" />
+          <button id="manualCodeBtn" class="px-4 py-2 rounded-lg bg-neutral-900 text-sm font-medium text-white hover:bg-neutral-800 transition-all shadow-sm">Go</button>
+        </div>
+      </div>
+
+      <p id="authError" class="text-rose-600 text-xs mt-4 hidden"></p>
+    </div>
+  </div>
+
+  <!-- Dashboard -->
+  <div id="dashboard" class="relative z-10 h-full w-full p-2 sm:p-3">
+    <div class="flex w-full h-full bg-white/40 dark:bg-neutral-900/50 backdrop-blur-2xl border border-white/60 dark:border-neutral-700/40 shadow-[0_8px_30px_rgb(0,0,0,0.04)] dark:shadow-[0_8px_30px_rgb(0,0,0,0.3)] rounded-[1.5rem] overflow-hidden">
+
+      <!-- Sidebar -->
+      <aside id="sidebar" class="hidden md:flex flex-col w-56 border-r border-neutral-200/40 dark:border-neutral-700/40 bg-white/20 dark:bg-neutral-900/30 flex-shrink-0 transition-all duration-200">
+        <!-- Logo + drag area -->
+        <div class="h-14 flex items-center px-6 titlebar-drag sidebar-logo-area">
+          <span class="sidebar-brand text-sm font-semibold tracking-tighter text-neutral-900 dark:text-neutral-100 flex items-center gap-2">
+            <div class="w-5 h-5 rounded-md bg-gradient-to-br from-neutral-800 to-neutral-950 flex items-center justify-center flex-shrink-0">
+              <div class="w-1.5 h-1.5 bg-white rounded-full"></div>
+            </div>
+            <span class="sidebar-label">IIMAGINE</span>
+          </span>
+        </div>
+
+        <!-- Model Dropdown + New Chat -->
+        <div class="px-4 pb-3 space-y-2">
+          <div id="modelDropdown" class="relative">
+            <button id="modelDropdownBtn" class="w-full bg-white/60 dark:bg-neutral-800/60 border border-neutral-200/50 dark:border-neutral-700/50 rounded-lg px-3 py-1.5 text-xs text-neutral-600 dark:text-neutral-300 focus:bg-white/90 dark:focus:bg-neutral-800/90 focus:outline-none transition-all shadow-sm flex items-center gap-2 text-left">
+              <span class="text-neutral-400">No models</span>
+            </button>
+            <div id="modelDropdownList" class="hidden absolute left-0 right-0 top-full mt-1 bg-white/90 dark:bg-neutral-800/95 backdrop-blur-xl border border-neutral-200/50 dark:border-neutral-700/50 rounded-lg shadow-lg z-50 max-h-48 overflow-y-auto py-1">
+            </div>
+          </div>
+        </div>
+
+        <!-- Nav -->
+        <nav class="flex-1 px-3 py-2 space-y-0.5 overflow-y-auto">
+
+          <button data-page="chat" class="nav-btn w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-neutral-500 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-neutral-100 hover:bg-white/40 dark:hover:bg-neutral-800/40 transition-all group">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="group-hover:scale-110 transition-transform flex-shrink-0"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/><path d="M8 10h.01M12 10h.01M16 10h.01"/></svg>
+            <span class="text-sm font-medium sidebar-label">Chat</span>
+          </button>
+          <button data-page="knowledge" class="nav-btn w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-neutral-500 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-neutral-100 hover:bg-white/40 dark:hover:bg-neutral-800/40 transition-all group">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="group-hover:scale-110 transition-transform flex-shrink-0"><path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1 0-5H20"/></svg>
+            <span class="text-sm font-medium sidebar-label">Knowledge</span>
+          </button>
+          <button data-page="assistants" class="nav-btn w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-neutral-500 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-neutral-100 hover:bg-white/40 dark:hover:bg-neutral-800/40 transition-all group">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="group-hover:scale-110 transition-transform flex-shrink-0"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+            <span class="text-sm font-medium sidebar-label">Assistants</span>
+          </button>
+          <button data-page="prompts" class="nav-btn w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-neutral-500 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-neutral-100 hover:bg-white/40 dark:hover:bg-neutral-800/40 transition-all group">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="group-hover:scale-110 transition-transform flex-shrink-0"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1"/><path d="M9 14h6"/><path d="M9 18h6"/><path d="M9 10h6"/></svg>
+            <span class="text-sm font-medium sidebar-label">Prompts</span>
+          </button>
+
+
+          <button data-page="images" class="nav-btn w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-neutral-500 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-neutral-100 hover:bg-white/40 dark:hover:bg-neutral-800/40 transition-all group">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="group-hover:scale-110 transition-transform flex-shrink-0"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="m21 15-5-5L5 21"/></svg>
+            <span class="text-sm font-medium sidebar-label">Images</span>
+          </button>
+          <button data-page="videos" class="nav-btn w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-neutral-500 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-neutral-100 hover:bg-white/40 dark:hover:bg-neutral-800/40 transition-all group">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="group-hover:scale-110 transition-transform flex-shrink-0"><path d="m22 8-6 4 6 4V8Z"/><rect x="1" y="5" width="15" height="14" rx="2"/></svg>
+            <span class="text-sm font-medium sidebar-label">Video</span>
+          </button>
+          <button data-page="compare" class="nav-btn w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-neutral-500 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-neutral-100 hover:bg-white/40 dark:hover:bg-neutral-800/40 transition-all group">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="group-hover:scale-110 transition-transform flex-shrink-0"><path d="M18 20V10"/><path d="M12 20V4"/><path d="M6 20v-6"/></svg>
+            <span class="text-sm font-medium sidebar-label">Compare</span>
+          </button>
+          <button data-page="settings" class="nav-btn w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-neutral-500 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-neutral-100 hover:bg-white/40 dark:hover:bg-neutral-800/40 transition-all group">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="group-hover:scale-110 transition-transform flex-shrink-0"><circle cx="12" cy="12" r="3"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>
+            <span class="text-sm font-medium sidebar-label">Settings</span>
+          </button>
+        </nav>
+
+        <!-- User -->
+        <div class="p-3 border-t border-neutral-200/40 dark:border-neutral-700/40">
+          <div class="flex items-center gap-3 p-2 rounded-xl hover:bg-white/40 dark:hover:bg-neutral-800/40 transition-all">
+            <div class="w-8 h-8 rounded-full bg-neutral-200 dark:bg-neutral-700 flex items-center justify-center text-neutral-500 dark:text-neutral-400 text-xs font-medium flex-shrink-0">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+            </div>
+            <div class="flex-1 overflow-hidden min-w-0 sidebar-label">
+              <p id="sidebarUser" class="text-xs font-medium text-neutral-900 dark:text-neutral-100 truncate"></p>
+              <button id="logoutBtn" class="text-[11px] text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-300 transition-colors">Sign out</button>
+            </div>
+            <button id="sidebarCollapseBtn" class="p-1.5 rounded-lg text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-300 hover:bg-white/40 dark:hover:bg-neutral-800/40 transition-all flex-shrink-0" title="Collapse sidebar">
+              <svg id="collapseIcon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="11 17 6 12 11 7"/><polyline points="18 17 13 12 18 7"/></svg>
+            </button>
+          </div>
+        </div>
+      </aside>
+
+      <!-- Main Content -->
+      <main class="flex-1 flex flex-col h-full overflow-hidden min-w-0">
+        <!-- Draggable header bar across full width -->
+        <div class="h-14 titlebar-drag flex-shrink-0 flex items-center justify-end pr-4">
+          <button id="themeToggleBtn" class="p-2 rounded-lg text-neutral-500 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-neutral-100 hover:bg-white/40 dark:hover:bg-neutral-800/40 transition-all" title="Toggle theme">
+            <svg id="themeIcon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+          </button>
+        </div>
+        <!-- Pages rendered here by router -->
+        <div id="mainContent" class="flex-1 flex flex-col overflow-hidden min-w-0"></div>
+      </main>
+    </div>
+  </div>
+
+  <script src="theme.js"></script>
+  <script src="providers.js"></script>
+  <script src="model-advisor.js"></script>
+  <script src="components/kb-selector.js"></script>
+  <script src="components/project-selector.js"></script>
+  <script src="components/folder-connect-ui.js"></script>
+  <script src="components/prompt-picker.js"></script>
+  <script src="components/web-search.js"></script>
+  <script src="components/model-browser.js"></script>
+  <script src="components/model-download-onboarding.js"></script>
+  <script src="components/runtime-monitor.js"></script>
+  <script src="components/model-swap-indicator.js"></script>
+  <script src="components/tts-settings.js"></script>
+  <script src="pages/chat.js"></script>
+  <script src="pages/recent.js"></script>
+  <script src="pages/images.js"></script>
+  <script src="pages/videos.js"></script>
+  <script src="pages/compare.js"></script>
+  <script src="pages/knowledge.js"></script>
+  <script src="pages/assistants.js"></script>
+  <script src="pages/prompts.js"></script>
+  <script src="pages/rag-prompts.js"></script>
+  <script src="pages/personalization.js"></script>
+  <script src="pages/settings.js"></script>
+  <script src="components/setup-wizard.js"></script>
+  <script src="agent-runner.js"></script>
+  <script src="builder-mode.js"></script>
+  <script src="app.js"></script>
+
+  <!-- Prevent Electron from navigating when files are dropped outside drop zones -->
+  <script>
+    document.addEventListener('dragover', (e) => { e.preventDefault(); });
+    document.addEventListener('drop', (e) => { e.preventDefault(); });
+  </script>
+</body>
+</html>
