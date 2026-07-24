@@ -1,0 +1,28 @@
+{
+  "name": "temporal_supersession",
+  "description": "Contradicting facts — newer should supersede older in retrieval",
+  "exchanges": [
+    {
+      "user_message": "We currently have 3 developers on the team.",
+      "assistant_response": "Three developers — that is lean for a product company. Are they all full-time?"
+    },
+    {
+      "user_message": "Actually we just hired 4 more. We now have 7 developers total.",
+      "assistant_response": "From 3 to 7 is a significant scale-up. That changes your capacity picture entirely."
+    }
+  ],
+  "assertions": [
+    {
+      "description": "Current state (7 developers) is retrievable",
+      "query": "how many developers on the team",
+      "expected_contains": ["7"],
+      "min_results": 1
+    },
+    {
+      "description": "Old state (3 developers) should not dominate results",
+      "query": "current team size developers",
+      "expected_contains": ["7"],
+      "min_results": 1
+    }
+  ]
+}

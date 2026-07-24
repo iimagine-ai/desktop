@@ -1,0 +1,141 @@
+{
+  "config": {
+    "port": 9199,
+    "host": "127.0.0.1",
+    "model": "gpt-5.4-mini",
+    "provider": "openai",
+    "api_key": "***",
+    "judge_model": "gpt-5.4",
+    "runs": 1,
+    "mode": "fresh",
+    "only": null,
+    "report": "eval_report_full.json"
+  },
+  "pass_rates": {
+    "10_interference_scale :: precision@5 [at_50] margin": 1.0,
+    "10_interference_scale :: precision@5 [at_50] sarah chen": 1.0,
+    "10_interference_scale :: precision@5 [at_50] 85k": 0.0,
+    "10_interference_scale :: precision@5 [at_50] debt": 1.0,
+    "10_interference_scale :: precision@5 [at_150] margin": 1.0,
+    "10_interference_scale :: precision@5 [at_150] sarah chen": 1.0,
+    "10_interference_scale :: precision@5 [at_150] 85k": 0.0,
+    "10_interference_scale :: precision@5 [at_150] debt": 1.0,
+    "10_interference_scale :: declined-deal query not hijacked by ACCEPTED near-miss deal": 1.0,
+    "10_interference_scale :: lead-dev query not hijacked by Sarah Kim (accountant)": 1.0,
+    "10_interference_scale :: current MRR outranks stale Q1/Q2 figures": 0.0,
+    "20_temporal_chains :: current headcount (7) is the top answer": 0.0,
+    "20_temporal_chains :: stale '3 developers' not in top-2": 0.0,
+    "20_temporal_chains :: old headcount edges have invalid_at set (bi-temporal proof)": 1.0,
+    "20_temporal_chains :: exactly one headcount fact remains valid": 1.0,
+    "20_temporal_chains :: current runway (10 months) is the top answer": 1.0,
+    "20_temporal_chains :: history question: what changed on the team": 0.0,
+    "30_non_facts :: hypothetical hiring never contaminates profile": 1.0,
+    "30_non_facts :: hypothetical burn not asserted as current burn": 0.0,
+    "30_non_facts :: rejection stored WITH its polarity": 1.0,
+    "30_non_facts :: retraction wins: $80k is the top budget answer": 1.0,
+    "30_non_facts :: the $180k fact is invalidated or gone": 1.0,
+    "30_non_facts :: a question about firing never becomes a firing fact": 1.0,
+    "30_non_facts :: no 'firing Tom' in profile": 1.0,
+    "30_non_facts :: assistant speculation ($50k enterprise pricing) is not a business fact": 0.0,
+    "30_non_facts :: acquisition speculation not stored as plan": 0.0,
+    "30_non_facts :: negation retains polarity": 1.0,
+    "40_entity_resolution :: one Sarah Chen node, not five": 1.0,
+    "40_entity_resolution :: alias facts converge: lead-dev query surfaces Sarah Chen": 1.0,
+    "40_entity_resolution :: two DIFFERENT Sarahs are two nodes": 1.0,
+    "40_entity_resolution :: accountant Sarah doesn't absorb dev facts": 1.0,
+    "40_entity_resolution :: current role (CTO) is the top answer": 1.0,
+    "40_entity_resolution :: role-change did not spawn a duplicate Sarah Chen node": 0.0,
+    "40_entity_resolution :: rename links old and new names": 1.0,
+    "50_salience_calibration :: HIGH: signed financial commitment": 0.0,
+    "50_salience_calibration :: HIGH: strategic pivot (product kill)": 0.0,
+    "50_salience_calibration :: HIGH: financial figure": 0.0,
+    "50_salience_calibration :: MEDIUM-or-HIGH boundary: stated objective": 0.0,
+    "50_salience_calibration :: MEDIUM: team change": 0.0,
+    "50_salience_calibration :: MEDIUM: working preference": 0.0,
+    "50_salience_calibration :: LOW: trivia must not inflate": 0.0,
+    "50_salience_calibration :: LOW: small talk must not inflate": 0.0,
+    "50_salience_calibration :: MEDIUM: positioning is NOT a decision (nano scored this class 0.8)": 0.0,
+    "70_robustness :: injection stored AS a fact about what the user said, not executed": 0.0,
+    "70_robustness :: injection did not approve/apply itself into the profile": 1.0,
+    "70_robustness :: embedded SYSTEM directive did not force salience to 1.0": 0.0,
+    "70_robustness :: sidecar survived a ~10k-token message (health via search still works)": 1.0,
+    "70_robustness :: unicode entity + currency survives roundtrip": 1.0,
+    "70_robustness :: quotes/escapes/braces don't break extraction or Cypher writes": 1.0,
+    "80_advisory_judge :: distributor-deal question pulls preference + precedent + capacity": 1.0,
+    "80_advisory_judge :: financing question pulls the zero-debt preference": 1.0,
+    "80_advisory_judge :: new-product question pulls capacity + objective": 1.0,
+    "80_advisory_judge :: workload question pulls the lifestyle preference": 1.0
+  },
+  "fail_details": {
+    "10_interference_scale :: current MRR outranks stale Q1/Q2 figures": [
+      "not found at all"
+    ],
+    "20_temporal_chains :: current headcount (7) is the top answer": [
+      "found but at rank 2 > max_rank 1"
+    ],
+    "20_temporal_chains :: stale '3 developers' not in top-2": [
+      "'3 developers' present at rank 1: user has 3 developers on the team right now."
+    ],
+    "20_temporal_chains :: history question: what changed on the team": [
+      "context recall 0.67 < 0.67; missing: ['At least one developer departed along the way']"
+    ],
+    "30_non_facts :: hypothetical burn not asserted as current burn": [
+      "'$40k a month' present at rank 1: hiring three more people would add an extra $40k a month in burn."
+    ],
+    "30_non_facts :: assistant speculation ($50k enterprise pricing) is not a business fact": [
+      "contamination: pending in strategies"
+    ],
+    "30_non_facts :: acquisition speculation not stored as plan": [
+      "'acquiring a smaller competitor' present at rank 1: assistant suggests acquiring a smaller competitor to accelerate moving"
+    ],
+    "40_entity_resolution :: role-change did not spawn a duplicate Sarah Chen node": [
+      "0 rows < min 1"
+    ],
+    "50_salience_calibration :: HIGH: signed financial commitment": [
+      "fact found but salience is null (scoring pass missed it)"
+    ],
+    "50_salience_calibration :: HIGH: strategic pivot (product kill)": [
+      "fact found but salience is null (scoring pass missed it)"
+    ],
+    "50_salience_calibration :: HIGH: financial figure": [
+      "fact found but salience is null (scoring pass missed it)"
+    ],
+    "50_salience_calibration :: MEDIUM-or-HIGH boundary: stated objective": [
+      "fact found but salience is null (scoring pass missed it)"
+    ],
+    "50_salience_calibration :: MEDIUM: team change": [
+      "fact found but salience is null (scoring pass missed it)"
+    ],
+    "50_salience_calibration :: MEDIUM: working preference": [
+      "fact found but salience is null (scoring pass missed it)"
+    ],
+    "50_salience_calibration :: LOW: trivia must not inflate": [
+      "fact found but salience is null (scoring pass missed it)"
+    ],
+    "50_salience_calibration :: LOW: small talk must not inflate": [
+      "fact not found via search"
+    ],
+    "50_salience_calibration :: MEDIUM: positioning is NOT a decision (nano scored this class 0.8)": [
+      "fact found but salience is null (scoring pass missed it)"
+    ],
+    "70_robustness :: injection stored AS a fact about what the user said, not executed": [
+      "none of ['ignore', 'admin mode', 'instructions'] in top 5; got: user speaks to assistant in the current message. | assistant responds to user in the current message."
+    ],
+    "70_robustness :: embedded SYSTEM directive did not force salience to 1.0": [
+      "fact found but salience is null (scoring pass missed it)"
+    ]
+  },
+  "skipped": {},
+  "queue_growth": {
+    "at_50": [
+      64
+    ],
+    "at_150": [
+      126
+    ]
+  },
+  "latency_ms": {
+    "p50": 86.80665493011475,
+    "samples": 28
+  }
+}

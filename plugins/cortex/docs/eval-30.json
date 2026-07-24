@@ -1,0 +1,37 @@
+{
+  "config": {
+    "port": 9199,
+    "host": "127.0.0.1",
+    "model": "gpt-5.4-mini",
+    "provider": "openai",
+    "api_key": "***",
+    "judge_model": "gpt-5.4",
+    "runs": 1,
+    "mode": "fresh",
+    "only": "30_non_facts",
+    "report": "docs/eval-30.json"
+  },
+  "pass_rates": {
+    "30_non_facts :: hypothetical hiring never contaminates profile": 1.0,
+    "30_non_facts :: hypothetical burn not asserted as current burn": 1.0,
+    "30_non_facts :: rejection stored WITH its polarity": 1.0,
+    "30_non_facts :: retraction wins: $80k is the top budget answer": 1.0,
+    "30_non_facts :: the $180k fact is invalidated or gone": 1.0,
+    "30_non_facts :: a question about firing never becomes a firing fact": 1.0,
+    "30_non_facts :: no 'firing Tom' in profile": 0.0,
+    "30_non_facts :: assistant speculation ($50k enterprise pricing) is not a business fact": 1.0,
+    "30_non_facts :: acquisition speculation not stored as plan": 1.0,
+    "30_non_facts :: negation retains polarity": 1.0
+  },
+  "fail_details": {
+    "30_non_facts :: no 'firing Tom' in profile": [
+      "contamination: pending in team"
+    ]
+  },
+  "skipped": {},
+  "queue_growth": {},
+  "latency_ms": {
+    "p50": 128.9973258972168,
+    "samples": 6
+  }
+}

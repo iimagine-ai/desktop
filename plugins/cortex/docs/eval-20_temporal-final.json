@@ -1,0 +1,41 @@
+{
+  "config": {
+    "port": 9199,
+    "host": "127.0.0.1",
+    "model": "gpt-5.4-mini",
+    "provider": "openai",
+    "api_key": "***",
+    "judge_model": "gpt-5.4",
+    "runs": 3,
+    "mode": "fresh",
+    "only": "20_temporal",
+    "report": "docs/eval-20_temporal-final.json"
+  },
+  "pass_rates": {
+    "20_temporal_chains :: current headcount (7) is the top answer": 0.6666666666666666,
+    "20_temporal_chains :: stale headcount suppressed below rank 1": 1.0,
+    "20_temporal_chains :: old headcount edges have invalid_at set (bi-temporal proof)": 1.0,
+    "20_temporal_chains :: exactly one headcount fact remains valid": 0.6666666666666666,
+    "20_temporal_chains :: current runway (10 months) is the top answer": 1.0,
+    "20_temporal_chains :: history question: what changed on the team": 0.0
+  },
+  "fail_details": {
+    "20_temporal_chains :: history question: what changed on the team": [
+      "context recall 0.67 < 0.67; missing: ['At least one developer departed along the way']",
+      "context recall 0.67 < 0.67; missing: ['At least one developer departed along the way']",
+      "context recall 0.67 < 0.67; missing: ['The team is currently 7 developers']"
+    ],
+    "20_temporal_chains :: exactly one headcount fact remains valid": [
+      "0 rows < min 1"
+    ],
+    "20_temporal_chains :: current headcount (7) is the top answer": [
+      "found but at rank 2 > max_rank 1"
+    ]
+  },
+  "skipped": {},
+  "queue_growth": {},
+  "latency_ms": {
+    "p50": 65.52433967590332,
+    "samples": 9
+  }
+}

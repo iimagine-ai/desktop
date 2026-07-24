@@ -1,0 +1,111 @@
+==============================================================
+CORTEX LIMITS EVAL — 1 scenarios × 3 runs (fresh mode)
+Extraction: gpt-5.4-mini | Judge: gpt-5.4
+==============================================================
+
+▶ [1] 10_interference_scale: Critical facts buried in 150 distractors incl. near-misses; precision@5 at 2 checkpoints
+  ingested: 6E 4R
+  ingested: 4E 4R
+  ingested: 4E 3R
+  ingested: 8E 2R
+  ingested: 3E 5R
+  distractors ingested: 25/50
+  distractors ingested: 50/50
+  checkpoint 'at_50': 55 episodes, 76 edges, 32 pending
+  ✓ probe [at_50]: margin
+  ✓ probe [at_50]: sarah chen
+  ✓ probe [at_50]: 85k
+  ✓ probe [at_50]: debt
+  distractors ingested: 25/100
+  distractors ingested: 50/100
+  distractors ingested: 75/100
+  distractors ingested: 100/100
+  checkpoint 'at_150': 155 episodes, 153 edges, 52 pending
+  ✗ probe [at_150]: margin
+  ✓ probe [at_150]: sarah chen
+  ✓ probe [at_150]: 85k
+  ✓ probe [at_150]: debt
+  ✓ declined-deal query not hijacked by ACCEPTED near-miss deal
+  ✓ lead-dev query not hijacked by Sarah Kim (accountant)
+  ✗ current MRR outranks stale Q1/Q2 figures
+    → found but at rank 4 > max_rank 2
+
+▶ [2] 10_interference_scale: Critical facts buried in 150 distractors incl. near-misses; precision@5 at 2 checkpoints
+  ingested: 6E 4R
+  ingested: 4E 5R
+  ingested: 3E 2R
+  ingested: 3E 1R
+  ingested: 3E 2R
+  distractors ingested: 25/50
+  distractors ingested: 50/50
+  checkpoint 'at_50': 55 episodes, 77 edges, 30 pending
+  ✓ probe [at_50]: margin
+  ✓ probe [at_50]: sarah chen
+  ✗ probe [at_50]: 85k
+  ✓ probe [at_50]: debt
+  distractors ingested: 25/100
+  distractors ingested: 50/100
+  distractors ingested: 75/100
+  distractors ingested: 100/100
+  checkpoint 'at_150': 155 episodes, 154 edges, 47 pending
+  ✓ probe [at_150]: margin
+  ✓ probe [at_150]: sarah chen
+  ✗ probe [at_150]: 85k
+  ✓ probe [at_150]: debt
+  ✓ declined-deal query not hijacked by ACCEPTED near-miss deal
+  ✓ lead-dev query not hijacked by Sarah Kim (accountant)
+  ✗ current MRR outranks stale Q1/Q2 figures
+    → not found at all
+
+▶ [3] 10_interference_scale: Critical facts buried in 150 distractors incl. near-misses; precision@5 at 2 checkpoints
+  ingested: 5E 4R
+  ingested: 4E 2R
+  ingested: 4E 3R
+  ingested: 5E 2R
+  ingested: 10E 6R
+  distractors ingested: 25/50
+  distractors ingested: 50/50
+  checkpoint 'at_50': 55 episodes, 71 edges, 31 pending
+  ✓ probe [at_50]: margin
+  ✓ probe [at_50]: sarah chen
+  ✓ probe [at_50]: 85k
+  ✓ probe [at_50]: debt
+  distractors ingested: 25/100
+  distractors ingested: 50/100
+  distractors ingested: 75/100
+  distractors ingested: 100/100
+  checkpoint 'at_150': 155 episodes, 155 edges, 51 pending
+  ✗ probe [at_150]: margin
+  ✓ probe [at_150]: sarah chen
+  ✓ probe [at_150]: 85k
+  ✓ probe [at_150]: debt
+  ✗ declined-deal query not hijacked by ACCEPTED near-miss deal
+    → 'coastal books' present at rank 2: small wholesale trial with coastal books is a three-month pilot
+  ✓ lead-dev query not hijacked by Sarah Kim (accountant)
+  ✗ current MRR outranks stale Q1/Q2 figures
+    → found but at rank 4 > max_rank 2
+
+==============================================================
+PASS-RATES (across runs — anything under 100% is flaky or broken)
+==============================================================
+  ✗   0.0%  10_interference_scale :: current MRR outranks stale Q1/Q2 figures
+  ~  66.7%  10_interference_scale :: declined-deal query not hijacked by ACCEPTED near-miss deal
+  ✓ 100.0%  10_interference_scale :: lead-dev query not hijacked by Sarah Kim (accountant)
+  ~  66.7%  10_interference_scale :: precision@5 [at_150] 85k
+  ✓ 100.0%  10_interference_scale :: precision@5 [at_150] debt
+  ~  33.3%  10_interference_scale :: precision@5 [at_150] margin
+  ✓ 100.0%  10_interference_scale :: precision@5 [at_150] sarah chen
+  ~  66.7%  10_interference_scale :: precision@5 [at_50] 85k
+  ✓ 100.0%  10_interference_scale :: precision@5 [at_50] debt
+  ✓ 100.0%  10_interference_scale :: precision@5 [at_50] margin
+  ✓ 100.0%  10_interference_scale :: precision@5 [at_50] sarah chen
+
+Search latency: p50 75ms, p95 114ms (33 samples)
+Pending-queue size at 'at_50': [32, 30, 31]
+Pending-queue size at 'at_150': [52, 47, 51]
+
+FLAKY (4): passed some runs, not all — these are stochastic-extraction weak points; fix prompts/model, not the test.
+BROKEN (1): failed every run.
+
+OVERALL: 25/33 assertion-runs passed (75.8%)
+Report written to docs/eval-10-scale-v5.json

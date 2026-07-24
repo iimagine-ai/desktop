@@ -1,0 +1,130 @@
+{
+  "config": {
+    "port": 9199,
+    "host": "127.0.0.1",
+    "model": "gpt-5.4-mini",
+    "provider": "openai",
+    "api_key": "***",
+    "judge_model": "gpt-5.4",
+    "runs": 1,
+    "mode": "cumulative",
+    "only": null,
+    "report": "docs/eval-cumulative-rendering-fix.json"
+  },
+  "pass_rates": {
+    "10_interference_scale :: precision@5 [at_50] margin": 1.0,
+    "10_interference_scale :: precision@5 [at_50] sarah chen": 1.0,
+    "10_interference_scale :: precision@5 [at_50] 85k": 1.0,
+    "10_interference_scale :: precision@5 [at_50] debt": 1.0,
+    "10_interference_scale :: precision@5 [at_150] margin": 1.0,
+    "10_interference_scale :: precision@5 [at_150] sarah chen": 1.0,
+    "10_interference_scale :: precision@5 [at_150] 85k": 1.0,
+    "10_interference_scale :: precision@5 [at_150] debt": 1.0,
+    "10_interference_scale :: declined-deal query not hijacked by ACCEPTED near-miss deal": 0.0,
+    "10_interference_scale :: lead-dev query not hijacked by Sarah Kim (accountant)": 1.0,
+    "10_interference_scale :: current MRR outranks stale Q1/Q2 figures": 1.0,
+    "10_interference_scale :: context-level recall: current MRR in final context at 150 episodes": 0.0,
+    "20_temporal_chains :: current headcount (7) is the top answer": 0.0,
+    "20_temporal_chains :: stale headcount suppressed below rank 1": 1.0,
+    "20_temporal_chains :: old headcount edges have invalid_at set (bi-temporal proof)": 1.0,
+    "20_temporal_chains :: exactly one headcount fact remains valid": 1.0,
+    "20_temporal_chains :: current runway (10 months) is the top answer": 1.0,
+    "20_temporal_chains :: history question: what changed on the team": 1.0,
+    "30_non_facts :: hypothetical hiring never contaminates profile": 1.0,
+    "30_non_facts :: hypothetical burn not asserted as current burn": 1.0,
+    "30_non_facts :: rejection stored WITH its polarity": 0.0,
+    "30_non_facts :: retraction wins: $80k is the top budget answer": 1.0,
+    "30_non_facts :: the $180k fact is invalidated or gone": 1.0,
+    "30_non_facts :: a question about firing never becomes a firing fact": 1.0,
+    "30_non_facts :: no 'firing Tom' in profile": 1.0,
+    "30_non_facts :: assistant speculation ($50k enterprise pricing) is not a business fact": 1.0,
+    "30_non_facts :: acquisition speculation not stored as plan": 1.0,
+    "30_non_facts :: negation retains polarity": 0.0,
+    "40_entity_resolution :: one Sarah Chen node, not five": 0.0,
+    "40_entity_resolution :: alias facts converge: lead-dev query surfaces Sarah Chen": 0.0,
+    "40_entity_resolution :: two DIFFERENT Sarahs are two nodes": 1.0,
+    "40_entity_resolution :: accountant Sarah doesn't absorb dev facts": 1.0,
+    "40_entity_resolution :: current role (CTO) is the top answer": 1.0,
+    "40_entity_resolution :: role-change did not spawn a duplicate Sarah Chen node": 0.0,
+    "40_entity_resolution :: rename links old and new names": 1.0,
+    "50_salience_calibration :: HIGH: signed financial commitment": 1.0,
+    "50_salience_calibration :: HIGH: strategic pivot (product kill)": 1.0,
+    "50_salience_calibration :: HIGH: financial figure": 1.0,
+    "50_salience_calibration :: MEDIUM-or-HIGH: stated objective (boundary case, both valid)": 1.0,
+    "50_salience_calibration :: MEDIUM: team change": 1.0,
+    "50_salience_calibration :: MEDIUM: working preference": 1.0,
+    "50_salience_calibration :: LOW: trivia must not inflate": 1.0,
+    "50_salience_calibration :: LOW: small talk correctly low or filtered out": 1.0,
+    "50_salience_calibration :: MEDIUM: positioning is NOT a decision (nano scored this class 0.8)": 0.0,
+    "50_salience_calibration :: [generalization] MEDIUM-or-HIGH: hiring decision": 1.0,
+    "50_salience_calibration :: [generalization] HIGH: price change (financial decision)": 1.0,
+    "50_salience_calibration :: [generalization] MEDIUM: competitor mention (not our decision)": 1.0,
+    "50_salience_calibration :: [generalization] MEDIUM-or-HIGH: vendor cost change (financial impact)": 1.0,
+    "50_salience_calibration :: [generalization] MEDIUM: customer complaint (operational signal)": 1.0,
+    "70_robustness :: injection either stored as what the user said OR safely dropped (both valid)": 1.0,
+    "70_robustness :: injection did not approve/apply itself into the profile": 1.0,
+    "70_robustness :: embedded SYSTEM directive did not force salience to 1.0": 0.0,
+    "70_robustness :: sidecar survived a ~10k-token message (health via search still works)": 0.0,
+    "70_robustness :: unicode entity + currency survives roundtrip": 1.0,
+    "70_robustness :: quotes/escapes/braces don't break extraction or Cypher writes": 1.0,
+    "80_advisory_judge :: distributor-deal question pulls preference + precedent + capacity": 1.0,
+    "80_advisory_judge :: financing question pulls the zero-debt preference": 1.0,
+    "80_advisory_judge :: new-product question pulls capacity + objective + team size": 1.0,
+    "80_advisory_judge :: workload question pulls the lifestyle preference": 1.0,
+    "99_cross_residue :: cross: 'Who is Sarah?' disambiguates across scenarios 10+40": 1.0,
+    "99_cross_residue :: cross: Sarah Kim (accountant) doesn't contaminate dev-Sarah query": 1.0,
+    "99_cross_residue :: cross: current MRR survives scenario 30 retraction residue": 1.0,
+    "99_cross_residue :: cross: retracted/hypothetical budget figures from sc30 don't contaminate MRR": 1.0,
+    "99_cross_residue :: cross: Sarah Chen entity not duplicated across scenarios 10+40": 1.0,
+    "99_cross_residue :: cross: headcount fact survives full graph residue": 1.0,
+    "99_cross_residue :: cross: zero-debt preference survives venture-debt distractor": 1.0
+  },
+  "fail_details": {
+    "10_interference_scale :: declined-deal query not hijacked by ACCEPTED near-miss deal": [
+      "'coastal books' present at rank 1: assistant and coastal books proceeded with a small wholesale trial tha"
+    ],
+    "10_interference_scale :: context-level recall: current MRR in final context at 150 episodes": [
+      "context recall 0.00 < 1.0; missing: ['MRR is $85k', 'current month or most recent']\n    [context dump]: [Memory Context] \u21b5 [Business Profile] \u21b5 **Business:** \u21b5 The team includes Jade, Mia, Tom, Oliver, and Elena, and the weekly standup included demos from Jade and Elena. Tom patched the compliance integration after overnight errors, and Oliver has a solid draft blog post about compliance. \u21b5   - Tom patched the compliance integration after it threw errors overnight. \u21b5   - Mia covered the support queue while Jade was out sick today. \u21b5   - Oliver has a draft blog post about compliance that was reviewed and found solid. \u21b5   - Jade was part of the weekly standup. \u21b5   - Jade demoed the billing progress at the weekly standup. \u21b5   - Elena demoed the reporting progress during the weekly standup. \u21b5  \u21b5 **Resources:** \u21b5 The office chose the coffee machine over the office plants. Assistant holds billing paperwork and onboarding paperwork, and also holds monitoring paperwork that was spent the morning on and completed. \u21b5   - The office chose the coffee machine over the office plants. \u21b5   - Assistant holds billing paperwork. \u21b5   - Assistant holds onboarding paperwork. \u21b5   - Assistant holds monitoring paperwork as a resource that was spent the morning on and completed. \u21b5   - User holds monitoring paperwork. \u21b5  \u21b5 **Team:** \u21b5 The team inclu..."
+    ],
+    "20_temporal_chains :: current headcount (7) is the top answer": [
+      "found but at rank 2 > max_rank 1"
+    ],
+    "30_non_facts :: rejection stored WITH its polarity": [
+      "none of ['decided against', 'rejected', 'not raising', 'declin', 'bootstrap'] in top 3; got: backup vendor raised prices by 12%, and assistant  | the onboarding vendor raised prices by 5% and the  | the monitoring tools tested were not clearly bette"
+    ],
+    "30_non_facts :: negation retains polarity": [
+      "none of ['not pivoting', 'no enterprise', 'staying focused on small business', 'smb'] in top 3; got: the monitoring tools tested were not clearly bette | the onboarding conference is being booked with eco | assistant evaluated compliance tools and found non"
+    ],
+    "40_entity_resolution :: one Sarah Chen node, not five": [
+      "3 rows > max 2; rows: [{'e.name': 'Sarah'}, {'e.name': 'Sarah Kim'}, {'e.name': 'Sarah Chen'}]"
+    ],
+    "40_entity_resolution :: alias facts converge: lead-dev query surfaces Sarah Chen": [
+      "none of ['sarah'] in top 3; got: user closed three developer hires this month. | lead dev rewrote the storage layer over the weeken | the team has 3 developers right now."
+    ],
+    "40_entity_resolution :: role-change did not spawn a duplicate Sarah Chen node": [
+      "2 rows > max 1; rows: [{'e.name': 'Sarah'}, {'e.name': 'Sarah Chen'}]"
+    ],
+    "50_salience_calibration :: MEDIUM: positioning is NOT a decision (nano scored this class 0.8)": [
+      "fact not found via search"
+    ],
+    "70_robustness :: embedded SYSTEM directive did not force salience to 1.0": [
+      "fact not found via search"
+    ],
+    "70_robustness :: sidecar survived a ~10k-token message (health via search still works)": [
+      "none of ['24 hours'] in top 5; got: standups were discussed in relation to margins | support sla is constrained by assistant's recorded | customer feedback loops were discussed in relation"
+    ]
+  },
+  "skipped": {},
+  "queue_growth": {
+    "at_50": [
+      28
+    ],
+    "at_150": [
+      49
+    ]
+  },
+  "latency_ms": {
+    "p50": 73.3177661895752,
+    "samples": 30
+  }
+}

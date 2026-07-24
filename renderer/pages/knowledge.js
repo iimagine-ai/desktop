@@ -70,6 +70,9 @@ const KnowledgePage = {
     const el = document.querySelector('#kbContent');
     const allFolders = await window.api.folders.list();
 
+    // Ensure Cortex state is checked for "Process into memory" button visibility
+    await window.FolderConnectUI?._checkCortex?.();
+
     // Filter by search
     const q = this.folderSearch.toLowerCase();
     const filtered = q ? allFolders.filter(f => f.name.toLowerCase().includes(q) || f.path.toLowerCase().includes(q)) : allFolders;
@@ -161,7 +164,7 @@ const KnowledgePage = {
             alert(result.error);
           }
           btn.disabled = false;
-          btn.textContent = 'Process into Knowledge Graph';
+          btn.textContent = 'Process into memory';
         });
       });
     });

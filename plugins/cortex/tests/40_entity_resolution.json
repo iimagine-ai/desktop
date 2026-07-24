@@ -1,0 +1,25 @@
+{
+  "name": "40_entity_resolution",
+  "description": "Alias merging (5 refs -> 1 node), distinct-person separation (2 Sarahs -> 2 nodes), role change invalidation",
+  "steps": [
+    {"step": "ingest", "user_message": "Sarah joined our team this year as a developer.", "assistant_response": "Welcome Sarah."},
+    {"step": "ingest", "user_message": "Sarah Chen shipped the sync feature ahead of schedule.", "assistant_response": "Great work from Sarah Chen."},
+    {"step": "ingest", "user_message": "Our lead dev rewrote the storage layer over the weekend.", "assistant_response": "Impressive turnaround by your lead dev."},
+    {"step": "ingest", "user_message": "The Google hire keeps raising the bar — she refactored the whole memory engine.", "assistant_response": "The ex-Google experience is clearly paying off."},
+    {"step": "ingest", "user_message": "Sarah Chen, our lead developer who came from Google, is presenting at the team offsite.", "assistant_response": "Noted — Sarah Chen presenting at the offsite."},
+
+    {"step": "assert", "type": "cypher_rows", "label": "one Sarah Chen node, not five", "query": "MATCH (e:Entity) WHERE toLower(e.name) CONTAINS 'sarah' RETURN e.name", "min_rows": 1, "max_rows": 2},
+    {"step": "assert", "type": "search_contains", "label": "alias facts converge: lead-dev query surfaces Sarah Chen", "query": "who is our lead developer", "expect_substring": "sarah", "top_k": 3},
+
+    {"step": "ingest", "user_message": "Separately — Sarah Kim from our external accounting firm needs the receipts by Friday for the BAS.", "assistant_response": "Sarah Kim (accounting) needs receipts by Friday."},
+    {"step": "assert", "type": "cypher_rows", "label": "two DIFFERENT Sarahs are two nodes", "query": "MATCH (e:Entity) WHERE toLower(e.name) CONTAINS 'sarah' RETURN e.name", "min_rows": 2, "max_rows": 3},
+    {"step": "assert", "type": "search_absent", "label": "accountant Sarah doesn't absorb dev facts", "query": "who handles our accounting", "reject_substring": "memory engine", "top_k": 3},
+
+    {"step": "ingest", "user_message": "Big news: I promoted Sarah Chen to CTO. She's no longer just lead developer.", "assistant_response": "Sarah Chen is now CTO — congratulations to her."},
+    {"step": "assert", "type": "search_rank", "label": "current role (CTO) is the top answer", "query": "what is Sarah Chen's role", "expect_substring": "cto", "max_rank": 1},
+    {"step": "assert", "type": "cypher_rows", "label": "role-change did not spawn a duplicate Sarah Chen node", "query": "MATCH (e:Entity) WHERE toLower(e.name) CONTAINS 'sarah' AND NOT toLower(e.name) CONTAINS 'kim' RETURN e.name", "min_rows": 1, "max_rows": 1},
+
+    {"step": "ingest", "user_message": "Also, we renamed the company — IIMAGINE is now trading as Cortexa.", "assistant_response": "IIMAGINE -> Cortexa rename, noted."},
+    {"step": "assert", "type": "search_contains", "label": "rename links old and new names", "query": "what is the company called now", "any_of": ["cortexa"], "top_k": 3}
+  ]
+}

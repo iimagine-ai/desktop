@@ -1,0 +1,34 @@
+{
+  "config": {
+    "port": 9199,
+    "host": "127.0.0.1",
+    "model": "gpt-5.4-mini",
+    "provider": "openai",
+    "api_key": "***",
+    "judge_model": "gpt-5.4",
+    "runs": 3,
+    "mode": "fresh",
+    "only": "80_advisory",
+    "report": "docs/eval-80-numeric-anchor.json"
+  },
+  "pass_rates": {
+    "80_advisory_judge :: distributor-deal question pulls preference + precedent + capacity": 1.0,
+    "80_advisory_judge :: financing question pulls the zero-debt preference": 1.0,
+    "80_advisory_judge :: new-product question pulls capacity + objective + team size": 0.6666666666666666,
+    "80_advisory_judge :: workload question pulls the lifestyle preference": 0.6666666666666666
+  },
+  "fail_details": {
+    "80_advisory_judge :: new-product question pulls capacity + objective + team size": [
+      "context recall 0.67 < 0.67; missing: ['The team is small (about 7 people)']\n    [context dump]: [Memory Context] \u21b5 [Business Profile] \u21b5 **Objectives:** \u21b5   - The business's objective this year is 500 paying customers, up from about 300 paying customers now. \u21b5  \u21b5 **Resources:** \u21b5   - IIMAGINE has MRR $85k. \u21b5  \u21b5 **Team:** \u21b5   - IIMAGINE employs Adam as founder. \u21b5  \u21b5 **Skills:** \u21b5   - User says the business is strong at product. \u21b5   - User says the business is strong at engineering. \u21b5   - User says the business is weak at sales. \u21b5   - User says nobody on the team has real outbound experience. \u21b5  \u21b5 **Products:** \u21b5   - IIMAGINE offers a desktop AI companion. \u21b5  \u21b5 **Segments:** \u21b5   - The desktop AI companion targets small business owners. \u21b5  \u21b5 **Opportunities:** \u21b5   - User declined the wholesale distribution deal with Baxter & Co. \u21b5   - User evaluated the wholesale distribution deal with Baxter & Co. \u21b5  \u21b5 **Preferences:** \u21b5   - User prefers revenue only for growth and will not use debt. \u21b5   - User prefers weekends free and wants to keep weekends free. \u21b5  \u21b5 **Constraints:** \u21b5   - IIMAGINE is constrained by a runway of 14 months. \u21b5   - User is constrained by debt as a non-negotiable boundary. \u21b5   - User's wholesale distribution deal was constrained by thin margins. \u21b5   - User's wholesale distribution deal was constrained by 60% of our revenue. \u21b5   - The ..."
+    ],
+    "80_advisory_judge :: workload question pulls the lifestyle preference": [
+      "context recall 0.00 < 1.0; missing: ['The owner wants to keep weekends free and prefers slower growth over seven-day weeks']\n    [context dump]: [Memory Context] \u21b5 [Business Profile] \u21b5 **Objectives:** \u21b5   - The business's objective this year is 500 paying customers, up from about 300 paying customers now. \u21b5  \u21b5 **Resources:** \u21b5   - IIMAGINE has MRR $85k. \u21b5  \u21b5 **Team:** \u21b5   - IIMAGINE employs Adam as founder. \u21b5  \u21b5 **Skills:** \u21b5   - User says the business is strong at product. \u21b5   - User says the business is strong at engineering. \u21b5   - User says the business is weak at sales. \u21b5   - User says nobody on the team has real outbound experience. \u21b5  \u21b5 **Products:** \u21b5   - IIMAGINE offers a desktop AI companion. \u21b5  \u21b5 **Segments:** \u21b5   - The desktop AI companion targets small business owners. \u21b5  \u21b5 **Opportunities:** \u21b5   - User declined the wholesale distribution deal with Baxter & Co. \u21b5   - User evaluated the wholesale distribution deal with Baxter & Co. \u21b5  \u21b5 **Preferences:** \u21b5   - User prefers revenue only for growth and will not use debt. \u21b5   - User prefers weekends free and wants to keep weekends free. \u21b5  \u21b5 **Constraints:** \u21b5   - IIMAGINE is constrained by a runway of 14 months. \u21b5   - User is constrained by debt as a non-negotiable boundary. \u21b5   - User's wholesale distribution deal was constrained by thin margins. \u21b5   - User's wholesale distribution deal was constrained by 60% of our revenue. \u21b5   - The ..."
+    ]
+  },
+  "skipped": {},
+  "queue_growth": {},
+  "latency_ms": {
+    "p50": null,
+    "samples": 0
+  }
+}

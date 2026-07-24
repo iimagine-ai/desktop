@@ -1,6 +1,6 @@
 {
   "name": "iimagine-desktop",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "IIMAGINE Desktop - Privacy-first AI with bundled local inference engine",
   "main": "main.js",
   "scripts": {
@@ -55,7 +55,7 @@
       "model-orchestrator.js",
       "local-ai-adapter.js",
       "download-manager.js",
-
+      "sd-engine-manager.js",
       "tts-service.js",
       "skills-manager.js",
       "mcp-client.js",

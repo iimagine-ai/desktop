@@ -1,0 +1,28 @@
+{
+  "name": "preference_routing",
+  "description": "Personal preferences route to the preferences profile section",
+  "exchanges": [
+    {
+      "user_message": "I am Marcus, I own TechFlow Solutions.",
+      "assistant_response": "Got it Marcus. What can I help you think through today?"
+    },
+    {
+      "user_message": "I absolutely refuse to work weekends. Work-life balance is sacred to me, even if it means slower growth.",
+      "assistant_response": "That is a clear boundary. It means growth strategies need to fit within a 5-day operating week."
+    }
+  ],
+  "assertions": [
+    {
+      "description": "Work-life balance preference is stored",
+      "query": "work-life balance weekends preference",
+      "expected_contains": ["weekend"],
+      "min_results": 1
+    },
+    {
+      "description": "Routes to preferences section",
+      "query": "work-life balance",
+      "expected_contains": ["weekend"],
+      "expected_section": "preferences"
+    }
+  ]
+}

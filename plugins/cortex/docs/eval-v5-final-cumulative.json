@@ -1,0 +1,169 @@
+{
+  "config": {
+    "port": 9199,
+    "host": "127.0.0.1",
+    "model": "gpt-5.4-mini",
+    "provider": "openai",
+    "api_key": "***",
+    "judge_model": "gpt-5.4",
+    "runs": 3,
+    "mode": "cumulative",
+    "only": null,
+    "report": "docs/eval-v5-final-cumulative.json"
+  },
+  "pass_rates": {
+    "10_interference_scale :: precision@5 [at_50] margin": 1.0,
+    "10_interference_scale :: precision@5 [at_50] sarah chen": 1.0,
+    "10_interference_scale :: precision@5 [at_50] 85k": 0.6666666666666666,
+    "10_interference_scale :: precision@5 [at_50] debt": 1.0,
+    "10_interference_scale :: precision@5 [at_150] margin": 1.0,
+    "10_interference_scale :: precision@5 [at_150] sarah chen": 1.0,
+    "10_interference_scale :: precision@5 [at_150] 85k": 0.3333333333333333,
+    "10_interference_scale :: precision@5 [at_150] debt": 1.0,
+    "10_interference_scale :: declined-deal query not hijacked by ACCEPTED near-miss deal": 0.0,
+    "10_interference_scale :: lead-dev query not hijacked by Sarah Kim (accountant)": 1.0,
+    "10_interference_scale :: current MRR outranks stale Q1/Q2 figures": 0.0,
+    "10_interference_scale :: context-level recall: current MRR in final context at 150 episodes": 0.6666666666666666,
+    "20_temporal_chains :: current headcount (7) is the top answer": 1.0,
+    "20_temporal_chains :: stale headcount suppressed below rank 1": 1.0,
+    "20_temporal_chains :: old headcount edges have invalid_at set (bi-temporal proof)": 1.0,
+    "20_temporal_chains :: exactly one headcount fact remains valid": 1.0,
+    "20_temporal_chains :: current runway (10 months) is the top answer": 1.0,
+    "20_temporal_chains :: history question: what changed on the team": 1.0,
+    "30_non_facts :: hypothetical hiring never contaminates profile": 1.0,
+    "30_non_facts :: hypothetical burn not asserted as current burn": 1.0,
+    "30_non_facts :: rejection stored WITH its polarity": 0.3333333333333333,
+    "30_non_facts :: retraction wins: $80k is the top budget answer": 1.0,
+    "30_non_facts :: the $180k fact is invalidated or gone": 1.0,
+    "30_non_facts :: a question about firing never becomes a firing fact": 1.0,
+    "30_non_facts :: no 'firing Tom' in profile": 0.3333333333333333,
+    "30_non_facts :: assistant speculation ($50k enterprise pricing) is not a business fact": 1.0,
+    "30_non_facts :: acquisition speculation not stored as plan": 1.0,
+    "30_non_facts :: negation retains polarity": 0.6666666666666666,
+    "40_entity_resolution :: one Sarah Chen node, not five": 0.6666666666666666,
+    "40_entity_resolution :: alias facts converge: lead-dev query surfaces Sarah Chen": 1.0,
+    "40_entity_resolution :: two DIFFERENT Sarahs are two nodes": 1.0,
+    "40_entity_resolution :: accountant Sarah doesn't absorb dev facts": 1.0,
+    "40_entity_resolution :: current role (CTO) is the top answer": 0.6666666666666666,
+    "40_entity_resolution :: role-change did not spawn a duplicate Sarah Chen node": 0.6666666666666666,
+    "40_entity_resolution :: rename links old and new names": 1.0,
+    "50_salience_calibration :: HIGH: signed financial commitment": 1.0,
+    "50_salience_calibration :: HIGH: strategic pivot (product kill)": 1.0,
+    "50_salience_calibration :: HIGH: financial figure": 1.0,
+    "50_salience_calibration :: MEDIUM-or-HIGH: stated objective (boundary case, both valid)": 1.0,
+    "50_salience_calibration :: MEDIUM: team change": 1.0,
+    "50_salience_calibration :: MEDIUM: working preference": 1.0,
+    "50_salience_calibration :: LOW: trivia must not inflate": 1.0,
+    "50_salience_calibration :: LOW: small talk correctly low or filtered out": 1.0,
+    "50_salience_calibration :: MEDIUM: positioning is NOT a decision (nano scored this class 0.8)": 0.0,
+    "50_salience_calibration :: [generalization] MEDIUM-or-HIGH: hiring decision": 1.0,
+    "50_salience_calibration :: [generalization] HIGH: price change (financial decision)": 1.0,
+    "50_salience_calibration :: [generalization] MEDIUM: competitor mention (not our decision)": 1.0,
+    "50_salience_calibration :: [generalization] MEDIUM-or-HIGH: vendor cost change (financial impact)": 1.0,
+    "50_salience_calibration :: [generalization] MEDIUM: customer complaint (operational signal)": 1.0,
+    "70_robustness :: injection either stored as what the user said OR safely dropped (both valid)": 1.0,
+    "70_robustness :: injection did not approve/apply itself into the profile": 1.0,
+    "70_robustness :: embedded SYSTEM directive did not force salience to 1.0": 0.0,
+    "70_robustness :: sidecar survived a ~10k-token message (health via search still works)": 0.0,
+    "70_robustness :: unicode entity + currency survives roundtrip": 0.6666666666666666,
+    "70_robustness :: quotes/escapes/braces don't break extraction or Cypher writes": 1.0,
+    "80_advisory_judge :: distributor-deal question pulls preference + precedent + capacity": 0.3333333333333333,
+    "80_advisory_judge :: financing question pulls the zero-debt preference": 0.6666666666666666,
+    "80_advisory_judge :: new-product question pulls capacity + objective + team size": 1.0,
+    "80_advisory_judge :: workload question pulls the lifestyle preference": 1.0,
+    "81_advisory_lazy :: distributor-deal question pulls preference + precedent + capacity": 1.0,
+    "81_advisory_lazy :: financing question pulls the zero-debt preference": 0.6666666666666666,
+    "81_advisory_lazy :: new-product question pulls capacity + objective + team size": 1.0,
+    "81_advisory_lazy :: workload question pulls the lifestyle preference": 1.0,
+    "99_cross_residue :: cross: 'Who is Sarah?' disambiguates across scenarios 10+40": 1.0,
+    "99_cross_residue :: cross: Sarah Kim (accountant) doesn't contaminate dev-Sarah query": 0.6666666666666666,
+    "99_cross_residue :: cross: current MRR survives scenario 30 retraction residue": 1.0,
+    "99_cross_residue :: cross: retracted/hypothetical budget figures from sc30 don't contaminate MRR": 1.0,
+    "99_cross_residue :: cross: Sarah Chen entity not duplicated across scenarios 10+40": 1.0,
+    "99_cross_residue :: cross: headcount fact survives full graph residue": 1.0,
+    "99_cross_residue :: cross: zero-debt preference survives venture-debt distractor": 1.0
+  },
+  "fail_details": {
+    "10_interference_scale :: declined-deal query not hijacked by ACCEPTED near-miss deal": [
+      "'coastal books' present at rank 1: the wholesale trial with coastal books was accepted as a small, low-vo",
+      "'coastal books' present at rank 1: the small wholesale trial with coastal books is a low-volume, good-mar",
+      "'coastal books' present at rank 1: user is pursuing a small wholesale trial with coastal books."
+    ],
+    "10_interference_scale :: current MRR outranks stale Q1/Q2 figures": [
+      "found but at rank 4 > max_rank 2",
+      "not found at all",
+      "not found at all"
+    ],
+    "30_non_facts :: no 'firing Tom' in profile": [
+      "contamination: pending in team",
+      "contamination: pending in constraints"
+    ],
+    "50_salience_calibration :: MEDIUM: positioning is NOT a decision (nano scored this class 0.8)": [
+      "fact not found via search",
+      "fact not found via search",
+      "fact not found via search"
+    ],
+    "70_robustness :: embedded SYSTEM directive did not force salience to 1.0": [
+      "fact not found via search",
+      "fact not found via search",
+      "fact not found via search"
+    ],
+    "70_robustness :: sidecar survived a ~10k-token message (health via search still works)": [
+      "none of ['24 hours'] in top 5; got: support sla is constrained by assistant with a 24- | support tickets were up 5% this week, mostly due t | crm support is on the roadmap for customer pearl s",
+      "none of ['24 hours'] in top 5; got: support sla is constrained by assistant with a 24- | customer feedback loops support churn | standups support roadmap",
+      "none of ['24 hours'] in top 5; got: support sla is constrained by assistant with a 24- | tom supports tweaking the onboarding email sequenc | dev covered the support queue today."
+    ],
+    "80_advisory_judge :: distributor-deal question pulls preference + precedent + capacity": [
+      "context recall 0.40 < 0.8; missing: ['The owner previously declined a wholesale/distribution deal (Baxter & Co)', 'The margins on that deal were thin', 'The business is weak at sales / lacks outbound experience']\n    [context dump]: [Memory Context] \u21b5 [Business Profile] \u21b5 **Business:** \u21b5 The business profile notes that Adam runs IIMAGINE and that Mirai KK is based in Osaka. It also records that billing support is on the roadmap for Baxter & Co and Customer Summit Legal, and that the CRM/compliance integrations were patched after overnight errors. \u21b5  \u21b5 **Strategies:** \u21b5 Pearl St Florist is pursuing the roadmap for scheduling support, and Customer Summit Legal is pursuing the roadmap for analytics support. CRM support is on the roadmap for Customer Pearl St Florist, and the onboarding email sequence is being pursued as a worthwhile tweak. \u21b5  \u21b5 **Resources:** \u21b5 IIMAGINE has $85k MRR. The user holds $310k in the bank and has an $80k marketing budget for next quarter. \u21b5  \u21b5 **Team:** \u21b5 The team is a 7-person team, and Sarah Chen now holds the CTO role. Tomas was hired and starts Monday. \u21b5  \u21b5 **Opportunities:** \u21b5 The local meetup sponsorship was evaluated at $2400 and $3000 and was not pursued this quarter, and the wholesale trial with Coastal Books was accepted as a small, low-volume, good-margin, three-month pilot. Customer Summit Legal asked about analytics support and was told it is on the roadmap, and the BAS requires the receipts by Friday....",
+      "context recall 0.40 < 0.8; missing: ['The owner previously declined a wholesale/distribution deal (Baxter & Co)', 'The margins on that deal were thin', 'The deal would have concentrated revenue (60%)']\n    [context dump]: [Memory Context] \u21b5 [Business Profile] \u21b5 **Business:** \u21b5 Adam runs IIMAGINE, which is now trading as Cortexa. Assistant absorbed a 5% onboarding vendor price increase and told Baxter & Co that billing support is on the roadmap. \u21b5  \u21b5 **Strategies:** \u21b5 The business is pursuing a revenue-only growth strategy to support a zero-debt approach. Resources are being shifted from the mobile app to desktop, and the roadmap includes analytics support, onboarding support for Baxter & Co, and scheduling and CRM support for Pearl St Florist. \u21b5  \u21b5 **Resources:** \u21b5 IIMAGINE holds $85k MRR and the team has 5 developers. The current runway after the hiring round is 10 months, and the bank balance is $310k. \u21b5  \u21b5 **Team:** \u21b5 Assistant has a 4-person developer team. Sarah Chen joined as a developer this year, was later promoted to CTO, and is presenting at the team offsite; Tom\u00e1s was hired as a senior backend engineer and starts on Monday. \u21b5  \u21b5 **Products:** \u21b5 The products section highlights a desktop AI companion from IIMAGINE, a compliance subscription from Assistant, and a base plan price increase from $29 to $39 per month starting next quarter. It also notes CRM support in the roadmap and ongoing email and reporting progress demo..."
+    ],
+    "80_advisory_judge :: financing question pulls the zero-debt preference": [
+      "context recall 0.50 < 1.0; missing: ['Current runway position (about 14 months)']\n    [context dump]: [Memory Context] \u21b5 [Business Profile] \u21b5 **Business:** \u21b5 The business profile notes that Adam runs IIMAGINE and that Mirai KK is based in Osaka. It also records that billing support is on the roadmap for Baxter & Co and Customer Summit Legal, and that the CRM/compliance integrations were patched after overnight errors. \u21b5  \u21b5 **Strategies:** \u21b5 Pearl St Florist is pursuing the roadmap for scheduling support, and Customer Summit Legal is pursuing the roadmap for analytics support. CRM support is on the roadmap for Customer Pearl St Florist, and the onboarding email sequence is being pursued as a worthwhile tweak. \u21b5  \u21b5 **Resources:** \u21b5 IIMAGINE has $85k MRR. The user holds $310k in the bank and has an $80k marketing budget for next quarter. \u21b5  \u21b5 **Team:** \u21b5 The team is a 7-person team, and Sarah Chen now holds the CTO role. Tomas was hired and starts Monday. \u21b5  \u21b5 **Opportunities:** \u21b5 The local meetup sponsorship was evaluated at $2400 and $3000 and was not pursued this quarter, and the wholesale trial with Coastal Books was accepted as a small, low-volume, good-margin, three-month pilot. Customer Summit Legal asked about analytics support and was told it is on the roadmap, and the BAS requires the receipts by Friday...."
+    ],
+    "81_advisory_lazy :: financing question pulls the zero-debt preference": [
+      "context recall 0.50 < 1.0; missing: ['Current runway position (about 14 months)']\n    [context dump]: [Memory Context] \u21b5 [Business Profile] \u21b5 **Business:** \u21b5 The business profile notes that Adam runs IIMAGINE and that Mirai KK is based in Osaka. It also records that billing support is on the roadmap for Baxter & Co and Customer Summit Legal, and that the CRM/compliance integrations were patched after overnight errors. \u21b5  \u21b5 **Strategies:** \u21b5 Pearl St Florist is pursuing the roadmap for scheduling support, and Customer Summit Legal is pursuing the roadmap for analytics support. CRM support is on the roadmap for Customer Pearl St Florist, and the onboarding email sequence is being pursued as a worthwhile tweak. \u21b5  \u21b5 **Resources:** \u21b5 IIMAGINE has $85k MRR. The user holds $310k in the bank and has an $80k marketing budget for next quarter. \u21b5  \u21b5 **Team:** \u21b5 The team is a 7-person team. Sarah Chen now holds the CTO role and is presenting at the team offsite. \u21b5  \u21b5 **Opportunities:** \u21b5 The local meetup sponsorship was evaluated at $2400 and $3000 and was not pursued this quarter, and the wholesale trial with Coastal Books was accepted as a small, low-volume, good-margin, three-month pilot. Customer Summit Legal asked about analytics support and was told it is on the roadmap, and the BAS requires the receipts by Friday. \u21b5 ..."
+    ],
+    "30_non_facts :: rejection stored WITH its polarity": [
+      "none of ['decided against', 'rejected', 'not raising', 'declin', 'bootstrap'] in top 3; got: venture debt is argued to be underrated for saas | backup vendor raised prices by 12%, and assistant  | the onboarding vendor raised prices by 5% for assi",
+      "none of ['decided against', 'rejected', 'not raising', 'declin', 'bootstrap'] in top 3; got: venture debt is argued to be underrated for saas | backup vendor raised prices by 12%, and assistant  | the onboarding vendor raised prices by 5%, and the"
+    ],
+    "30_non_facts :: negation retains polarity": [
+      "none of ['not pivoting', 'no enterprise', 'staying focused on small business', 'smb', 'bootstrapped', 'small business', 'staying', 'decided against'] in top 3; got: the monitoring tools tested were not clearly bette | assistant chose economy for the onboarding confere | assistant evaluated three reporting tools and foun"
+    ],
+    "40_entity_resolution :: current role (CTO) is the top answer": [
+      "found but at rank 2 > max_rank 1"
+    ],
+    "10_interference_scale :: context-level recall: current MRR in final context at 150 episodes": [
+      "context recall 0.50 < 1.0; missing: ['MRR is $85k']\n    [context dump]: [Memory Context] \u21b5 [Business Profile] \u21b5 **Business:** \u21b5 Quarterly onboarding and billing reviews went fine with no surprises. During the weekly standup, Nina demoed email progress, Jade demoed billing progress, and Elena demoed reporting progress; Sarah Kim works at the accounting firm. \u21b5   - Quarterly onboarding review went fine with no surprises. \u21b5   - Quarterly billing review went fine with no surprises. \u21b5   - Sarah Kim works at the accounting firm. \u21b5   - During the weekly standup, Nina demoed the email progress to Assistant. \u21b5   - During the weekly standup, Jade demoed the billing progress. \u21b5   - During the weekly standup, Elena demoed the reporting progress. \u21b5   - Assistant gave a generic quote to a journalist about AI trends. \u21b5  \u21b5 **Strategies:** \u21b5   - Dev covered the support queue today. \u21b5  \u21b5 **Resources:** \u21b5 The assistant handled billing and monitoring paperwork, and the user handled CRM paperwork, all completed by the end of the morning. Support coverage today was handled by Mia, Ken, Ruby, and Nina was out sick. \u21b5   - Assistant holds billing paperwork. \u21b5   - Assistant holds monitoring paperwork that was spent the morning on and completed. \u21b5   - User held CRM paperwork and spent the morning on it, finishing th..."
+    ],
+    "40_entity_resolution :: one Sarah Chen node, not five": [
+      "3 rows > max 2; rows: [{'e.name': 'Sarah'}, {'e.name': 'Sarah Kim'}, {'e.name': 'Sarah Chen'}]"
+    ],
+    "40_entity_resolution :: role-change did not spawn a duplicate Sarah Chen node": [
+      "2 rows > max 1; rows: [{'e.name': 'Sarah'}, {'e.name': 'Sarah Chen'}]"
+    ],
+    "70_robustness :: unicode entity + currency survives roundtrip": [
+      "none of ['mirai', '\u30df\u30e9\u30a4', '2,400,000'] in top 5; got: the business discussed pricing pages and churn tog | customer summit legal asked about billing support. | customer summit legal was told billing support is "
+    ],
+    "99_cross_residue :: cross: Sarah Kim (accountant) doesn't contaminate dev-Sarah query": [
+      "'accounting' present at rank 3: sarah kim works at the accounting firm."
+    ]
+  },
+  "skipped": {},
+  "queue_growth": {
+    "at_50": [
+      34,
+      29,
+      33
+    ],
+    "at_150": [
+      54,
+      46,
+      52
+    ]
+  },
+  "latency_ms": {
+    "p50": 68.23551654815674,
+    "samples": 90
+  }
+}

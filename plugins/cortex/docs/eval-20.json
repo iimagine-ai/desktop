@@ -1,0 +1,36 @@
+{
+  "config": {
+    "port": 9199,
+    "host": "127.0.0.1",
+    "model": "gpt-5.4-mini",
+    "provider": "openai",
+    "api_key": "***",
+    "judge_model": "gpt-5.4",
+    "runs": 1,
+    "mode": "fresh",
+    "only": "20_temporal",
+    "report": "docs/eval-20.json"
+  },
+  "pass_rates": {
+    "20_temporal_chains :: current headcount (7) is the top answer": 1.0,
+    "20_temporal_chains :: stale '3 developers' not in top-2": 0.0,
+    "20_temporal_chains :: old headcount edges have invalid_at set (bi-temporal proof)": 1.0,
+    "20_temporal_chains :: exactly one headcount fact remains valid": 1.0,
+    "20_temporal_chains :: current runway (10 months) is the top answer": 1.0,
+    "20_temporal_chains :: history question: what changed on the team": 0.0
+  },
+  "fail_details": {
+    "20_temporal_chains :: stale '3 developers' not in top-2": [
+      "'3 developers' present at rank 1: user has 3 developers on the team right now."
+    ],
+    "20_temporal_chains :: history question: what changed on the team": [
+      "context recall 0.67 < 0.67; missing: ['The team grew from a smaller size (3) over multiple hiring events']"
+    ]
+  },
+  "skipped": {},
+  "queue_growth": {},
+  "latency_ms": {
+    "p50": 68.69888305664062,
+    "samples": 3
+  }
+}

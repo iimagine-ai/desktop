@@ -624,8 +624,7 @@ function setupIPC() {
           // OpenAI-compatible (openai, openrouter) — streaming with tool calling
           const toolCalling = require('./tool-calling');
           const webSearchEnabled = !!store.get('webSearch.enabled') || !!store.get('local.webSearchEnabled');
-          const kbStats = kbStorage.getKBStats();
-          const hasKBDocuments = kbStats.embeddingCount > 0;
+          const hasKBDocuments = false; // Standard path: no KB selected, don't expose rag_search
           const tools = toolCalling.getActiveTools({ webSearchEnabled, hasKBDocuments });
 
           // Merge MCP tools (from connected integrations)
@@ -1171,8 +1170,7 @@ function setupIPC() {
       const numCtx = store.get('local.contextWindow', '4096');
       const toolsEnabled = store.get('local.toolsEnabled', false);
       const webSearchEnabled = !!store.get('webSearch.enabled') || !!store.get('local.webSearchEnabled');
-      const kbStats = kbStorage.getKBStats();
-      const hasKBDocuments = kbStats.embeddingCount > 0;
+      const hasKBDocuments = false; // Standard path: no KB selected, don't expose rag_search
       const tools = toolsEnabled ? toolCalling.getActiveTools({ webSearchEnabled, hasKBDocuments }) : [];
 
       const result = await engineManager.chat({
@@ -1908,7 +1906,7 @@ END OF DOCUMENTS`;
           mainWindow?.webContents.send('chat:rag-chunk', { content: fullResponse });
           mainWindow?.webContents.send('chat:rag-done');
           console.log('[ChatRAG] Response complete, length:', fullResponse.length, 'chars');
-          try { await pluginManager.runChatPostprocess({ response: fullResponse, assistant: null }); } catch (err) { console.warn('[ChatRAG] Plugin postprocess error:', err.message); }
+          // Plugin postprocess handled by renderer _onStreamComplete — not called here to avoid double extraction
           return { success: true, contextUsed: contextChunks.length };
 
         } else if (cloudConfig.isGemini) {
@@ -1923,7 +1921,7 @@ END OF DOCUMENTS`;
           mainWindow?.webContents.send('chat:rag-chunk', { content: fullResponse });
           mainWindow?.webContents.send('chat:rag-done');
           console.log('[ChatRAG] Response complete, length:', fullResponse.length, 'chars');
-          try { await pluginManager.runChatPostprocess({ response: fullResponse, assistant: null }); } catch (err) { console.warn('[ChatRAG] Plugin postprocess error:', err.message); }
+          // Plugin postprocess handled by renderer _onStreamComplete — not called here to avoid double extraction
           return { success: true, contextUsed: contextChunks.length };
 
         } else {
@@ -1964,7 +1962,7 @@ END OF DOCUMENTS`;
           }
           mainWindow?.webContents.send('chat:rag-done');
           console.log('[ChatRAG] Response complete, length:', fullResponse.length, 'chars');
-          try { await pluginManager.runChatPostprocess({ response: fullResponse, assistant: null }); } catch (err) { console.warn('[ChatRAG] Plugin postprocess error:', err.message); }
+          // Plugin postprocess handled by renderer _onStreamComplete — not called here to avoid double extraction
           return { success: true, contextUsed: contextChunks.length };
         }
       }
@@ -2050,12 +2048,7 @@ END OF DOCUMENTS`;
         mainWindow?.webContents.send('chat:rag-done');
         console.log('[ChatRAG] Response complete, length:', fullResponse.length, 'chars');
 
-        // Run plugin postprocess hooks
-        try {
-          await pluginManager.runChatPostprocess({ response: fullResponse, assistant: null });
-        } catch (err) {
-          console.warn('[ChatRAG] Plugin postprocess error:', err.message);
-        }
+        // Plugin postprocess handled by renderer _onStreamComplete — not called here to avoid double extraction
 
         return { success: true, contextUsed: contextChunks.length };
       }
@@ -2234,13 +2227,17 @@ END OF DOCUMENTS`;
 
   // Plugins
   ipcMain.handle('plugins:list', () => pluginManager.getAll());
+  ipcMain.handle('plugins:isEnabled', (event, id) => {
+    const plugin = pluginManager.getAll().find(p => p.id === id);
+    return plugin ? plugin.enabled : false;
+  });
   ipcMain.handle('plugins:setEnabled', (event, id, enabled) => pluginManager.setEnabled(id, enabled));
   ipcMain.handle('plugins:getSidebarItems', () => pluginManager.getSidebarItems());
-  ipcMain.handle('plugins:renderPage', (event, pluginId) => {
+  ipcMain.handle('plugins:renderPage', (event, pluginId, activeTab) => {
     try {
       const renderer = pluginManager.getPageRenderer(pluginId);
       if (!renderer) return null;
-      return renderer();
+      return renderer(null, activeTab);
     } catch (err) {
       console.error(`[Plugin] renderPage error for ${pluginId}:`, err.message);
       pluginManager._logError(pluginId, `renderPage crash: ${err.message}`);
@@ -2358,6 +2355,7 @@ END OF DOCUMENTS`;
     console.log('[Chat:Submit] Query:', lastMsg?.content?.slice(0, 80) || '(empty)');
     console.log('[Chat:Submit] Active plugins:', activePlugins.join(', '));
     console.log('[Chat:Submit] Active project:', activeProject ? `"${activeProject.name}" (${activeProject.id})` : 'NONE');
+    console.log('[Chat:Submit] Memory space:', pluginManager.plugins?.get('cortex')?.instance?.getActiveGroupId?.() || 'business');
     console.log('[Chat:Submit] Messages count:', (data.messages || []).length);
     console.log('[Chat:Submit] Mentions:', JSON.stringify(data.mentions || []));
     console.log('[Chat:Submit] Model:', store.get('provider.active')?.model || 'auto');
@@ -2762,18 +2760,40 @@ END OF DOCUMENTS`;
   });
 
   ipcMain.handle('folder:processKG', async (event, id) => {
-    // Get the Cortex extractor from the active plugin
-    const cortexPlugin = pluginManager.plugins.get('cortex-lite');
+    // Use the Cortex v2 sidecar for extraction (Graphiti + FalkorDB)
+    const cortexPlugin = pluginManager.plugins.get('cortex');
     if (!cortexPlugin?.instance) {
-      return { error: 'Cortex Lite plugin is not active. Enable it in Settings > Plugins.' };
+      return { error: 'Cortex Memory plugin is not active. Enable it in Settings > Plugins.' };
     }
-    const cortexDir = path.join(pluginManager.getPluginsDir(), 'cortex-lite');
-    let extractor;
-    try {
-      extractor = require(path.join(cortexDir, 'extractor.js'));
-    } catch (err) {
-      return { error: 'Could not load Cortex extractor: ' + err.message };
+
+    // Build an extractor adapter that calls the sidecar /extract endpoint
+    const sidecarClient = cortexPlugin.instance.getSidecarClient?.();
+    if (!sidecarClient) {
+      return { error: 'Cortex sidecar is not ready. Wait for initialization to complete.' };
     }
+
+    const extractor = {
+      async extract(content, assistantResponse) {
+        // Call the sidecar extract endpoint
+        const result = await sidecarClient.request('POST', '/extract', {
+          user_message: content,
+          assistant_response: assistantResponse || '',
+          llm_config: cortexPlugin.instance.getActiveLLMConfig?.() || {
+            provider: 'openai',
+            model: store.get('provider.active')?.model || 'gpt-5.4-mini',
+            api_key: store.get('provider.active')?.apiKey || '',
+          },
+          session_id: null,
+          group_id: cortexPlugin.instance.getActiveGroupId?.() || 'business',
+        });
+        return result;
+      },
+      async processExtraction(result) {
+        // Already processed by the sidecar — no-op
+        return result;
+      }
+    };
+
     const result = await folderConnect.processKG(id, extractor, (progress) => {
       mainWindow?.webContents.send('folder:cortex-progress', progress);
     });

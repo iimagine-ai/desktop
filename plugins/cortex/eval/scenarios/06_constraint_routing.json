@@ -1,0 +1,24 @@
+{
+  "name": "constraint_routing",
+  "description": "Hard constraints route to constraints profile section with HIGH salience",
+  "exchanges": [
+    {
+      "user_message": "I am the founder of DataStream. We have a regulatory requirement — all customer data must stay within the EU. No exceptions, GDPR compliance is non-negotiable.",
+      "assistant_response": "That is a hard infrastructure constraint. It rules out most US-only cloud providers and shapes your entire hosting architecture."
+    }
+  ],
+  "assertions": [
+    {
+      "description": "GDPR constraint is stored",
+      "query": "data residency GDPR regulatory EU",
+      "expected_contains": ["EU"],
+      "min_results": 1
+    },
+    {
+      "description": "Routes to constraints section",
+      "query": "GDPR data must stay EU",
+      "expected_contains": ["EU"],
+      "expected_section": "constraints"
+    }
+  ]
+}

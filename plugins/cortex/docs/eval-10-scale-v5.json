@@ -1,0 +1,54 @@
+{
+  "config": {
+    "port": 9199,
+    "host": "127.0.0.1",
+    "model": "gpt-5.4-mini",
+    "provider": "openai",
+    "api_key": "***",
+    "judge_model": "gpt-5.4",
+    "runs": 3,
+    "mode": "fresh",
+    "only": "10_interference",
+    "report": "docs/eval-10-scale-v5.json"
+  },
+  "pass_rates": {
+    "10_interference_scale :: precision@5 [at_50] margin": 1.0,
+    "10_interference_scale :: precision@5 [at_50] sarah chen": 1.0,
+    "10_interference_scale :: precision@5 [at_50] 85k": 0.6666666666666666,
+    "10_interference_scale :: precision@5 [at_50] debt": 1.0,
+    "10_interference_scale :: precision@5 [at_150] margin": 0.3333333333333333,
+    "10_interference_scale :: precision@5 [at_150] sarah chen": 1.0,
+    "10_interference_scale :: precision@5 [at_150] 85k": 0.6666666666666666,
+    "10_interference_scale :: precision@5 [at_150] debt": 1.0,
+    "10_interference_scale :: declined-deal query not hijacked by ACCEPTED near-miss deal": 0.6666666666666666,
+    "10_interference_scale :: lead-dev query not hijacked by Sarah Kim (accountant)": 1.0,
+    "10_interference_scale :: current MRR outranks stale Q1/Q2 figures": 0.0
+  },
+  "fail_details": {
+    "10_interference_scale :: current MRR outranks stale Q1/Q2 figures": [
+      "found but at rank 4 > max_rank 2",
+      "not found at all",
+      "found but at rank 4 > max_rank 2"
+    ],
+    "10_interference_scale :: declined-deal query not hijacked by ACCEPTED near-miss deal": [
+      "'coastal books' present at rank 2: small wholesale trial with coastal books is a three-month pilot"
+    ]
+  },
+  "skipped": {},
+  "queue_growth": {
+    "at_50": [
+      32,
+      30,
+      31
+    ],
+    "at_150": [
+      52,
+      47,
+      51
+    ]
+  },
+  "latency_ms": {
+    "p50": 75.04892349243164,
+    "samples": 33
+  }
+}

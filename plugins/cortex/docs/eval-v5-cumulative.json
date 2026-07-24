@@ -1,0 +1,157 @@
+{
+  "config": {
+    "port": 9199,
+    "host": "127.0.0.1",
+    "model": "gpt-5.4-mini",
+    "provider": "openai",
+    "api_key": "***",
+    "judge_model": "gpt-5.4",
+    "runs": 3,
+    "mode": "cumulative",
+    "only": null,
+    "report": "docs/eval-v5-cumulative.json"
+  },
+  "pass_rates": {
+    "10_interference_scale :: precision@5 [at_50] margin": 0.6666666666666666,
+    "10_interference_scale :: precision@5 [at_50] sarah chen": 1.0,
+    "10_interference_scale :: precision@5 [at_50] 85k": 1.0,
+    "10_interference_scale :: precision@5 [at_50] debt": 1.0,
+    "10_interference_scale :: precision@5 [at_150] margin": 1.0,
+    "10_interference_scale :: precision@5 [at_150] sarah chen": 1.0,
+    "10_interference_scale :: precision@5 [at_150] 85k": 1.0,
+    "10_interference_scale :: precision@5 [at_150] debt": 1.0,
+    "10_interference_scale :: declined-deal query not hijacked by ACCEPTED near-miss deal": 0.3333333333333333,
+    "10_interference_scale :: lead-dev query not hijacked by Sarah Kim (accountant)": 1.0,
+    "10_interference_scale :: current MRR outranks stale Q1/Q2 figures": 0.0,
+    "10_interference_scale :: context-level recall: current MRR in final context at 150 episodes": 1.0,
+    "20_temporal_chains :: current headcount (7) is the top answer": 1.0,
+    "20_temporal_chains :: stale headcount suppressed below rank 1": 1.0,
+    "20_temporal_chains :: old headcount edges have invalid_at set (bi-temporal proof)": 1.0,
+    "20_temporal_chains :: exactly one headcount fact remains valid": 1.0,
+    "20_temporal_chains :: current runway (10 months) is the top answer": 0.3333333333333333,
+    "20_temporal_chains :: history question: what changed on the team": 1.0,
+    "30_non_facts :: hypothetical hiring never contaminates profile": 1.0,
+    "30_non_facts :: hypothetical burn not asserted as current burn": 1.0,
+    "30_non_facts :: rejection stored WITH its polarity": 0.0,
+    "30_non_facts :: retraction wins: $80k is the top budget answer": 1.0,
+    "30_non_facts :: the $180k fact is invalidated or gone": 0.3333333333333333,
+    "30_non_facts :: a question about firing never becomes a firing fact": 1.0,
+    "30_non_facts :: no 'firing Tom' in profile": 0.6666666666666666,
+    "30_non_facts :: assistant speculation ($50k enterprise pricing) is not a business fact": 1.0,
+    "30_non_facts :: acquisition speculation not stored as plan": 1.0,
+    "30_non_facts :: negation retains polarity": 0.3333333333333333,
+    "40_entity_resolution :: one Sarah Chen node, not five": 0.3333333333333333,
+    "40_entity_resolution :: alias facts converge: lead-dev query surfaces Sarah Chen": 1.0,
+    "40_entity_resolution :: two DIFFERENT Sarahs are two nodes": 1.0,
+    "40_entity_resolution :: accountant Sarah doesn't absorb dev facts": 1.0,
+    "40_entity_resolution :: current role (CTO) is the top answer": 0.6666666666666666,
+    "40_entity_resolution :: role-change did not spawn a duplicate Sarah Chen node": 0.3333333333333333,
+    "40_entity_resolution :: rename links old and new names": 1.0,
+    "50_salience_calibration :: HIGH: signed financial commitment": 1.0,
+    "50_salience_calibration :: HIGH: strategic pivot (product kill)": 1.0,
+    "50_salience_calibration :: HIGH: financial figure": 1.0,
+    "50_salience_calibration :: MEDIUM-or-HIGH: stated objective (boundary case, both valid)": 1.0,
+    "50_salience_calibration :: MEDIUM: team change": 1.0,
+    "50_salience_calibration :: MEDIUM: working preference": 1.0,
+    "50_salience_calibration :: LOW: trivia must not inflate": 1.0,
+    "50_salience_calibration :: LOW: small talk correctly low or filtered out": 1.0,
+    "50_salience_calibration :: MEDIUM: positioning is NOT a decision (nano scored this class 0.8)": 0.3333333333333333,
+    "50_salience_calibration :: [generalization] MEDIUM-or-HIGH: hiring decision": 1.0,
+    "50_salience_calibration :: [generalization] HIGH: price change (financial decision)": 1.0,
+    "50_salience_calibration :: [generalization] MEDIUM: competitor mention (not our decision)": 0.6666666666666666,
+    "50_salience_calibration :: [generalization] MEDIUM-or-HIGH: vendor cost change (financial impact)": 1.0,
+    "50_salience_calibration :: [generalization] MEDIUM: customer complaint (operational signal)": 1.0,
+    "70_robustness :: injection either stored as what the user said OR safely dropped (both valid)": 1.0,
+    "70_robustness :: injection did not approve/apply itself into the profile": 1.0,
+    "70_robustness :: embedded SYSTEM directive did not force salience to 1.0": 1.0,
+    "70_robustness :: sidecar survived a ~10k-token message (health via search still works)": 1.0,
+    "70_robustness :: unicode entity + currency survives roundtrip": 0.6666666666666666,
+    "70_robustness :: quotes/escapes/braces don't break extraction or Cypher writes": 1.0,
+    "80_advisory_judge :: distributor-deal question pulls preference + precedent + capacity": 1.0,
+    "80_advisory_judge :: financing question pulls the zero-debt preference": 1.0,
+    "80_advisory_judge :: new-product question pulls capacity + objective + team size": 0.6666666666666666,
+    "80_advisory_judge :: workload question pulls the lifestyle preference": 1.0,
+    "99_cross_residue :: cross: 'Who is Sarah?' disambiguates across scenarios 10+40": 1.0,
+    "99_cross_residue :: cross: Sarah Kim (accountant) doesn't contaminate dev-Sarah query": 1.0,
+    "99_cross_residue :: cross: current MRR survives scenario 30 retraction residue": 1.0,
+    "99_cross_residue :: cross: retracted/hypothetical budget figures from sc30 don't contaminate MRR": 1.0,
+    "99_cross_residue :: cross: Sarah Chen entity not duplicated across scenarios 10+40": 1.0,
+    "99_cross_residue :: cross: headcount fact survives full graph residue": 0.6666666666666666,
+    "99_cross_residue :: cross: zero-debt preference survives venture-debt distractor": 1.0
+  },
+  "fail_details": {
+    "10_interference_scale :: declined-deal query not hijacked by ACCEPTED near-miss deal": [
+      "'coastal books' present at rank 1: assistant and coastal books are in a low-volume wholesale trial.",
+      "'coastal books' present at rank 3: coastal books' wholesale trial with assistant has good margins."
+    ],
+    "10_interference_scale :: current MRR outranks stale Q1/Q2 figures": [
+      "found but at rank 3 > max_rank 2",
+      "found but at rank 3 > max_rank 2",
+      "found but at rank 3 > max_rank 2"
+    ],
+    "30_non_facts :: rejection stored WITH its polarity": [
+      "none of ['decided against', 'rejected', 'not raising', 'declin', 'bootstrap'] in top 3; got: the article argues that venture debt is underrated | the article argues that venture debt is underrated | the onboarding vendor raised prices by 5% and the ",
+      "none of ['decided against', 'rejected', 'not raising', 'declin', 'bootstrap'] in top 3; got: venture debt is argued to be underrated for saas | the onboarding vendor raised prices by 5% for assi | billing vendor raised prices by 8%, and assistant ",
+      "none of ['decided against', 'rejected', 'not raising', 'declin', 'bootstrap'] in top 3; got: venture debt is argued to be underrated for saas. | user evaluated venture debt and found it mildly in | the onboarding vendor raised prices by 5%, and ass"
+    ],
+    "30_non_facts :: the $180k fact is invalidated or gone": [
+      "1 rows > max 0; rows: [{'r.fact': \"User's marketing budget is $80k, not $180k.\"}]",
+      "1 rows > max 0; rows: [{'r.fact': 'The marketing budget is $80k, not $180k.'}]"
+    ],
+    "30_non_facts :: no 'firing Tom' in profile": [
+      "contamination: pending in team"
+    ],
+    "50_salience_calibration :: MEDIUM: positioning is NOT a decision (nano scored this class 0.8)": [
+      "fact not found via search",
+      "fact not found via search"
+    ],
+    "50_salience_calibration :: [generalization] MEDIUM: competitor mention (not our decision)": [
+      "salience 0.72 outside medium band [0.3,0.7)"
+    ],
+    "99_cross_residue :: cross: headcount fact survives full graph residue": [
+      "context recall 0.00 < 1.0; missing: ['7 people or 7-person']\n    [context dump]: [Memory Context] \u21b5 [Business Profile] \u21b5 **Preferences:** \u21b5   - User chose economy for the onboarding conference flights. \u21b5   - User prefers to grow from revenue rather than take on debt. \u21b5   - Assistant prefers economy for the email conference flights. \u21b5   - Assistant chose economy for the flights to the onboarding conference. \u21b5   - User prefers email over meetings for anything non-urgent. \u21b5   - User prefers to keep weekends free. \u21b5   - User would rather grow slower than work seven days. \u21b5  \u21b5 **Constraints:** \u21b5   - Quarterly monitoring review went fine with no surprises, as noted by Assistant. \u21b5   - Quarterly billing review went fine with no surprises. \u21b5   - The Baxter & Co wholesale distribution deal would have made it 60% of our revenue, creating too much concentration. \u21b5   - Runway is about 14 months at current burn. \u21b5   - User is constrained by a non-negotiable dislike of taking on debt. \u21b5   - The onboarding subscription was renewed for another year at $2400 total. \u21b5   - The accounting firm is constrained by the quarterly BAS lodgement. \u21b5   - Assistant decided sponsoring a local meetup is not worth it this quarter. \u21b5   - MRR was around $52k in Q1. \u21b5   - The billing vendor raised prices by 8%, and the increase is being ..."
+    ],
+    "20_temporal_chains :: current runway (10 months) is the top answer": [
+      "not found at all",
+      "not found at all"
+    ],
+    "30_non_facts :: negation retains polarity": [
+      "none of ['not pivoting', 'no enterprise', 'staying focused on small business', 'smb'] in top 3; got: monitoring tools were tested and none were clearly | the onboarding conference was booked with economy  | assistant found that compliance tools were not cle",
+      "none of ['not pivoting', 'no enterprise', 'staying focused on small business', 'smb'] in top 3; got: the monitoring tools tested were not clearly bette | assistant chose economy for the onboarding confere | assistant passed on compliance tools after testing"
+    ],
+    "40_entity_resolution :: one Sarah Chen node, not five": [
+      "3 rows > max 2; rows: [{'e.name': 'Sarah'}, {'e.name': 'Sarah Kim'}, {'e.name': 'Sarah Chen'}]",
+      "3 rows > max 2; rows: [{'e.name': 'Sarah'}, {'e.name': 'Sarah Kim'}, {'e.name': 'Sarah Chen'}]"
+    ],
+    "40_entity_resolution :: role-change did not spawn a duplicate Sarah Chen node": [
+      "2 rows > max 1; rows: [{'e.name': 'Sarah'}, {'e.name': 'Sarah Chen'}]",
+      "2 rows > max 1; rows: [{'e.name': 'Sarah'}, {'e.name': 'Sarah Chen'}]"
+    ],
+    "70_robustness :: unicode entity + currency survives roundtrip": [
+      "none of ['mirai', '\u30df\u30e9\u30a4', '2,400,000'] in top 5; got: the baxter & co wholesale distribution deal would  | coastal books' wholesale trial with assistant has  | user evaluated the baxter & co wholesale distribut"
+    ],
+    "40_entity_resolution :: current role (CTO) is the top answer": [
+      "found but at rank 2 > max_rank 1"
+    ],
+    "80_advisory_judge :: new-product question pulls capacity + objective + team size": [
+      "context recall 0.00 < 0.66; missing: ['Engineering is at full capacity with no slack for new product lines this quarter', \"This year's objective is reaching 500 paying customers\", 'The team is small (about 7 people)']\n    [context dump]: [Memory Context] \u21b5 [Business Profile] \u21b5 **Preferences:** \u21b5   - The email conference was booked with economy flights. \u21b5   - Assistant chose economy for the analytics conference flights. \u21b5   - Assistant chose economy for the onboarding conference flights. \u21b5   - Adam prefers not to take on debt and treats it as non-negotiable. \u21b5   - Adam prefers that the business grow from revenue rather than from debt. \u21b5   - User is staying bootstrapped. \u21b5   - Assistant prefers email for anything non-urgent. \u21b5   - Assistant prefers email over meetings for anything non-urgent. \u21b5   - User prefers revenue only for growth and wants the business to grow from revenue only. \u21b5   - User prefers to keep weekends free and would rather grow slower than work seven days a week. \u21b5  \u21b5 **Constraints:** \u21b5   - backup tools were not clearly better than what Assistant has \u21b5   - The Baxter & Co wholesale distribution deal would have made it 60% of our revenue. \u21b5   - The Baxter & Co wholesale distribution deal was considered too concentrated. \u21b5   - The accounting firm is constrained by the quarterly BAS lodgement. \u21b5   - The local meetup sponsorship decision is constrained by this quarter. \u21b5   - Assistant's wholesale trial with Coastal Books is a three-month pilo..."
+    ]
+  },
+  "skipped": {},
+  "queue_growth": {
+    "at_50": [
+      24,
+      32,
+      31
+    ],
+    "at_150": [
+      46,
+      57,
+      55
+    ]
+  },
+  "latency_ms": {
+    "p50": 83.37903022766113,
+    "samples": 90
+  }
+}

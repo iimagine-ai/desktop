@@ -1,0 +1,51 @@
+{
+  "name": "99_cross_residue",
+  "description": "Cross-scenario probes that only make sense in cumulative mode — tests residue interactions between scenarios sharing one graph",
+  "steps": [
+    {"step": "assert", "type": "judge_context_recall",
+     "label": "cross: 'Who is Sarah?' disambiguates across scenarios 10+40",
+     "question": "Who is Sarah on our team and what does she do?",
+     "required_facts": ["Sarah Chen", "developer or CTO or lead dev", "Google"],
+     "min_recall": 0.66,
+     "token_budget": 1500},
+
+    {"step": "assert", "type": "search_absent",
+     "label": "cross: Sarah Kim (accountant) doesn't contaminate dev-Sarah query",
+     "query": "Who is Sarah on our engineering team?",
+     "reject_substring": "accounting",
+     "top_k": 3},
+
+    {"step": "assert", "type": "judge_context_recall",
+     "label": "cross: current MRR survives scenario 30 retraction residue",
+     "question": "What is our current MRR?",
+     "required_facts": ["$85k"],
+     "min_recall": 1.0,
+     "token_budget": 1500},
+
+    {"step": "assert", "type": "search_absent",
+     "label": "cross: retracted/hypothetical budget figures from sc30 don't contaminate MRR",
+     "query": "current monthly recurring revenue",
+     "reject_substring": "hypothetical",
+     "top_k": 5},
+
+    {"step": "assert", "type": "cypher_rows",
+     "label": "cross: Sarah Chen entity not duplicated across scenarios 10+40",
+     "query": "MATCH (e:Entity) WHERE toLower(e.name) CONTAINS 'sarah chen' RETURN e.name",
+     "min_rows": 1,
+     "max_rows": 2},
+
+    {"step": "assert", "type": "judge_context_recall",
+     "label": "cross: headcount fact survives full graph residue",
+     "question": "How many people work at the company?",
+     "required_facts": ["7 people or 7-person"],
+     "min_recall": 1.0,
+     "token_budget": 1500},
+
+    {"step": "assert", "type": "judge_context_recall",
+     "label": "cross: zero-debt preference survives venture-debt distractor",
+     "question": "What is Adam's stance on taking on debt or borrowing?",
+     "required_facts": ["hates debt", "non-negotiable", "grow from revenue"],
+     "min_recall": 0.66,
+     "token_budget": 1500}
+  ]
+}

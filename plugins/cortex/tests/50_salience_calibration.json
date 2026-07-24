@@ -1,0 +1,47 @@
+{
+  "name": "50_salience_calibration",
+  "description": "Hand-labeled ground-truth tiers; run 3x to expose scoring variance. HIGH/MEDIUM boundary matters most (it gates approvals). Includes 5 generalization probes not used to tune the scoring prompt.",
+  "steps": [
+    {"step": "ingest", "user_message": "I've decided: we're signing the office lease at $8k a month, committing for two years.", "assistant_response": "Two-year lease commitment at $8k/month, noted."},
+    {"step": "assert", "type": "salience_tier", "label": "HIGH: signed financial commitment", "query": "office lease commitment", "expect_substring": "lease", "tier": "high"},
+
+    {"step": "ingest", "user_message": "We're killing the mobile app. It's dead, effective today. All resources move to desktop.", "assistant_response": "Mobile app sunset, everything to desktop."},
+    {"step": "assert", "type": "salience_tier", "label": "HIGH: strategic pivot (product kill)", "query": "mobile app decision", "expect_substring": "mobile", "tier": "high"},
+
+    {"step": "ingest", "user_message": "Cash position update: $310k in the bank as of today.", "assistant_response": "$310k cash, noted."},
+    {"step": "assert", "type": "salience_tier", "label": "HIGH: financial figure", "query": "cash in the bank", "expect_substring": "310", "tier": "high"},
+
+    {"step": "ingest", "user_message": "Our objective this year is to reach 500 paying customers.", "assistant_response": "500 paying customers — the north-star for the year."},
+    {"step": "assert", "type": "salience_tier", "label": "MEDIUM-or-HIGH: stated objective (boundary case, both valid)", "query": "customer goal this year", "expect_substring": "500", "tier": "medium_or_high"},
+
+    {"step": "ingest", "user_message": "Priya moved from support to the QA team this week.", "assistant_response": "Priya support -> QA, noted."},
+    {"step": "assert", "type": "salience_tier", "label": "MEDIUM: team change", "query": "Priya role change", "expect_substring": "priya", "tier": "medium"},
+
+    {"step": "ingest", "user_message": "I generally prefer email over meetings for anything non-urgent.", "assistant_response": "Email-first for non-urgent things."},
+    {"step": "assert", "type": "salience_tier", "label": "MEDIUM: working preference", "query": "communication preference", "expect_substring": "email", "tier": "medium"},
+
+    {"step": "ingest", "user_message": "The office coffee machine broke again this morning.", "assistant_response": "Ha — third time this month?"},
+    {"step": "assert", "type": "salience_tier", "label": "LOW: trivia must not inflate", "query": "coffee machine", "expect_substring": "coffee", "tier": "low"},
+
+    {"step": "ingest", "user_message": "Traffic was terrible on the drive in today.", "assistant_response": "Rough start to the day."},
+    {"step": "assert", "type": "salience_tier_or_absent", "label": "LOW: small talk correctly low or filtered out", "query": "traffic drive commute", "expect_substring": "traffic", "tier": "low"},
+
+    {"step": "ingest", "user_message": "We market ourselves as the friendly AI for main-street businesses.", "assistant_response": "Nice positioning line."},
+    {"step": "assert", "type": "salience_tier", "label": "MEDIUM: positioning is NOT a decision (nano scored this class 0.8)", "query": "how do we market ourselves", "expect_substring": "friendly", "tier": "medium"},
+
+    {"step": "ingest", "user_message": "We just hired a senior backend engineer — Tomás starts Monday.", "assistant_response": "Great addition to the team."},
+    {"step": "assert", "type": "salience_tier", "label": "[generalization] MEDIUM-or-HIGH: hiring decision", "query": "new hire backend engineer", "expect_substring": "tom", "tier": "medium_or_high"},
+
+    {"step": "ingest", "user_message": "We're raising the base plan from $29 to $39 per month starting next quarter.", "assistant_response": "Solid move — should help margins."},
+    {"step": "assert", "type": "salience_tier", "label": "[generalization] HIGH: price change (financial decision)", "query": "pricing change plan cost", "expect_substring": "39", "tier": "high"},
+
+    {"step": "ingest", "user_message": "Noticed that CompetitorX just launched their own memory feature — very basic but they're marketing it hard.", "assistant_response": "Interesting — worth keeping an eye on."},
+    {"step": "assert", "type": "salience_tier", "label": "[generalization] MEDIUM: competitor mention (not our decision)", "query": "competitor memory feature", "expect_substring": "competitorx", "tier": "medium"},
+
+    {"step": "ingest", "user_message": "Our hosting vendor doubled their pricing without notice. Pretty frustrating.", "assistant_response": "That's rough — worth shopping around."},
+    {"step": "assert", "type": "salience_tier", "label": "[generalization] MEDIUM-or-HIGH: vendor cost change (financial impact)", "query": "hosting vendor pricing problem", "expect_substring": "vendor", "tier": "medium_or_high"},
+
+    {"step": "ingest", "user_message": "Got a 1-star review from a customer saying onboarding was confusing. They churned the same day.", "assistant_response": "Painful but useful signal."},
+    {"step": "assert", "type": "salience_tier", "label": "[generalization] MEDIUM: customer complaint (operational signal)", "query": "customer review onboarding complaint", "expect_substring": "onboarding", "tier": "medium"}
+  ]
+}

@@ -1,0 +1,21 @@
+{
+  "name": "20_temporal_chains",
+  "description": "Multi-step state evolution: current answer correct AND superseded edges invalidated",
+  "steps": [
+    {"step": "ingest", "user_message": "We have 3 developers on the team right now.", "assistant_response": "Three devs, noted."},
+    {"step": "ingest", "user_message": "Good news — we hired 2 more developers this week, so we're at 5 developers now.", "assistant_response": "Team's growing: 5 developers."},
+    {"step": "ingest", "user_message": "One of the developers quit yesterday. Down to 4 developers.", "assistant_response": "Sorry to hear — 4 developers currently."},
+    {"step": "ingest", "user_message": "We closed three developer hires this month. The team is now 7 developers total.", "assistant_response": "7 developers — that's more than double where you started this year."},
+
+    {"step": "assert", "type": "search_rank", "label": "current headcount (7) is the top answer", "query": "how many developers do we have now", "expect_substring": "7", "max_rank": 1},
+    {"step": "assert", "type": "search_rank", "label": "stale headcount suppressed below rank 1", "query": "how many developers do we have now", "expect_substring": "3 developers", "max_rank": 5},
+
+    {"step": "assert", "type": "cypher_rows", "label": "old headcount edges have invalid_at set (bi-temporal proof)", "query": "MATCH ()-[r:RELATES_TO]->() WHERE r.group_id = 'cortex' AND r.fact CONTAINS 'developers' AND r.invalid_at IS NOT NULL RETURN r.fact", "min_rows": 1},
+    {"step": "assert", "type": "cypher_rows", "label": "exactly one headcount fact remains valid", "query": "MATCH ()-[r:RELATES_TO]->() WHERE r.group_id = 'cortex' AND r.fact CONTAINS 'developers' AND r.invalid_at IS NULL RETURN r.fact", "min_rows": 1, "max_rows": 2},
+
+    {"step": "ingest", "user_message": "Runway update: we were at 14 months, but after the new hires burn is up — call it 10 months runway now.", "assistant_response": "10 months runway after the hiring round."},
+    {"step": "assert", "type": "search_rank", "label": "current runway (10 months) is the top answer", "query": "how much runway do we have", "expect_substring": "10 months", "max_rank": 1},
+
+    {"step": "assert", "type": "judge_context_recall", "label": "history question: what changed on the team", "question": "How has my development team changed over recent months?", "required_facts": ["The team is currently 7 developers", "The team grew from a smaller size (3) over multiple hiring events", "At least one developer departed along the way"], "min_recall": 0.66}
+  ]
+}

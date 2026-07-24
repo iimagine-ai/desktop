@@ -1,0 +1,40 @@
+{
+  "name": "basic_extraction",
+  "description": "Core entities and relationships are extracted and retrievable",
+  "exchanges": [
+    {
+      "user_message": "I am Adam, I run a company called BrightPath. We have 12 employees and our main product is an AI scheduling tool for dentists.",
+      "assistant_response": "BrightPath — AI scheduling for dentists with a team of 12. That is a focused vertical. What is your current revenue?"
+    },
+    {
+      "user_message": "Revenue is 85k MRR. Sarah is my CTO, she previously worked at Stripe. We are targeting mid-size dental practices with 3-10 dentists.",
+      "assistant_response": "85k MRR with 12 people is healthy. Sarah from Stripe adds serious technical credibility. The 3-10 dentist segment is specific enough to own."
+    }
+  ],
+  "assertions": [
+    {
+      "description": "BrightPath entity is findable",
+      "query": "BrightPath company",
+      "expected_contains": ["BrightPath"],
+      "min_results": 1
+    },
+    {
+      "description": "Sarah CTO from Stripe is captured",
+      "query": "Sarah CTO technical lead",
+      "expected_contains": ["Sarah"],
+      "min_results": 1
+    },
+    {
+      "description": "Product (AI scheduling for dentists) is stored",
+      "query": "scheduling tool dentists product",
+      "expected_contains": ["scheduling", "dentist"],
+      "min_results": 1
+    },
+    {
+      "description": "Revenue figure is captured",
+      "query": "revenue MRR financials",
+      "expected_contains": ["85"],
+      "min_results": 1
+    }
+  ]
+}

@@ -1,0 +1,29 @@
+{
+  "name": "80_advisory_judge",
+  "description": "The headline metric: does /retrieve surface EVERY fact needed to answer an advisory question well? Judged by a strong model.",
+  "suite_version": "v3",
+  "changelog": "v3: approve_pending step added (was v2 gap); assertions unchanged from v2 except distributor-deal wording loosened from 'declined due to thin margins and revenue concentration' to 'declined or evaluated and passed on' — matches extraction reality without weakening what's tested. Headcount probe added as non-graded informational.",
+  "steps": [
+    {"step": "ingest", "user_message": "I'm Adam, founder of IIMAGINE — 7 people, desktop AI companion for small business owners. MRR $85k, runway 14 months.", "assistant_response": "Solid base: 7-person team, $85k MRR, 14 months runway."},
+    {"step": "ingest", "user_message": "I hate debt. Non-negotiable — we grow from revenue only.", "assistant_response": "Zero-debt, revenue-funded growth. Locked in."},
+    {"step": "ingest", "user_message": "Last year I declined a wholesale distribution deal with Baxter & Co because margins were thin and it would've been 60% of our revenue — too concentrated.", "assistant_response": "Concentration plus thin margins — right call to pass."},
+    {"step": "ingest", "user_message": "Our objective this year is 500 paying customers, up from about 300 now.", "assistant_response": "300 -> 500 paying customers this year."},
+    {"step": "ingest", "user_message": "Sarah Chen, our CTO, says the engineering team is at full capacity — no slack for new product lines this quarter.", "assistant_response": "Engineering at capacity per your CTO — worth remembering for roadmap asks."},
+    {"step": "ingest", "user_message": "I personally want to keep weekends free. I'd rather grow slower than work seven days.", "assistant_response": "Sustainable pace over speed — clear."},
+    {"step": "ingest", "user_message": "We're strong at product and engineering but honestly weak at sales — nobody on the team has real outbound experience.", "assistant_response": "Product-strong, sales-weak. A hiring or partnership gap to watch."},
+
+    {"step": "reflect"},
+
+    {"step": "approve_pending"},
+
+    {"step": "assert", "type": "judge_context_recall", "label": "distributor-deal question pulls preference + precedent + capacity", "question": "A national distributor wants to white-label our product and handle sales, taking a 55% revenue share. Should I take the deal?", "required_facts": ["The owner previously declined a wholesale/distribution deal (Baxter & Co)", "The margins on that deal were thin", "The deal would have concentrated revenue (60%)", "The business is weak at sales / lacks outbound experience", "Current revenue or runway position ($85k MRR and/or 14 months runway)"], "min_recall": 0.8},
+
+    {"step": "assert", "type": "judge_context_recall", "label": "financing question pulls the zero-debt preference", "question": "The bank offered us a $200k line of credit at good rates to accelerate hiring. Should we take it?", "required_facts": ["The owner has a firm zero-debt preference (grow from revenue only)", "Current runway position (about 14 months)"], "min_recall": 1.0},
+
+    {"step": "assert", "type": "judge_context_recall", "label": "new-product question pulls capacity + objective + team size", "question": "I'm considering launching a second product — an invoicing tool. Does it make sense to start now?", "required_facts": ["Engineering is at full capacity with no slack for new product lines this quarter", "This year's objective is reaching 500 paying customers", "The team is small (about 7 people)"], "min_recall": 0.66},
+
+    {"step": "assert", "type": "judge_context_recall", "label": "workload question pulls the lifestyle preference", "question": "A big prospect wants weekend onboarding support as a contract condition. Should I agree?", "required_facts": ["The owner wants to keep weekends free", "The owner prefers slower growth or would rather not work seven days"], "min_recall": 0.5},
+
+    {"step": "assert", "type": "judge_context_recall", "label": "[probe] headcount in context (non-graded)", "question": "How big is our team right now?", "required_facts": ["The team has about 7 people"], "min_recall": 1.0, "_non_graded": true, "_note": "Informational only — tracks whether mid-salience operational figures make it through retrieval. Not a target metric."}
+  ]
+}

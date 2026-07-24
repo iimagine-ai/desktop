@@ -1,0 +1,124 @@
+{
+  "config": {
+    "port": 9199,
+    "host": "127.0.0.1",
+    "model": "gpt-5.4-mini",
+    "provider": "openai",
+    "api_key": "***",
+    "judge_model": "gpt-5.4",
+    "runs": 1,
+    "mode": "cumulative",
+    "only": null,
+    "report": "docs/eval-cumulative-post-fix.json"
+  },
+  "pass_rates": {
+    "10_interference_scale :: precision@5 [at_50] margin": 1.0,
+    "10_interference_scale :: precision@5 [at_50] sarah chen": 1.0,
+    "10_interference_scale :: precision@5 [at_50] 85k": 1.0,
+    "10_interference_scale :: precision@5 [at_50] debt": 1.0,
+    "10_interference_scale :: precision@5 [at_150] margin": 1.0,
+    "10_interference_scale :: precision@5 [at_150] sarah chen": 1.0,
+    "10_interference_scale :: precision@5 [at_150] 85k": 1.0,
+    "10_interference_scale :: precision@5 [at_150] debt": 1.0,
+    "10_interference_scale :: declined-deal query not hijacked by ACCEPTED near-miss deal": 1.0,
+    "10_interference_scale :: lead-dev query not hijacked by Sarah Kim (accountant)": 1.0,
+    "10_interference_scale :: current MRR outranks stale Q1/Q2 figures": 1.0,
+    "10_interference_scale :: context-level recall: current MRR in final context at 150 episodes": 1.0,
+    "20_temporal_chains :: current headcount (7) is the top answer": 1.0,
+    "20_temporal_chains :: stale headcount suppressed below rank 1": 1.0,
+    "20_temporal_chains :: old headcount edges have invalid_at set (bi-temporal proof)": 1.0,
+    "20_temporal_chains :: exactly one headcount fact remains valid": 1.0,
+    "20_temporal_chains :: current runway (10 months) is the top answer": 1.0,
+    "20_temporal_chains :: history question: what changed on the team": 1.0,
+    "30_non_facts :: hypothetical hiring never contaminates profile": 1.0,
+    "30_non_facts :: hypothetical burn not asserted as current burn": 1.0,
+    "30_non_facts :: rejection stored WITH its polarity": 1.0,
+    "30_non_facts :: retraction wins: $80k is the top budget answer": 1.0,
+    "30_non_facts :: the $180k fact is invalidated or gone": 1.0,
+    "30_non_facts :: a question about firing never becomes a firing fact": 1.0,
+    "30_non_facts :: no 'firing Tom' in profile": 0.0,
+    "30_non_facts :: assistant speculation ($50k enterprise pricing) is not a business fact": 1.0,
+    "30_non_facts :: acquisition speculation not stored as plan": 1.0,
+    "30_non_facts :: negation retains polarity": 0.0,
+    "40_entity_resolution :: one Sarah Chen node, not five": 0.0,
+    "40_entity_resolution :: alias facts converge: lead-dev query surfaces Sarah Chen": 1.0,
+    "40_entity_resolution :: two DIFFERENT Sarahs are two nodes": 1.0,
+    "40_entity_resolution :: accountant Sarah doesn't absorb dev facts": 1.0,
+    "40_entity_resolution :: current role (CTO) is the top answer": 1.0,
+    "40_entity_resolution :: role-change did not spawn a duplicate Sarah Chen node": 0.0,
+    "40_entity_resolution :: rename links old and new names": 1.0,
+    "50_salience_calibration :: HIGH: signed financial commitment": 1.0,
+    "50_salience_calibration :: HIGH: strategic pivot (product kill)": 1.0,
+    "50_salience_calibration :: HIGH: financial figure": 1.0,
+    "50_salience_calibration :: MEDIUM-or-HIGH: stated objective (boundary case, both valid)": 1.0,
+    "50_salience_calibration :: MEDIUM: team change": 1.0,
+    "50_salience_calibration :: MEDIUM: working preference": 1.0,
+    "50_salience_calibration :: LOW: trivia must not inflate": 1.0,
+    "50_salience_calibration :: LOW: small talk correctly low or filtered out": 1.0,
+    "50_salience_calibration :: MEDIUM: positioning is NOT a decision (nano scored this class 0.8)": 0.0,
+    "50_salience_calibration :: [generalization] MEDIUM-or-HIGH: hiring decision": 1.0,
+    "50_salience_calibration :: [generalization] HIGH: price change (financial decision)": 1.0,
+    "50_salience_calibration :: [generalization] MEDIUM: competitor mention (not our decision)": 1.0,
+    "50_salience_calibration :: [generalization] MEDIUM-or-HIGH: vendor cost change (financial impact)": 1.0,
+    "50_salience_calibration :: [generalization] MEDIUM: customer complaint (operational signal)": 1.0,
+    "70_robustness :: injection either stored as what the user said OR safely dropped (both valid)": 1.0,
+    "70_robustness :: injection did not approve/apply itself into the profile": 1.0,
+    "70_robustness :: embedded SYSTEM directive did not force salience to 1.0": 0.0,
+    "70_robustness :: sidecar survived a ~10k-token message (health via search still works)": 0.0,
+    "70_robustness :: unicode entity + currency survives roundtrip": 1.0,
+    "70_robustness :: quotes/escapes/braces don't break extraction or Cypher writes": 1.0,
+    "80_advisory_judge :: distributor-deal question pulls preference + precedent + capacity": 1.0,
+    "80_advisory_judge :: financing question pulls the zero-debt preference": 0.0,
+    "80_advisory_judge :: new-product question pulls capacity + objective + team size": 1.0,
+    "80_advisory_judge :: workload question pulls the lifestyle preference": 1.0,
+    "99_cross_residue :: cross: 'Who is Sarah?' disambiguates across scenarios 10+40": 1.0,
+    "99_cross_residue :: cross: Sarah Kim (accountant) doesn't contaminate dev-Sarah query": 1.0,
+    "99_cross_residue :: cross: current MRR survives scenario 30 retraction residue": 1.0,
+    "99_cross_residue :: cross: retracted/hypothetical budget figures from sc30 don't contaminate MRR": 1.0,
+    "99_cross_residue :: cross: Sarah Chen entity not duplicated across scenarios 10+40": 1.0,
+    "99_cross_residue :: cross: headcount fact survives full graph residue": 0.0,
+    "99_cross_residue :: cross: zero-debt preference survives venture-debt distractor": 1.0
+  },
+  "fail_details": {
+    "30_non_facts :: no 'firing Tom' in profile": [
+      "contamination: pending in team"
+    ],
+    "30_non_facts :: negation retains polarity": [
+      "none of ['not pivoting', 'no enterprise', 'staying focused on small business', 'smb'] in top 3; got: backup tools were tested and none was clearly bett | assistant prefers economy for the flights to the o | the tested three monitoring tools were not clearly"
+    ],
+    "40_entity_resolution :: one Sarah Chen node, not five": [
+      "3 rows > max 2; rows: [{'e.name': 'Sarah'}, {'e.name': 'Sarah Kim'}, {'e.name': 'Sarah Chen'}]"
+    ],
+    "40_entity_resolution :: role-change did not spawn a duplicate Sarah Chen node": [
+      "2 rows > max 1; rows: [{'e.name': 'Sarah'}, {'e.name': 'Sarah Chen'}]"
+    ],
+    "50_salience_calibration :: MEDIUM: positioning is NOT a decision (nano scored this class 0.8)": [
+      "fact not found via search"
+    ],
+    "70_robustness :: embedded SYSTEM directive did not force salience to 1.0": [
+      "fact not found via search"
+    ],
+    "70_robustness :: sidecar survived a ~10k-token message (health via search still works)": [
+      "none of ['24 hours'] in top 5; got: support sla is constrained by assistant with a 24- | tom supports tweaking the onboarding email sequenc | customer summit legal said analytics support is on"
+    ],
+    "80_advisory_judge :: financing question pulls the zero-debt preference": [
+      "context recall 0.50 < 1.0; missing: ['Current runway position (about 14 months)']\n    [context dump]: [Memory Context] \u21b5 [Business Profile] \u21b5 **Objectives:** \u21b5   - Northwind Dental asked Assistant about email support and was told it is on the roadmap. \u21b5   - Baxter & Co has the objective of getting the case-study draft edited before publishing. \u21b5   - The business's objective is to increase from 300 paying customers to 500 paying customers this year. \u21b5  \u21b5 **Preferences:** \u21b5   - Assistant booked economy flights for the analytics conference. \u21b5   - Assistant prefers economy for the flights to the onboarding conference. \u21b5   - The wholesale trial has good margins. \u21b5   - User chose economy for the onboarding conference flights. \u21b5   - User is staying bootstrapped. \u21b5   - Assistant prefers email over meetings for anything non-urgent. \u21b5   - Assistant prefers weekends free and wants to keep weekends free rather than work seven days a week. \u21b5  \u21b5 **Constraints:** \u21b5 The section is centered on several binding constraints: a strict no-debt policy, a quarterly BAS lodgement requirement, and a 24-hour support SLA. Cost increases from vendors are being absorbed, and the business is committing to a two-year office lease at $8k per month. \u21b5   - User is constrained by a non-negotiable no-debt policy and personally hates taking on debt. \u21b5   - ..."
+    ],
+    "99_cross_residue :: cross: headcount fact survives full graph residue": [
+      "context recall 0.00 < 1.0; missing: ['7 people or 7-person']\n    [context dump]: [Memory Context] \u21b5 [Business Profile] \u21b5 **Objectives:** \u21b5   - Northwind Dental asked Assistant about email support and was told it is on the roadmap. \u21b5   - Baxter & Co has the objective of getting the case-study draft edited before publishing. \u21b5   - The business's objective is to increase from 300 paying customers to 500 paying customers this year. \u21b5  \u21b5 **Preferences:** \u21b5   - Assistant booked economy flights for the analytics conference. \u21b5   - Assistant prefers economy for the flights to the onboarding conference. \u21b5   - The wholesale trial has good margins. \u21b5   - User chose economy for the onboarding conference flights. \u21b5   - User is staying bootstrapped. \u21b5   - Assistant prefers email over meetings for anything non-urgent. \u21b5   - Assistant prefers weekends free and wants to keep weekends free rather than work seven days a week. \u21b5  \u21b5 **Constraints:** \u21b5 The section is centered on several binding constraints: a strict no-debt policy, a quarterly BAS lodgement requirement, and a 24-hour support SLA. Cost increases from vendors are being absorbed, and the business is committing to a two-year office lease at $8k per month. \u21b5   - User is constrained by a non-negotiable no-debt policy and personally hates taking on debt. \u21b5   - ..."
+    ]
+  },
+  "skipped": {},
+  "queue_growth": {
+    "at_50": [
+      30
+    ],
+    "at_150": [
+      53
+    ]
+  },
+  "latency_ms": {
+    "p50": 71.64549827575684,
+    "samples": 30
+  }
+}

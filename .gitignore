@@ -28,6 +28,13 @@ plugins/client-workspace/
 plugins/cortex-lite/
 plugins/legal-companion/
 
+# Python bytecode
+__pycache__/
+*.pyc
+
+# Python virtual environments
+.venv/
+
 # Credentials and secrets
 oauth-credentials.json
 config.json

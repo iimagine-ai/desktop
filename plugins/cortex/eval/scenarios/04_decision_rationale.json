@@ -1,0 +1,24 @@
+{
+  "name": "decision_rationale",
+  "description": "Decision + rationale recall — 'why did I pass on X?'",
+  "exchanges": [
+    {
+      "user_message": "I run CloudBase. We were approached by a wholesale distributor to white-label our product. I passed on the deal because the margins were too thin — they wanted 60% of the revenue and we would have had to build custom features for them.",
+      "assistant_response": "Passing on a 60-40 split when it requires custom dev work makes sense. The opportunity cost of engineering time on someone else's features is real."
+    }
+  ],
+  "assertions": [
+    {
+      "description": "Decision to pass on wholesale deal is stored",
+      "query": "wholesale deal white-label decision",
+      "expected_contains": ["wholesale"],
+      "min_results": 1
+    },
+    {
+      "description": "Rationale (thin margins, 60% revenue) is captured",
+      "query": "why passed on the wholesale partnership",
+      "expected_contains": ["60"],
+      "min_results": 1
+    }
+  ]
+}

@@ -2,9 +2,20 @@
 
 const FolderConnectUI = {
   _listenersAttached: false,
+  _cortexActive: false,
+  _cortexChecked: false,
+
+  async _checkCortex() {
+    if (!this._cortexChecked) {
+      this._cortexActive = await window.api.plugins.isEnabled?.('cortex').catch(() => false);
+      this._cortexChecked = true;
+    }
+    return this._cortexActive;
+  },
 
   async render(container) {
     const folders = await window.api.folders.list();
+    await this._checkCortex();
 
     container.innerHTML = `
       <div class="space-y-3">
@@ -21,7 +32,7 @@ const FolderConnectUI = {
           </div>
         ` : `
           <div class="space-y-2">
-            ${folders.map(f => this._renderFolder(f)).join('')}
+            ${folders.map(f => this._renderFolder(f, this._cortexActive)).join('')}
           </div>
         `}
       </div>
@@ -34,7 +45,8 @@ const FolderConnectUI = {
     }
   },
 
-  _renderFolder(folder) {
+  _renderFolder(folder, cortexActive) {
+    if (cortexActive === undefined) cortexActive = this._cortexActive;
     const statusColors = {
       active: 'bg-emerald-400',
       watching: 'bg-emerald-400 animate-pulse',
@@ -59,9 +71,9 @@ const FolderConnectUI = {
               <span>Synced ${synced}</span>
             </div>
             <div class="mt-2 pl-4">
-              <button class="fc-process-kg px-3 py-1.5 rounded-lg text-[11px] font-medium text-purple-700 dark:text-purple-300 bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-800 hover:bg-purple-100 dark:hover:bg-purple-900/40 transition-all" data-id="${folder.id}">
-                Process into Knowledge Graph
-              </button>
+              ${cortexActive ? `<button class="fc-process-kg px-3 py-1.5 rounded-lg text-[11px] font-medium text-purple-700 dark:text-purple-300 bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-800 hover:bg-purple-100 dark:hover:bg-purple-900/40 transition-all" data-id="${folder.id}">
+                Process into memory
+              </button>` : ''}
             </div>
             <div id="fc-progress-${folder.id}" class="hidden mt-2 pl-4">
               <div class="flex items-center gap-2">
@@ -142,7 +154,7 @@ const FolderConnectUI = {
           alert(result.error);
         }
         btn.disabled = false;
-        btn.textContent = 'Process into Knowledge Graph';
+        btn.textContent = 'Process into memory';
       });
     });
   },

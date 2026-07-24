@@ -1,0 +1,44 @@
+{
+  "name": "10_interference_scale",
+  "description": "Critical facts buried in 150 distractors incl. near-misses; precision@5 at 2 checkpoints",
+  "steps": [
+    {"step": "ingest", "user_message": "I'm Adam, I run IIMAGINE, a 7-person AI software company. We build a desktop AI companion for small business owners.", "assistant_response": "Noted."},
+    {"step": "ingest", "user_message": "Sarah Chen is our lead developer. She joined us from Google last year and owns the memory engine.", "assistant_response": "Noted."},
+    {"step": "ingest", "user_message": "I declined the Baxter & Co wholesale distribution deal. The margins were too thin and it would have made them 60% of our revenue — too concentrated.", "assistant_response": "Sensible — concentration risk plus thin margins is a bad combination."},
+    {"step": "ingest", "user_message": "Current MRR is $85k as of this month. Runway is about 14 months at current burn.", "assistant_response": "Healthy position."},
+    {"step": "ingest", "user_message": "I personally hate taking on debt. Non-negotiable. We grow from revenue or not at all.", "assistant_response": "Zero-debt, revenue-funded. Understood."},
+
+    {"step": "generate_distractors", "count": 50, "seed": 42},
+    {"step": "checkpoint", "label": "at_50"},
+    {"step": "precision_probe", "label": "at_50", "query": "why did we decline the wholesale deal", "expect_substring": "margin", "top_k": 5},
+    {"step": "precision_probe", "label": "at_50", "query": "who is our lead developer", "expect_substring": "sarah chen", "top_k": 5},
+    {"step": "precision_probe", "label": "at_50", "query": "current monthly recurring revenue", "expect_substring": "85k", "top_k": 5},
+    {"step": "precision_probe", "label": "at_50", "query": "my attitude to borrowing", "expect_substring": "debt", "top_k": 5},
+
+    {"step": "generate_distractors", "count": 100, "seed": 99},
+    {"step": "checkpoint", "label": "at_150"},
+    {"step": "precision_probe", "label": "at_150", "query": "why did we decline the wholesale deal", "expect_substring": "margin", "top_k": 5},
+    {"step": "precision_probe", "label": "at_150", "query": "who is our lead developer", "expect_substring": "sarah chen", "top_k": 5},
+    {"step": "precision_probe", "label": "at_150", "query": "current monthly recurring revenue", "expect_substring": "85k", "top_k": 5},
+    {"step": "precision_probe", "label": "at_150", "query": "my attitude to borrowing", "expect_substring": "debt", "top_k": 5},
+
+    {"step": "assert", "type": "search_absent", "label": "declined-deal query not hijacked by ACCEPTED near-miss deal", "query": "why did we decline the wholesale deal", "reject_substring": "coastal books", "top_k": 3},
+    {"step": "assert", "type": "search_absent", "label": "lead-dev query not hijacked by Sarah Kim (accountant)", "query": "who is our lead developer", "reject_substring": "sarah kim", "top_k": 3},
+    {"step": "assert", "type": "search_rank", "label": "current MRR outranks stale Q1/Q2 figures", "query": "current monthly recurring revenue", "expect_substring": "85k", "max_rank": 2},
+
+    {"step": "assert", "type": "judge_context_recall",
+     "label": "context-level recall: current MRR in final context at 150 episodes",
+     "question": "What is our current MRR?",
+     "required_facts": ["MRR is $85k", "current month or most recent"],
+     "min_recall": 1.0,
+     "token_budget": 1500},
+
+    {"step": "assert", "type": "judge_context_recall",
+     "label": "history-mode-at-scale: MRR trajectory surfaces superseded figures",
+     "question": "How has our MRR changed over time?",
+     "required_facts": ["$52k in Q1", "$67k in Q2", "$85k current"],
+     "min_recall": 0.66,
+     "token_budget": 2000,
+     "_non_graded": true}
+  ]
+}

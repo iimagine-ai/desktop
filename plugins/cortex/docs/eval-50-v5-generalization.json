@@ -1,0 +1,43 @@
+{
+  "config": {
+    "port": 9199,
+    "host": "127.0.0.1",
+    "model": "gpt-5.4-mini",
+    "provider": "openai",
+    "api_key": "***",
+    "judge_model": "gpt-5.4",
+    "runs": 3,
+    "mode": "fresh",
+    "only": "50_salience",
+    "report": "docs/eval-50-v5-generalization.json"
+  },
+  "pass_rates": {
+    "50_salience_calibration :: HIGH: signed financial commitment": 1.0,
+    "50_salience_calibration :: HIGH: strategic pivot (product kill)": 1.0,
+    "50_salience_calibration :: HIGH: financial figure": 1.0,
+    "50_salience_calibration :: MEDIUM-or-HIGH: stated objective (boundary case, both valid)": 1.0,
+    "50_salience_calibration :: MEDIUM: team change": 1.0,
+    "50_salience_calibration :: MEDIUM: working preference": 1.0,
+    "50_salience_calibration :: LOW: trivia must not inflate": 1.0,
+    "50_salience_calibration :: LOW: small talk correctly low or filtered out": 1.0,
+    "50_salience_calibration :: MEDIUM: positioning is NOT a decision (nano scored this class 0.8)": 1.0,
+    "50_salience_calibration :: [generalization] MEDIUM-or-HIGH: hiring decision": 1.0,
+    "50_salience_calibration :: [generalization] HIGH: price change (financial decision)": 1.0,
+    "50_salience_calibration :: [generalization] MEDIUM: competitor mention (not our decision)": 1.0,
+    "50_salience_calibration :: [generalization] MEDIUM: vendor gripe (operational context)": 0.0,
+    "50_salience_calibration :: [generalization] MEDIUM: customer complaint (operational signal)": 1.0
+  },
+  "fail_details": {
+    "50_salience_calibration :: [generalization] MEDIUM: vendor gripe (operational context)": [
+      "salience 0.78 outside medium band [0.3,0.7)",
+      "salience 0.82 outside medium band [0.3,0.7)",
+      "salience 0.85 outside medium band [0.3,0.7)"
+    ]
+  },
+  "skipped": {},
+  "queue_growth": {},
+  "latency_ms": {
+    "p50": null,
+    "samples": 0
+  }
+}

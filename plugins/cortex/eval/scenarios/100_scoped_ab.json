@@ -1,0 +1,40 @@
+{
+  "name": "100_scoped_ab",
+  "description": "A/B: SCOPED-assembled context vs flat assembly. Every judge assertion runs paired (scoped=false control, scoped=true treatment). Gap-analysis questions are the class where structure should win.",
+  "steps": [
+    {"step": "ingest", "user_message": "I'm Adam, founder of IIMAGINE - 7 people, desktop AI companion for small business owners. MRR is $85k, runway 14 months.", "assistant_response": "Noted."},
+    {"step": "ingest", "user_message": "My main objective this year: reach 500 paying customers by September 30. It's a priority 8 out of 10 for me. We're at 300 paying customers right now.", "assistant_response": "500 by Sep 30, priority 8, from 300 today."},
+    {"step": "ingest", "user_message": "Biggest obstacles: engineering is at full capacity this quarter, and nobody on the team has outbound sales experience.", "assistant_response": "Capacity and sales-skill constraints noted."},
+    {"step": "ingest", "user_message": "On the plus side we have a large untapped email list from the beta waitlist, and Sarah Chen our CTO is exceptional at product.", "assistant_response": "Two real enablers."},
+    {"step": "ingest", "user_message": "Customer update: we crossed 340 paying customers this week.", "assistant_response": "340 - solid progress toward the 500."},
+    {"step": "ingest", "user_message": "I also still hold my zero-debt rule - we grow from revenue only, non-negotiable.", "assistant_response": "Zero-debt, revenue-funded. Standing rule."},
+    {"step": "approve_pending"},
+    {"step": "create_module", "module": {
+      "title": "Reach 500 paying customers",
+      "objective": "500 paying customers",
+      "measurable_target": "500 paying customers",
+      "priority": 8,
+      "priority_source": "declared",
+      "deadline": "2026-09-30",
+      "status": [{"text": "340 paying customers", "as_of": "2026-07-13"}],
+      "challenges": [
+        {"text": "engineering at full capacity this quarter"},
+        {"text": "no outbound sales experience on the team"}
+      ],
+      "enablers": [
+        {"text": "large untapped email list from beta waitlist"},
+        {"text": "Sarah Chen (CTO) exceptional at product"}
+      ]
+    }},
+    {"step": "assert", "type": "judge_context_recall", "label": "CONTROL gap-analysis: hit the target?", "retrieve_params": {"scoped": false}, "question": "Can I still realistically hit my paying-customer target for the year?", "required_facts": ["The target is 500 paying customers", "Current count is 340 paying customers", "The deadline is September 30", "Engineering is at full capacity / sales experience is lacking"], "min_recall": 1.0},
+    {"step": "assert", "type": "judge_context_recall", "label": "SCOPED gap-analysis: hit the target?", "retrieve_params": {"scoped": true}, "question": "Can I still realistically hit my paying-customer target for the year?", "required_facts": ["The target is 500 paying customers", "Current count is 340 paying customers", "The deadline is September 30", "Engineering is at full capacity / sales experience is lacking", "The remaining gap to the target (about 160 customers) or the required pace is stated explicitly", "How much time remains before the deadline is stated explicitly"], "min_recall": 1.0},
+    {"step": "assert", "type": "judge_context_recall", "label": "CONTROL tradeoff: side project vs goal", "retrieve_params": {"scoped": false}, "question": "A partner wants us to co-build a small integration this quarter - it would take meaningful engineering time. Should I say yes?", "required_facts": ["Engineering is at full capacity this quarter", "There is a high-priority customer-growth objective with a deadline"], "min_recall": 1.0},
+    {"step": "assert", "type": "judge_context_recall", "label": "SCOPED tradeoff: side project vs goal", "retrieve_params": {"scoped": true}, "question": "A partner wants us to co-build a small integration this quarter - it would take meaningful engineering time. Should I say yes?", "required_facts": ["Engineering is at full capacity this quarter", "The customer-growth objective, its priority level, and its deadline are all present"], "min_recall": 1.0},
+    {"step": "assert", "type": "judge_context_recall", "label": "CONTROL focus question", "retrieve_params": {"scoped": false}, "question": "What should I focus on this month?", "required_facts": ["The 500-customer objective and its deadline", "Current progress (340 customers)"], "min_recall": 1.0},
+    {"step": "assert", "type": "judge_context_recall", "label": "SCOPED focus question", "retrieve_params": {"scoped": true}, "question": "What should I focus on this month?", "required_facts": ["The 500-customer objective and its deadline", "Current progress (340 customers)", "The constraints (capacity, sales gap) and enablers (email list) relevant to closing the gap"], "min_recall": 0.67},
+    {"step": "assert", "type": "judge_context_recall", "label": "SCOPED no-regression: unrelated advisory question", "retrieve_params": {"scoped": true}, "question": "The bank offered a $200k line of credit at good rates. Should I take it?", "required_facts": ["The owner has a firm zero-debt preference", "Current runway or revenue position"], "min_recall": 1.0},
+    {"step": "assert", "type": "retrieve_probe", "label": "false-match guard: off-goal query gets zero briefs", "retrieve_params": {"scoped": true}, "query": "what should we order for the team lunch on Friday", "expect_briefs": 0},
+    {"step": "ingest", "user_message": "Update - we just crossed 380 paying customers.", "assistant_response": "380 now. The pace is picking up."},
+    {"step": "assert", "type": "retrieve_absent", "label": "superseded-fact probe: brief never asserts 340 as current after 380 lands", "retrieve_params": {"scoped": true}, "query": "can I still hit my customer target", "reject_in_briefs": "340 paying customers (as of", "note": "Phase 1 validates the DROP path (provenance refresh); the REPLACE path is Phase 2's update loop."}
+  ]
+}

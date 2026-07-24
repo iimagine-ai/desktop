@@ -1,0 +1,38 @@
+{
+  "config": {
+    "port": 9199,
+    "host": "127.0.0.1",
+    "model": "gpt-5.4-mini",
+    "provider": "openai",
+    "api_key": "***",
+    "judge_model": "gpt-5.4",
+    "runs": 3,
+    "mode": "fresh",
+    "only": "20_temporal",
+    "report": "docs/eval-20-v5b.json"
+  },
+  "pass_rates": {
+    "20_temporal_chains :: current headcount (7) is the top answer": 0.6666666666666666,
+    "20_temporal_chains :: stale headcount suppressed below rank 1": 1.0,
+    "20_temporal_chains :: old headcount edges have invalid_at set (bi-temporal proof)": 1.0,
+    "20_temporal_chains :: exactly one headcount fact remains valid": 1.0,
+    "20_temporal_chains :: current runway (10 months) is the top answer": 1.0,
+    "20_temporal_chains :: history question: what changed on the team": 0.0
+  },
+  "fail_details": {
+    "20_temporal_chains :: history question: what changed on the team": [
+      "context recall 0.33 < 0.67; missing: ['The team grew from a smaller size (3) over multiple hiring events', 'At least one developer departed along the way']\n    [context dump]: [Memory Context] \u21b5 - The team closed three developer hires this month. \u21b5 - The team is now at 7 developers total after closing three developer hires this month. \u21b5 - [superseded] User employs 3 developers on the team right now. \u21b5 - Runway is constrained by 10 months after the new hires increased burn. \u21b5 - [superseded] Assistant employs 5 developers now. \u21b5 [End Memory Context]...",
+      "context recall 0.67 < 0.67; missing: ['At least one developer departed along the way']\n    [context dump]: [Memory Context] \u21b5 - [superseded] The team has 5 developers now. \u21b5 - Runway is held by Assistant and is now 10 months after the new hires increased burn; it was 14 months before that hiring round. \u21b5 - [superseded] team now has 7 developers total after three developer hires this month \u21b5 - [superseded] team is constrained by three developer hires this month \u21b5 - [superseded] developers employs Assistant with 4 developers currently \u21b5 - [superseded] team employs 3 developers right now \u21b5 [End Memory Context]...",
+      "context recall 0.67 < 0.67; missing: ['At least one developer departed along the way']\n    [context dump]: [Memory Context] \u21b5 [Business Profile] \u21b5 **Team:** \u21b5   - developers currently employs Assistant \u21b5 [End Profile] \u21b5 - [superseded] The team employs 5 developers now. \u21b5 - 10 months runway is the current runway after the new hires increased burn. \u21b5 - The team now has 7 developers total after closing three developer hires this month. \u21b5 - The team closed three developer hires this month. \u21b5 - [superseded] User employs 3 developers on the team right now. \u21b5 - [superseded] developers currently employs Assistant \u21b5 [End Memory Context]..."
+    ],
+    "20_temporal_chains :: current headcount (7) is the top answer": [
+      "found but at rank 2 > max_rank 1"
+    ]
+  },
+  "skipped": {},
+  "queue_growth": {},
+  "latency_ms": {
+    "p50": 54.7940731048584,
+    "samples": 9
+  }
+}

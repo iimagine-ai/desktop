@@ -1,0 +1,33 @@
+{
+  "config": {
+    "port": 9199,
+    "host": "127.0.0.1",
+    "model": "gpt-5.4-mini",
+    "provider": "openai",
+    "api_key": "***",
+    "judge_model": "gpt-5.4",
+    "runs": 3,
+    "mode": "fresh",
+    "only": "80_advisory",
+    "report": "docs/eval-80_advisory-v5step2-suitev3.json"
+  },
+  "pass_rates": {
+    "80_advisory_judge :: distributor-deal question pulls preference + precedent + capacity": 1.0,
+    "80_advisory_judge :: financing question pulls the zero-debt preference": 1.0,
+    "80_advisory_judge :: new-product question pulls capacity + objective + team size": 0.0,
+    "80_advisory_judge :: workload question pulls the lifestyle preference": 1.0
+  },
+  "fail_details": {
+    "80_advisory_judge :: new-product question pulls capacity + objective + team size": [
+      "context recall 0.67 < 0.67; missing: ['The team is small (about 7 people)']\n    [context dump]: [Memory Context] \u21b5 [Business Profile] \u21b5 **Objectives:** \u21b5   - 500 paying customers is the year objective, up from about 300 paying customers now. \u21b5  \u21b5 **Strategies:** \u21b5   - revenue only supports a zero-debt growth approach. \u21b5  \u21b5 **Resources:** \u21b5   - IIMAGINE holds MRR $85k. \u21b5  \u21b5 **Team:** \u21b5   - Sarah Chen is the CTO. \u21b5  \u21b5 **Skills:** \u21b5   - User is strong at product. \u21b5   - User is strong at engineering. \u21b5   - User is weak at sales. \u21b5   - Nobody on User's team has real outbound experience. \u21b5  \u21b5 **Products:** \u21b5   - IIMAGINE offers a desktop AI companion. \u21b5   - The engineering team has no slack for new product lines this quarter. \u21b5  \u21b5 **Segments:** \u21b5   - The desktop AI companion targets small business owners. \u21b5  \u21b5 **Opportunities:** \u21b5   - User evaluated a wholesale distribution deal with Baxter & Co last year and declined it because the margins were thin and it would have represented 60% of the revenue, which was too concentrated. \u21b5  \u21b5 **Preferences:** \u21b5   - User prefers to grow from revenue only. \u21b5   - User prefers weekends free and would rather grow slower than work seven days a week. \u21b5  \u21b5 **Constraints:** \u21b5   - IIMAGINE is constrained by runway 14 months. \u21b5   - User is constrained by debt as a non-negotiable boundary. \u21b5   - The wholesale distribution deal...",
+      "context recall 0.67 < 0.67; missing: ['The team is small (about 7 people)']\n    [context dump]: [Memory Context] \u21b5 [Business Profile] \u21b5 **Objectives:** \u21b5   - 500 paying customers is the year objective, up from about 300 paying customers now. \u21b5  \u21b5 **Resources:** \u21b5   - IIMAGINE holds MRR $85k. \u21b5  \u21b5 **Team:** \u21b5   - IIMAGINE employs Adam as its founder. \u21b5  \u21b5 **Skills:** \u21b5   - User says the business is strong at product. \u21b5   - User says the business is strong at engineering. \u21b5   - User says the business is weak at sales. \u21b5   - User says nobody on the team has real outbound experience. \u21b5  \u21b5 **Products:** \u21b5   - IIMAGINE offers a desktop AI companion. \u21b5  \u21b5 **Segments:** \u21b5   - The desktop AI companion targets small business owners. \u21b5  \u21b5 **Opportunities:** \u21b5   - User evaluated the wholesale distribution deal with Baxter & Co and declined it last year. \u21b5  \u21b5 **Preferences:** \u21b5   - User prefers weekends free and would rather grow slower than work seven days a week. \u21b5  \u21b5 **Constraints:** \u21b5   - IIMAGINE is constrained by a runway of 14 months. \u21b5   - Adam is constrained by debt as a non-negotiable boundary. \u21b5   - Adam is constrained to grow from revenue only. \u21b5   - The wholesale distribution deal with Baxter & Co was constrained by thin margins. \u21b5   - The wholesale distribution deal with Baxter & Co would have been 60% of our revenue. \u21b5   - The wholesale distr...",
+      "context recall 0.67 < 0.67; missing: ['The team is small (about 7 people)']\n    [context dump]: [Memory Context] \u21b5 [Business Profile] \u21b5 **Objectives:** \u21b5   - The business's objective this year is 500 paying customers, up from about 300 paying customers now. \u21b5  \u21b5 **Resources:** \u21b5   - IIMAGINE has MRR of $85k. \u21b5  \u21b5 **Team:** \u21b5   - Adam works at IIMAGINE as its founder. \u21b5  \u21b5 **Skills:** \u21b5   - User has strong product skills. \u21b5   - User has strong engineering skills. \u21b5   - User is weak at sales. \u21b5   - No one on User's team has real outbound experience. \u21b5  \u21b5 **Products:** \u21b5   - IIMAGINE offers a desktop AI companion. \u21b5  \u21b5 **Segments:** \u21b5   - The desktop AI companion targets small business owners. \u21b5  \u21b5 **Opportunities:** \u21b5   - User evaluated the wholesale distribution deal with Baxter & Co and declined it last year. \u21b5  \u21b5 **Preferences:** \u21b5   - User prefers revenue only for growth and will not use other funding sources. \u21b5   - User prefers weekends free. \u21b5   - User would rather grow slower. \u21b5  \u21b5 **Constraints:** \u21b5   - IIMAGINE is constrained by a runway of 14 months. \u21b5   - User is constrained by debt as a non-negotiable boundary. \u21b5   - The wholesale distribution deal was constrained by thin margins. \u21b5   - The wholesale distribution deal would have been 60% of our revenue. \u21b5   - Sarah Chen says the engineering team is at full capacity. \u21b5   - The engineering ..."
+    ]
+  },
+  "skipped": {},
+  "queue_growth": {},
+  "latency_ms": {
+    "p50": null,
+    "samples": 0
+  }
+}

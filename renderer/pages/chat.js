@@ -83,6 +83,13 @@ const ChatPage = {
             </div>
             <div class="flex items-center gap-2 mt-1.5 px-1">
               <span id="kbBadge" class="hidden text-xs leading-none py-[5px] px-2.5 rounded-full bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 border border-emerald-100 dark:border-emerald-800 whitespace-nowrap inline-flex items-center">KB active</span>
+              <div class="relative inline-flex">
+                <button id="memorySpaceBtn" class="text-xs leading-none py-[5px] px-2.5 rounded-full bg-violet-50 dark:bg-violet-900/30 text-violet-700 dark:text-violet-400 border border-violet-100 dark:border-violet-800 whitespace-nowrap inline-flex items-center gap-1 hover:bg-violet-100 dark:hover:bg-violet-900/50 transition-all" title="Memory space">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a7 7 0 0 1 7 7c0 2.38-1.19 4.47-3 5.74V17a2 2 0 0 1-2 2H10a2 2 0 0 1-2-2v-2.26C6.19 13.47 5 11.38 5 9a7 7 0 0 1 7-7z"/><path d="M10 21v1a1 1 0 0 0 1 1h2a1 1 0 0 0 1-1v-1"/></svg>
+                  <span id="memorySpaceLabel">Project One</span>
+                </button>
+                <div id="memorySpaceDropdown" class="hidden absolute bottom-full left-0 mb-2 bg-white dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 rounded-xl shadow-lg p-1 min-w-[180px] z-[9999]"></div>
+              </div>
               <div id="kbModeButtons" class="hidden flex items-center gap-1">
                 <button id="btnModeRag" class="text-xs leading-none py-[5px] px-2.5 rounded-full border whitespace-nowrap transition-all inline-flex items-center bg-neutral-900 dark:bg-neutral-100 text-white dark:text-neutral-900 border-neutral-900 dark:border-neutral-100">RAG</button>
                 <button id="btnModeContext" class="text-xs leading-none py-[5px] px-2.5 rounded-full border whitespace-nowrap transition-all inline-flex items-center bg-white/60 dark:bg-neutral-700/60 text-neutral-500 dark:text-neutral-400 border-neutral-200/50 dark:border-neutral-600/50 hover:bg-white/90 dark:hover:bg-neutral-700/90">Context Window</button>
@@ -175,6 +182,132 @@ const ChatPage = {
       }
     }
 
+    // Initialize Memory Space selector (only if Cortex plugin is active)
+    const memorySpaceBtn = container.querySelector('#memorySpaceBtn');
+    const memorySpaceLabel = container.querySelector('#memorySpaceLabel');
+    const memorySpaceDropdown = container.querySelector('#memorySpaceDropdown');
+    const cortexEnabled = await window.api.plugins.isEnabled?.('cortex').catch(() => false);
+    if (!cortexEnabled && memorySpaceBtn) {
+      // Hide the memory space badge entirely when Cortex is not active
+      memorySpaceBtn.parentElement.style.display = 'none';
+    }
+    if (cortexEnabled && memorySpaceBtn && memorySpaceDropdown) {
+      memorySpaceBtn.addEventListener('click', async (e) => {
+        e.stopPropagation();
+        if (!memorySpaceDropdown.classList.contains('hidden')) {
+          memorySpaceDropdown.classList.add('hidden');
+          return;
+        }
+        // Fetch available spaces
+        const { spaces, active } = await window.api.plugins.getMemorySpaces();
+        let html = '';
+        // "Off" option
+        html += `<button data-space="off" class="w-full text-left text-xs px-3 py-2 rounded-lg hover:bg-neutral-100 dark:hover:bg-neutral-700 ${active === 'off' ? 'bg-neutral-100 dark:bg-neutral-700 font-medium' : ''}">🚫 Off (no extraction)</button>`;
+        // Business + clients
+        for (const space of spaces) {
+          const icon = space.type === 'business' ? '🏢' : '📂';
+          const isActive = active === space.id;
+          html += `<div class="flex items-center gap-1">`;
+          html += `<button data-space="${space.id}" class="flex-1 text-left text-xs px-3 py-2 rounded-lg hover:bg-neutral-100 dark:hover:bg-neutral-700 ${isActive ? 'bg-neutral-100 dark:bg-neutral-700 font-medium' : ''}">${icon} ${space.label}</button>`;
+          html += `<button data-rename="${space.id}" data-label="${space.label}" class="p-1.5 rounded-lg text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200 hover:bg-neutral-100 dark:hover:bg-neutral-700 transition-all" title="Rename"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg></button>`;
+          html += `</div>`;
+        }
+        // Add new client
+        html += `<div class="border-t border-neutral-200 dark:border-neutral-700 my-1"></div>`;
+        html += `<div data-space="__new__" class="w-full text-left text-xs px-3 py-2 rounded-lg hover:bg-neutral-100 dark:hover:bg-neutral-700 text-violet-600 dark:text-violet-400 cursor-pointer">+ New space</div>`;
+        memorySpaceDropdown.innerHTML = html;
+        memorySpaceDropdown.classList.remove('hidden');
+
+        // Handle rename clicks
+        memorySpaceDropdown.querySelectorAll('[data-rename]').forEach(renameBtn => {
+          renameBtn.addEventListener('click', (ev) => {
+            ev.stopPropagation();
+            const spaceId = renameBtn.dataset.rename;
+            const currentLabel = renameBtn.dataset.label;
+            const row = renameBtn.parentElement;
+            row.innerHTML = `<input type="text" class="w-full text-xs px-2 py-1 rounded bg-white dark:bg-neutral-900 border border-violet-300 dark:border-violet-600 outline-none" value="${currentLabel}" />`;
+            const input = row.querySelector('input');
+            input.focus();
+            input.select();
+            input.addEventListener('keydown', async (ke) => {
+              ke.stopPropagation();
+              ke.stopImmediatePropagation();
+              if (ke.key === 'Enter') {
+                const newName = input.value.trim();
+                if (newName && newName !== currentLabel) {
+                  const result = await window.api.plugins.renameMemorySpace({ id: spaceId, label: newName });
+                  if (result.success && active === spaceId) {
+                    memorySpaceLabel.textContent = newName;
+                  }
+                }
+                memorySpaceDropdown.classList.add('hidden');
+              } else if (ke.key === 'Escape') {
+                memorySpaceDropdown.classList.add('hidden');
+              }
+            });
+            input.addEventListener('click', (e) => e.stopPropagation());
+            input.addEventListener('mousedown', (e) => e.stopPropagation());
+            input.addEventListener('blur', () => {
+              setTimeout(() => memorySpaceDropdown.classList.add('hidden'), 150);
+            });
+          });
+        });
+
+        // Handle space selection clicks
+        memorySpaceDropdown.querySelectorAll('[data-space]').forEach(btn => {
+          btn.addEventListener('click', async (ev) => {
+            ev.stopPropagation();
+            const spaceId = btn.dataset.space;
+            if (spaceId === '__new__') {
+              // Replace the item with an inline input
+              btn.innerHTML = `<input type="text" id="newSpaceInput" placeholder="Type name, press Enter..." class="w-full text-xs px-2 py-1 rounded bg-white dark:bg-neutral-900 border border-violet-300 dark:border-violet-600 outline-none" />`;
+              const input = btn.querySelector('#newSpaceInput');
+              input.focus();
+              input.addEventListener('keydown', async (ke) => {
+                ke.stopPropagation();
+                ke.stopImmediatePropagation();
+                if (ke.key === 'Enter') {
+                  const name = input.value.trim();
+                  if (!name) { memorySpaceDropdown.classList.add('hidden'); return; }
+                  const result = await window.api.plugins.createMemorySpace({ label: name });
+                  if (result.success && result.newId) {
+                    await window.api.plugins.setMemorySpace(result.newId);
+                    memorySpaceLabel.textContent = name;
+                    memorySpaceBtn.classList.add('bg-violet-50', 'dark:bg-violet-900/30', 'text-violet-700', 'dark:text-violet-400', 'border-violet-100', 'dark:border-violet-800');
+                    memorySpaceBtn.classList.remove('bg-neutral-100', 'dark:bg-neutral-700/50', 'text-neutral-500', 'dark:text-neutral-400', 'border-neutral-200', 'dark:border-neutral-600');
+                  }
+                  memorySpaceDropdown.classList.add('hidden');
+                } else if (ke.key === 'Escape') {
+                  memorySpaceDropdown.classList.add('hidden');
+                }
+              });
+              // Prevent all events from bubbling out of the input
+              input.addEventListener('click', (e) => e.stopPropagation());
+              input.addEventListener('mousedown', (e) => e.stopPropagation());
+              input.addEventListener('blur', () => {
+                setTimeout(() => memorySpaceDropdown.classList.add('hidden'), 150);
+              });
+              return;
+            }
+            await window.api.plugins.setMemorySpace(spaceId);
+            if (spaceId === 'off') {
+              memorySpaceLabel.textContent = 'Off';
+              memorySpaceBtn.classList.remove('bg-violet-50', 'dark:bg-violet-900/30', 'text-violet-700', 'dark:text-violet-400', 'border-violet-100', 'dark:border-violet-800');
+              memorySpaceBtn.classList.add('bg-neutral-100', 'dark:bg-neutral-700/50', 'text-neutral-500', 'dark:text-neutral-400', 'border-neutral-200', 'dark:border-neutral-600');
+            } else {
+              const space = spaces.find(s => s.id === spaceId);
+              memorySpaceLabel.textContent = space ? space.label : spaceId;
+              memorySpaceBtn.classList.add('bg-violet-50', 'dark:bg-violet-900/30', 'text-violet-700', 'dark:text-violet-400', 'border-violet-100', 'dark:border-violet-800');
+              memorySpaceBtn.classList.remove('bg-neutral-100', 'dark:bg-neutral-700/50', 'text-neutral-500', 'dark:text-neutral-400', 'border-neutral-200', 'dark:border-neutral-600');
+            }
+            memorySpaceDropdown.classList.add('hidden');
+          });
+        });
+      });
+      // Close dropdown on outside click
+      document.addEventListener('click', () => memorySpaceDropdown.classList.add('hidden'));
+    }
+
     // Initialize Prompt Picker below input
     const promptPickerMount = container.querySelector('#promptPickerMount');
     if (promptPickerMount && window.PromptPicker) {
@@ -190,13 +323,17 @@ const ChatPage = {
     // Show active project indicator (Client Workspace plugin)
     this._updateActiveProjectBar(container);
 
-    // Initialize Project Selector dropdown
+    // Initialize Project Selector dropdown (only if client-workspace plugin is active)
     const projSelectorContainer = container.querySelector('#projSelectorContainer');
     if (projSelectorContainer && window.ProjectSelector) {
-      window.ProjectSelector.render(projSelectorContainer, (project) => {
-        // Update the active project bar when selection changes
-        this._updateActiveProjectBar(container);
-      });
+      // Check if client-workspace plugin is enabled
+      const cwEnabled = await window.api.plugins.isEnabled?.('client-workspace').catch(() => false);
+      if (cwEnabled) {
+        window.ProjectSelector.render(projSelectorContainer, (project) => {
+          // Update the active project bar when selection changes
+          this._updateActiveProjectBar(container);
+        });
+      }
     }
 
     // Load conversations (auto-load most recent or start new)
@@ -389,6 +526,30 @@ const ChatPage = {
         this.isStreaming = false;
       });
       this._listenersRegistered = true;
+
+      // Cortex module auto-created notification
+      if (window.api.plugins?.onModuleCreated) {
+        window.api.plugins.onModuleCreated((data) => {
+          if (data?.message && this.activeAssistantEl) {
+            // Append to the last assistant message
+            const contentEl = this.activeAssistantEl.querySelector('.msg-content');
+            if (contentEl) {
+              this.activeAssistantContent += data.message;
+              contentEl.innerHTML = window.marked ? window.marked.parse(this.activeAssistantContent) : this.activeAssistantContent;
+            }
+          } else if (data?.modules) {
+            // Fallback: add as a new system message
+            const msgs = document.querySelector('#messages');
+            if (msgs) {
+              const div = document.createElement('div');
+              div.className = 'text-xs text-center text-neutral-500 dark:text-neutral-400 py-2';
+              div.textContent = '🎯 New objective created: ' + data.modules.join(', ') + ' — add details in Memory → Objectives';
+              msgs.appendChild(div);
+              msgs.scrollTop = msgs.scrollHeight;
+            }
+          }
+        });
+      }
 
       // Local engine cold-start load progress — render a bar inside the typing bubble.
       if (window.api.engine?.onLoadProgress) {
@@ -716,13 +877,25 @@ const ChatPage = {
       const activeProject = await window.api.plugins.sendEvent('cw:get-active-project', {});
       if (activeProject && activeProject.id) projectId = activeProject.id;
     } catch {}
+
+    // Clear KB selections — new chats start without a knowledge base attached
+    this.activeKBSelections = [];
+    this.activeCollectionId = null;
+    if (window.KBSelector) {
+      window.KBSelector.setSelections([]);
+    }
+    const kbBadge = document.querySelector('#kbBadge');
+    const kbModeButtons = document.querySelector('#kbModeButtons');
+    if (kbBadge) kbBadge.classList.add('hidden');
+    if (kbModeButtons) kbModeButtons.classList.add('hidden');
+
     await window.api.storage.createConversation({
       id,
       title: 'New conversation',
       model: window.ProviderManager.activeProvider?.name || null,
       providerType: window.ProviderManager.activeProvider?.type || 'local',
-      collectionId: this.activeCollectionId || null,
-      kbSelections: this.activeKBSelections.length > 0 ? JSON.stringify(this.activeKBSelections) : null,
+      collectionId: null,
+      kbSelections: null,
       projectId,
     });
     this.activeConversationId = id;

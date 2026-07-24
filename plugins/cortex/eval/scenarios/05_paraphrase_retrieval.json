@@ -1,0 +1,24 @@
+{
+  "name": "paraphrase_retrieval",
+  "description": "Vector channel proof — retrieve facts with zero keyword overlap",
+  "exchanges": [
+    {
+      "user_message": "We are planning to expand into the UK market next year. That is our primary international growth target.",
+      "assistant_response": "UK expansion is a natural next step for most US SaaS companies. The regulatory landscape is friendlier than EU. Timeline?"
+    }
+  ],
+  "assertions": [
+    {
+      "description": "Direct keyword query finds UK expansion",
+      "query": "UK market expansion international",
+      "expected_contains": ["UK"],
+      "min_results": 1
+    },
+    {
+      "description": "Paraphrase with no shared keywords finds it (vector proof)",
+      "query": "selling software across the Atlantic ocean to British customers",
+      "expected_contains": ["UK"],
+      "min_results": 1
+    }
+  ]
+}

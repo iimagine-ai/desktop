@@ -1,0 +1,31 @@
+{
+  "config": {
+    "port": 9199,
+    "host": "127.0.0.1",
+    "model": "gpt-5.4-mini",
+    "provider": "openai",
+    "api_key": "***",
+    "judge_model": "gpt-5.4",
+    "runs": 3,
+    "mode": "fresh",
+    "only": "80_advisory",
+    "report": "docs/eval-80_advisory-v5step2c.json"
+  },
+  "pass_rates": {
+    "80_advisory_judge :: distributor-deal question pulls preference + precedent + capacity": 0.6666666666666666,
+    "80_advisory_judge :: financing question pulls the zero-debt preference": 1.0,
+    "80_advisory_judge :: new-product question pulls capacity + objective": 1.0,
+    "80_advisory_judge :: workload question pulls the lifestyle preference": 1.0
+  },
+  "fail_details": {
+    "80_advisory_judge :: distributor-deal question pulls preference + precedent + capacity": [
+      "context recall 0.67 < 1.0; missing: ['The owner previously declined a wholesale/distribution deal due to thin margins and revenue concentration']\n    [context dump]: [Memory Context] \u21b5 [Business Profile] \u21b5 **Objectives:** \u21b5   - 500 paying customers is the business objective for this year, up from about 300 paying customers now. \u21b5  \u21b5 **Strategies:** \u21b5   - IIMAGINE grows from revenue only. \u21b5   - revenue only supports a zero-debt growth approach. \u21b5  \u21b5 **Resources:** \u21b5   - IIMAGINE has MRR $85k. \u21b5  \u21b5 **Skills:** \u21b5   - User is weak at sales. \u21b5   - User has no real outbound experience on the team. \u21b5  \u21b5 **Products:** \u21b5   - IIMAGINE offers a desktop AI companion. \u21b5  \u21b5 **Segments:** \u21b5   - The desktop AI companion targets small business owners. \u21b5  \u21b5 **Preferences:** \u21b5   - Adam prefers to keep weekends free and would rather grow slower than work seven days a week. \u21b5  \u21b5 **Constraints:** \u21b5   - IIMAGINE is constrained by a runway of 14 months. \u21b5   - User prefers to avoid debt and treats debt as non-negotiable. \u21b5   - A wholesale distribution deal with Baxter & Co would have been 60% of User's revenue, creating too much concentration. \u21b5   - Sarah Chen says the engineering team is at full capacity. \u21b5   - The engineering team has no slack for new product lines this quarter. \u21b5 [End Profile] \u21b5 - The wholesale distribution deal is being explored to compensate for limited sales capability. \u21b5 - The wholesale distribution deal is be..."
+    ]
+  },
+  "skipped": {},
+  "queue_growth": {},
+  "latency_ms": {
+    "p50": null,
+    "samples": 0
+  }
+}

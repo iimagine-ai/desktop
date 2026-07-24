@@ -157,6 +157,7 @@ module.exports = { ... };
 - Wrap all scripts in (function(){ ... })() to avoid global pollution
 - Use window.functionName = ... to expose handlers needed by onclick attributes
 - Always load data on init by calling your get event
+- CRITICAL SCOPING RULE: The <script> block runs in the BROWSER, not Node.js. Any helper functions (e.g. safe(), escapeHtml(), formatDate()) used inside the script block MUST be defined INSIDE the (function(){ ... })() IIFE — they cannot reference functions defined at the top of index.js because those only exist in the Node.js process. If you define a utility at the module level for use in renderPage's static HTML, you must ALSO define it inside the script IIFE if the browser-side code needs it.
 - CRITICAL: After any mutation (add, delete, update), you MUST re-render the page. Use this pattern:
   async function refresh() {
     const html = await window.api.plugins.renderPage('PLUGIN_ID');
@@ -422,6 +423,25 @@ class PluginGenerator {
     // If sidebar hook declared, check for renderPage
     if (manifest.hooks?.sidebar && !indexJs.includes('renderPage')) {
       errors.push('Sidebar hook declared but renderPage() not found');
+    }
+
+    // Check for Node-scope helpers referenced inside browser script blocks
+    // Extract top-level function names defined before renderPage
+    const topLevelFns = [...indexJs.matchAll(/^function\s+([a-zA-Z_]\w*)\s*\(/gm)].map(m => m[1]);
+    // Extract the script content inside renderPage's template literal
+    const scriptMatch = indexJs.match(/<script>([\s\S]*?)<\/script>/);
+    if (scriptMatch && topLevelFns.length > 0) {
+      const scriptContent = scriptMatch[1];
+      for (const fn of topLevelFns) {
+        // Skip common ones that might legitimately be in both (activate, deactivate, onEvent, renderPage)
+        if (['activate', 'deactivate', 'onEvent', 'renderPage', 'renderSettings', 'table', 'key'].includes(fn)) continue;
+        // Check if it's called in the script block but not defined there
+        const callPattern = new RegExp(`\\b${fn}\\s*\\(`);
+        const defPattern = new RegExp(`function\\s+${fn}\\s*\\(`);
+        if (callPattern.test(scriptContent) && !defPattern.test(scriptContent)) {
+          errors.push(`Function "${fn}()" is called in the browser <script> but only defined in the Node.js scope. Define it inside the IIFE.`);
+        }
+      }
     }
 
     return { valid: errors.length === 0, errors };

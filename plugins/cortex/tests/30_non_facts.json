@@ -1,0 +1,28 @@
+{
+  "name": "30_non_facts",
+  "description": "Hypotheticals, rejected options, retractions, questions, assistant speculation, negations — the graph must hold the right polarity",
+  "steps": [
+    {"step": "ingest", "user_message": "Hypothetically, if we hired three more people we'd be burning an extra $40k a month. Just thinking out loud, we're not doing it.", "assistant_response": "Understood — a what-if, not a plan."},
+    {"step": "assert", "type": "profile_absent", "label": "hypothetical hiring never contaminates profile", "match_substring": "hired three more people"},
+    {"step": "assert", "type": "search_absent", "label": "hypothetical burn not asserted as current burn", "query": "what is our monthly burn rate", "reject_substring": "$40k a month", "top_k": 2},
+
+    {"step": "ingest", "user_message": "We seriously considered raising a VC round last quarter but decided against it. Staying bootstrapped.", "assistant_response": "Considered and rejected — bootstrapped it is."},
+    {"step": "assert", "type": "search_contains", "label": "rejection stored WITH its polarity", "query": "did we raise venture capital", "any_of": ["decided against", "rejected", "not raising", "declin", "bootstrap"], "top_k": 3},
+
+    {"step": "ingest", "user_message": "The marketing budget for next quarter is $180k.", "assistant_response": "$180k marketing budget, noted."},
+    {"step": "ingest", "user_message": "Actually scratch that — I misspoke earlier. The marketing budget is $80k, not $180k.", "assistant_response": "Corrected: $80k marketing budget."},
+    {"step": "assert", "type": "search_rank", "label": "retraction wins: $80k is the top budget answer", "query": "what is the marketing budget", "expect_substring": "80k", "max_rank": 1},
+    {"step": "assert", "type": "cypher_rows", "label": "the $180k fact is invalidated or gone", "query": "MATCH ()-[r:RELATES_TO]->() WHERE r.group_id = 'cortex' AND r.fact CONTAINS '180k' AND NOT r.fact CONTAINS '80k' AND r.invalid_at IS NULL RETURN r.fact", "min_rows": 0, "max_rows": 0},
+
+    {"step": "ingest", "user_message": "Should I fire Tom? He's been missing deadlines but I haven't decided anything.", "assistant_response": "Worth a structured conversation with him first — what's driving the misses?"},
+    {"step": "assert", "type": "search_absent", "label": "a question about firing never becomes a firing fact", "query": "what happened to Tom", "reject_substring": "was fired", "top_k": 5},
+    {"step": "assert", "type": "profile_absent", "label": "no 'firing Tom' in profile", "match_substring": "fire tom"},
+
+    {"step": "ingest", "user_message": "What do you think about us moving upmarket?", "assistant_response": "You could consider enterprise pricing at $50k a year per seat, and maybe acquiring a smaller competitor to accelerate."},
+    {"step": "assert", "type": "profile_absent", "label": "assistant speculation ($50k enterprise pricing) is not a business fact", "match_substring": "50k a year per seat"},
+    {"step": "assert", "type": "search_absent", "label": "acquisition speculation not stored as plan", "query": "are we acquiring a company", "reject_substring": "acquiring a smaller competitor", "top_k": 2},
+
+    {"step": "ingest", "user_message": "To be clear: we are NOT pivoting to enterprise. We're staying focused on small business owners.", "assistant_response": "Staying SMB-focused, no enterprise pivot."},
+    {"step": "assert", "type": "search_contains", "label": "negation retains polarity", "query": "are we pivoting to enterprise", "any_of": ["not pivoting", "no enterprise", "staying focused on small business", "smb", "bootstrapped", "small business", "staying", "decided against"], "top_k": 3}
+  ]
+}

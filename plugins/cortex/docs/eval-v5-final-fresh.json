@@ -1,0 +1,165 @@
+{
+  "config": {
+    "port": 9199,
+    "host": "127.0.0.1",
+    "model": "gpt-5.4-mini",
+    "provider": "openai",
+    "api_key": "***",
+    "judge_model": "gpt-5.4",
+    "runs": 3,
+    "mode": "fresh",
+    "only": null,
+    "report": "docs/eval-v5-final-fresh.json"
+  },
+  "pass_rates": {
+    "10_interference_scale :: precision@5 [at_50] margin": 1.0,
+    "10_interference_scale :: precision@5 [at_50] sarah chen": 1.0,
+    "10_interference_scale :: precision@5 [at_50] 85k": 0.3333333333333333,
+    "10_interference_scale :: precision@5 [at_50] debt": 1.0,
+    "10_interference_scale :: precision@5 [at_150] margin": 1.0,
+    "10_interference_scale :: precision@5 [at_150] sarah chen": 1.0,
+    "10_interference_scale :: precision@5 [at_150] 85k": 0.3333333333333333,
+    "10_interference_scale :: precision@5 [at_150] debt": 1.0,
+    "10_interference_scale :: declined-deal query not hijacked by ACCEPTED near-miss deal": 0.6666666666666666,
+    "10_interference_scale :: lead-dev query not hijacked by Sarah Kim (accountant)": 1.0,
+    "10_interference_scale :: current MRR outranks stale Q1/Q2 figures": 0.3333333333333333,
+    "10_interference_scale :: context-level recall: current MRR in final context at 150 episodes": 0.0,
+    "20_temporal_chains :: current headcount (7) is the top answer": 1.0,
+    "20_temporal_chains :: stale headcount suppressed below rank 1": 1.0,
+    "20_temporal_chains :: old headcount edges have invalid_at set (bi-temporal proof)": 1.0,
+    "20_temporal_chains :: exactly one headcount fact remains valid": 1.0,
+    "20_temporal_chains :: current runway (10 months) is the top answer": 1.0,
+    "20_temporal_chains :: history question: what changed on the team": 0.3333333333333333,
+    "30_non_facts :: hypothetical hiring never contaminates profile": 1.0,
+    "30_non_facts :: hypothetical burn not asserted as current burn": 1.0,
+    "30_non_facts :: rejection stored WITH its polarity": 1.0,
+    "30_non_facts :: retraction wins: $80k is the top budget answer": 1.0,
+    "30_non_facts :: the $180k fact is invalidated or gone": 1.0,
+    "30_non_facts :: a question about firing never becomes a firing fact": 1.0,
+    "30_non_facts :: no 'firing Tom' in profile": 0.6666666666666666,
+    "30_non_facts :: assistant speculation ($50k enterprise pricing) is not a business fact": 1.0,
+    "30_non_facts :: acquisition speculation not stored as plan": 1.0,
+    "30_non_facts :: negation retains polarity": 1.0,
+    "40_entity_resolution :: one Sarah Chen node, not five": 1.0,
+    "40_entity_resolution :: alias facts converge: lead-dev query surfaces Sarah Chen": 1.0,
+    "40_entity_resolution :: two DIFFERENT Sarahs are two nodes": 1.0,
+    "40_entity_resolution :: accountant Sarah doesn't absorb dev facts": 0.6666666666666666,
+    "40_entity_resolution :: current role (CTO) is the top answer": 0.3333333333333333,
+    "40_entity_resolution :: role-change did not spawn a duplicate Sarah Chen node": 1.0,
+    "40_entity_resolution :: rename links old and new names": 1.0,
+    "50_salience_calibration :: HIGH: signed financial commitment": 1.0,
+    "50_salience_calibration :: HIGH: strategic pivot (product kill)": 1.0,
+    "50_salience_calibration :: HIGH: financial figure": 1.0,
+    "50_salience_calibration :: MEDIUM-or-HIGH: stated objective (boundary case, both valid)": 1.0,
+    "50_salience_calibration :: MEDIUM: team change": 1.0,
+    "50_salience_calibration :: MEDIUM: working preference": 1.0,
+    "50_salience_calibration :: LOW: trivia must not inflate": 1.0,
+    "50_salience_calibration :: LOW: small talk correctly low or filtered out": 1.0,
+    "50_salience_calibration :: MEDIUM: positioning is NOT a decision (nano scored this class 0.8)": 1.0,
+    "50_salience_calibration :: [generalization] MEDIUM-or-HIGH: hiring decision": 1.0,
+    "50_salience_calibration :: [generalization] HIGH: price change (financial decision)": 1.0,
+    "50_salience_calibration :: [generalization] MEDIUM: competitor mention (not our decision)": 1.0,
+    "50_salience_calibration :: [generalization] MEDIUM-or-HIGH: vendor cost change (financial impact)": 1.0,
+    "50_salience_calibration :: [generalization] MEDIUM: customer complaint (operational signal)": 1.0,
+    "70_robustness :: injection either stored as what the user said OR safely dropped (both valid)": 1.0,
+    "70_robustness :: injection did not approve/apply itself into the profile": 1.0,
+    "70_robustness :: embedded SYSTEM directive did not force salience to 1.0": 1.0,
+    "70_robustness :: sidecar survived a ~10k-token message (health via search still works)": 1.0,
+    "70_robustness :: unicode entity + currency survives roundtrip": 1.0,
+    "70_robustness :: quotes/escapes/braces don't break extraction or Cypher writes": 1.0,
+    "80_advisory_judge :: distributor-deal question pulls preference + precedent + capacity": 1.0,
+    "80_advisory_judge :: financing question pulls the zero-debt preference": 1.0,
+    "80_advisory_judge :: new-product question pulls capacity + objective + team size": 1.0,
+    "80_advisory_judge :: workload question pulls the lifestyle preference": 1.0,
+    "81_advisory_lazy :: distributor-deal question pulls preference + precedent + capacity": 0.6666666666666666,
+    "81_advisory_lazy :: financing question pulls the zero-debt preference": 0.6666666666666666,
+    "81_advisory_lazy :: new-product question pulls capacity + objective + team size": 0.6666666666666666,
+    "81_advisory_lazy :: workload question pulls the lifestyle preference": 1.0,
+    "99_cross_residue :: cross: 'Who is Sarah?' disambiguates across scenarios 10+40": 0.0,
+    "99_cross_residue :: cross: Sarah Kim (accountant) doesn't contaminate dev-Sarah query": 1.0,
+    "99_cross_residue :: cross: current MRR survives scenario 30 retraction residue": 0.0,
+    "99_cross_residue :: cross: retracted/hypothetical budget figures from sc30 don't contaminate MRR": 1.0,
+    "99_cross_residue :: cross: Sarah Chen entity not duplicated across scenarios 10+40": 0.0,
+    "99_cross_residue :: cross: headcount fact survives full graph residue": 0.0,
+    "99_cross_residue :: cross: zero-debt preference survives venture-debt distractor": 0.0
+  },
+  "fail_details": {
+    "10_interference_scale :: context-level recall: current MRR in final context at 150 episodes": [
+      "context recall 0.50 < 1.0; missing: ['current month or most recent']\n    [context dump]: [Memory Context] \u21b5 [Business Profile] \u21b5 **Business:** \u21b5 The business handled a journalist request about AI trends with a generic quote. It also had a weekly standup where Tom participated and Nina demoed the email progress. \u21b5   - A journalist requested a comment on AI trends and received a generic quote. \u21b5   - Tom participated in the weekly standup. \u21b5   - Nina demoed the email progress during the weekly standup. \u21b5   - Jade demoed the billing progress during the weekly standup. \u21b5   - Elena demoed the reporting progress during the weekly standup. \u21b5  \u21b5 **Strategies:** \u21b5   - Dev covered the support queue while Oliver was out sick today. \u21b5  \u21b5 **Resources:** \u21b5 Assistant holds billing paperwork and onboarding paperwork, and the coffee machine was chosen over the office plants. Support coverage changed hands multiple times, with Ken covering the support queue while Nina was out sick today. \u21b5   - Assistant holds billing paperwork. \u21b5   - Assistant holds onboarding paperwork. \u21b5   - Assistant holds monitoring paperwork as a resource that was spent the morning on and completed. \u21b5   - The coffee machine was chosen over the office plants. \u21b5   - Ken covered the support queue while Nina was out sick today. \u21b5  \u21b5 **Team:** \u21b5 The team handled s...",
+      "context recall 0.00 < 1.0; missing: ['MRR is $85k', 'current month or most recent']\n    [context dump]: [Memory Context] \u21b5 [Business Profile] \u21b5 **Business:** \u21b5 The business section includes a weekly standup with demos of email, analytics, billing, and reporting progress. It also notes a journalist asked for a comment on AI trends, and Assistant provided a generic quote; Baxter & Co asked about billing support. \u21b5   - A journalist asked for a comment on AI trends. \u21b5   - Assistant gave a generic quote as a comment on AI trends for a journalist. \u21b5   - Baxter & Co asked Assistant about billing support. \u21b5   - The weekly standup included demos of email, analytics, billing, and reporting progress. \u21b5  \u21b5 **Objectives:** \u21b5   - Quarterly monitoring review went fine with no surprises. \u21b5  \u21b5 **Strategies:** \u21b5   - Priya demoed the CRM progress during the weekly standup. \u21b5   - The website's backup page was added to the backlog for a refresh. \u21b5  \u21b5 **Resources:** \u21b5 The section notes that the coffee machine was chosen over office plants. It also records support coverage changes: Mia covered while Tom was out sick, Ken covered while Nina was out sick, and Dev covered while Oliver was out sick; Nina, Marcus, and Oliver were out sick today. \u21b5   - The coffee machine was chosen over the office plants. \u21b5   - Mia covered the support queue while To...",
+      "context recall 0.00 < 1.0; missing: ['MRR is $85k', 'current month or most recent']\n    [context dump]: [Memory Context] \u21b5 [Business Profile] \u21b5 **Business:** \u21b5 Quarterly onboarding and scheduling reviews went fine with no surprises. The team also handled a compliance integration issue after it threw errors overnight, and recent weekly standup demos covered monitoring, analytics, and email progress. \u21b5   - Quarterly onboarding review went fine with no surprises. \u21b5   - Quarterly scheduling review went fine with no surprises for Assistant. \u21b5   - Tom patched the compliance integration after it threw errors overnight. \u21b5   - Tom demoed the monitoring progress at the weekly standup. \u21b5   - Priya demoed the analytics progress during the weekly standup. \u21b5   - Jade demoed the email progress during the weekly standup. \u21b5   - Assistant gave a generic quote about AI trends for a journalist's comment request. \u21b5  \u21b5 **Resources:** \u21b5 Assistant completed billing, onboarding, CRM, and monitoring paperwork. Assistant evaluated three reporting tools on 2026-07-13T10:56:18.560127Z, and backup tools were tested with none clearly better than what we have. \u21b5   - Assistant completed billing paperwork. \u21b5   - Assistant completed onboarding paperwork. \u21b5   - Assistant completed CRM paperwork. \u21b5   - Assistant completed monitoring paperwork. \u21b5   - Assis..."
+    ],
+    "20_temporal_chains :: history question: what changed on the team": [
+      "context recall 0.33 < 0.66; missing: ['The team grew from a smaller size (3) over multiple hiring events', 'At least one developer departed along the way']\n    [context dump]: [Memory Context] \u21b5 - [superseded] User employs 3 developers on the team right now. \u21b5 - [superseded] developers are currently 4 in number \u21b5 - 10 months runway is the current runway after the new hires burn increased. \u21b5 - [superseded] Assistant employs 5 developers now. \u21b5 - User employs 7 developers now. \u21b5 [End Memory Context]...",
+      "context recall 0.33 < 0.66; missing: ['The team is currently 7 developers', 'The team grew from a smaller size (3) over multiple hiring events']\n    [context dump]: [Memory Context] \u21b5 - runway is constrained by the new hires burn and is now 10 months after the hiring round \u21b5 - [superseded] User hired 2 more developers this week. \u21b5 - [superseded] User employs 5 developers now. \u21b5 - [superseded] developers are currently down to 4, as stated in the conversation with Assistant \u21b5 [End Memory Context]..."
+    ],
+    "40_entity_resolution :: current role (CTO) is the top answer": [
+      "found but at rank 2 > max_rank 1",
+      "found but at rank 3 > max_rank 1"
+    ],
+    "99_cross_residue :: cross: 'Who is Sarah?' disambiguates across scenarios 10+40": [
+      "retrieval returned empty context",
+      "retrieval returned empty context",
+      "retrieval returned empty context"
+    ],
+    "99_cross_residue :: cross: current MRR survives scenario 30 retraction residue": [
+      "retrieval returned empty context",
+      "retrieval returned empty context",
+      "retrieval returned empty context"
+    ],
+    "99_cross_residue :: cross: Sarah Chen entity not duplicated across scenarios 10+40": [
+      "0 rows < min 1",
+      "0 rows < min 1",
+      "0 rows < min 1"
+    ],
+    "99_cross_residue :: cross: headcount fact survives full graph residue": [
+      "retrieval returned empty context",
+      "retrieval returned empty context",
+      "retrieval returned empty context"
+    ],
+    "99_cross_residue :: cross: zero-debt preference survives venture-debt distractor": [
+      "retrieval returned empty context",
+      "retrieval returned empty context",
+      "retrieval returned empty context"
+    ],
+    "10_interference_scale :: declined-deal query not hijacked by ACCEPTED near-miss deal": [
+      "'coastal books' present at rank 2: the small wholesale trial with coastal books is a low-volume, good-mar"
+    ],
+    "10_interference_scale :: current MRR outranks stale Q1/Q2 figures": [
+      "not found at all",
+      "not found at all"
+    ],
+    "40_entity_resolution :: accountant Sarah doesn't absorb dev facts": [
+      "'memory engine' present at rank 3: google holds the memory engine."
+    ],
+    "81_advisory_lazy :: distributor-deal question pulls preference + precedent + capacity": [
+      "context recall 0.40 < 0.8; missing: ['The margins on that deal were thin', 'The deal would have concentrated revenue (60%)', 'Current revenue or runway position ($85k MRR and/or 14 months runway)']\n    [context dump]: [Memory Context] \u21b5 - company has product/engineering strength \u21b5 - the go-to-market weakness makes hitting the customer growth target likely to require adding outbound sales capability or a sales-focused operator \u21b5 - the go-to-market weakness means hitting the customer growth target will likely require adding a sales-focused operator \u21b5 - the go-to-market weakness means hitting the customer growth target will likely require adding outbound sales capability \u21b5 - User declined the wholesale distribution deal with Baxter & Co. \u21b5 - self-funded expansion makes margin quality more important \u21b5 - top-line volume alone is less important than margin quality in this growth approach \u21b5 - top-line volume alone is less important than cash generation in this growth approach \u21b5 - User prefers weekends free and would rather grow slower than work seven days a week. \u21b5 - company has a go-to-market weakness \u21b5 - self-funded expansion is pursued rather than capital-intensive scaling \u21b5 - User evaluated the wholesale distribution deal with Baxter & Co. \u21b5 - self-funded expansion makes cash generation more important \u21b5 - Adam is the founder of IIMAGINE. \u21b5 - [superseded] IIMAGINE grows from revenue only. \u21b5 - [superseded] The business is weak at s..."
+    ],
+    "81_advisory_lazy :: financing question pulls the zero-debt preference": [
+      "context recall 0.00 < 1.0; missing: ['The owner has a firm zero-debt preference (grow from revenue only)', 'Current runway position (about 14 months)']\n    [context dump]: [Memory Context] \u21b5 - self-funded expansion makes margin quality more important \u21b5 - top-line volume alone is less important than cash generation in this growth approach \u21b5 - self-funded expansion is pursued rather than capital-intensive scaling \u21b5 - top-line volume alone is less important than margin quality in this growth approach \u21b5 - self-funded expansion makes cash generation more important \u21b5 - the go-to-market weakness makes hitting the customer growth target likely to require adding outbound sales capability or a sales-focused operator \u21b5 - User prefers weekends free and would rather grow slower than work seven days a week. \u21b5 - the go-to-market weakness means hitting the customer growth target will likely require adding outbound sales capability \u21b5 - the go-to-market weakness means hitting the customer growth target will likely require adding a sales-focused operator \u21b5 - company has a go-to-market weakness \u21b5 - company has product/engineering strength \u21b5 - Adam is the founder of IIMAGINE. \u21b5 - User declined the wholesale distribution deal with Baxter & Co. \u21b5 - User evaluated the wholesale distribution deal with Baxter & Co. \u21b5 - [superseded] IIMAGINE offers a desktop AI companion. \u21b5 - [superseded] The business's obje..."
+    ],
+    "81_advisory_lazy :: new-product question pulls capacity + objective + team size": [
+      "context recall 0.00 < 0.66; missing: ['Engineering is at full capacity with no slack for new product lines this quarter', \"This year's objective is reaching 500 paying customers\", 'The team is small (about 7 people)']\n    [context dump]: [Memory Context] \u21b5 - company has product/engineering strength \u21b5 - top-line volume alone is less important than cash generation in this growth approach \u21b5 - self-funded expansion makes cash generation more important \u21b5 - the go-to-market weakness makes hitting the customer growth target likely to require adding outbound sales capability or a sales-focused operator \u21b5 - self-funded expansion makes margin quality more important \u21b5 - top-line volume alone is less important than margin quality in this growth approach \u21b5 - Adam is the founder of IIMAGINE. \u21b5 - the go-to-market weakness means hitting the customer growth target will likely require adding a sales-focused operator \u21b5 - the go-to-market weakness means hitting the customer growth target will likely require adding outbound sales capability \u21b5 - User prefers weekends free and would rather grow slower than work seven days a week. \u21b5 - self-funded expansion is pursued rather than capital-intensive scaling \u21b5 - company has a go-to-market weakness \u21b5 - User declined the wholesale distribution deal with Baxter & Co. \u21b5 - User evaluated the wholesale distribution deal with Baxter & Co. \u21b5 - [superseded] The business's objective is to increase from 300 paying customers to 500 p..."
+    ],
+    "30_non_facts :: no 'firing Tom' in profile": [
+      "contamination: pending in constraints"
+    ]
+  },
+  "skipped": {},
+  "queue_growth": {
+    "at_50": [
+      28,
+      29,
+      31
+    ],
+    "at_150": [
+      54,
+      47,
+      58
+    ]
+  },
+  "latency_ms": {
+    "p50": 62.15941905975342,
+    "samples": 90
+  }
+}
