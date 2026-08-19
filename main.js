@@ -8,15 +8,9 @@ const fs = require('fs');
 const { execFile, spawn } = require('child_process');
 const Store = require('electron-store');
 const storage = require('./storage');
-const kbStorage = require('./kb-storage');
-const assistantStorage = require('./assistant-storage');
-const personaStorage = require('./persona-storage');
 const pluginManager = require('./plugin-manager');
 const skillsManager = require('./skills-manager');
 const streamAbort = require('./stream-abort');
-const folderConnect = require('./folder-connect');
-const promptStorage = require('./prompt-storage');
-const ragPromptStorage = require('./rag-prompt-storage');
 const { scanHardware } = require('./hardware-scanner');
 const manifestManager = require('./manifest-manager');
 const modelOrchestrator = require('./model-orchestrator');
@@ -30,11 +24,6 @@ const ttsService = require('./tts-service');
 const mcpClient = new MCPClientManager();
 
 const store = new Store();
-
-// Configuration
-const WEB_APP_URL_LOCAL = 'http://localhost:3000';
-const WEB_APP_URL_PROD = 'https://app.iimagine.ai';
-let activeWebAppUrl = WEB_APP_URL_LOCAL;
 
 // Auth mode: disabled — app works without sign-in (open source mode)
 const AUTH_REQUIRED = false;
@@ -71,73 +60,21 @@ if (!gotTheLock) {
 
 // ── Auth Helpers ────────────────────────────────────────────────
 function handleProtocolUrl(url) {
+  // Protocol handler — reserved for future Cloud plugin OAuth flow
   try {
     const parsed = new URL(url);
-    if (parsed.pathname === '//auth/callback' || parsed.pathname === '/auth/callback') {
-      const code = parsed.searchParams.get('code');
-      if (code) exchangeCodeForToken(code);
-    }
+    // Future: handle OAuth callbacks for Cloud plugin here
+    console.log('[Protocol] Received URL:', parsed.pathname);
   } catch (err) {
     console.error('Failed to parse protocol URL:', err);
   }
 }
 
-async function exchangeCodeForToken(code) {
-  try {
-    const res = await fetch(`${activeWebAppUrl}/api/auth/desktop-token`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ code }),
-    });
-
-    if (!res.ok) {
-      const err = await res.json();
-      mainWindow?.webContents.send('auth-error', err.error || 'Authentication failed');
-      return;
-    }
-
-    const data = await res.json();
-    store.set('auth.token', data.token);
-    store.set('auth.tokenId', data.tokenId);
-    store.set('auth.user', data.user);
-    store.set('auth.serverUrl', activeWebAppUrl);
-    mainWindow?.webContents.send('auth-success', data.user);
-  } catch (err) {
-    console.error('Token exchange failed:', err);
-    mainWindow?.webContents.send('auth-error', 'Connection failed');
-  }
-}
-
 async function validateToken() {
-  // If auth is not required, return a local guest user
-  if (!AUTH_REQUIRED) {
-    const guestUser = { email: 'Local User', isGuest: true };
-    store.set('auth.user', guestUser);
-    return guestUser;
-  }
-
-  const token = store.get('auth.token');
-  if (!token) return null;
-
-  const savedUrl = store.get('auth.serverUrl');
-  if (savedUrl) activeWebAppUrl = savedUrl;
-
-  try {
-    const res = await fetch(`${activeWebAppUrl}/api/auth/desktop-token`, {
-      headers: { Authorization: `Bearer ${token}` },
-    });
-    if (!res.ok) {
-      store.delete('auth.token');
-      store.delete('auth.tokenId');
-      store.delete('auth.user');
-      return null;
-    }
-    const data = await res.json();
-    store.set('auth.user', data.user);
-    return data.user;
-  } catch {
-    return store.get('auth.user') || null;
-  }
+  // Auth disabled — always return guest user
+  const guestUser = { email: 'Local User', isGuest: true };
+  store.set('auth.user', guestUser);
+  return guestUser;
 }
 
 // ── Window & Tray ───────────────────────────────────────────────
@@ -254,184 +191,17 @@ function parseCsvToReadableText(raw) {
   return text;
 }
 
-// ── Auto-Embed (fire-and-forget after add/update) ───────────────
-let autoEmbedRunning = false;
-
-const EMBED_MODEL_FILENAME = 'nomic-embed-text-v1.5-f16.gguf';
-
-async function autoEmbedCollection(collectionId) {
-  if (autoEmbedRunning) return; // skip if already running
-  if (!kbStorage.isVecLoaded()) return;
-
-  // Check embedding model is downloaded locally
-  const modelsDir = engineManager.getModelsDir();
-  const embedModelPath = path.join(modelsDir, EMBED_MODEL_FILENAME);
-  if (!fs.existsSync(embedModelPath)) {
-    console.log('[AutoEmbed] Embedding model not found. Download "Nomic Embed Text" from Settings > Models to enable KB search.');
-    return;
-  }
-
-  // Get unembedded chunks
-  const chunks = kbStorage.getUnembeddedChunks(collectionId, 5000);
-  if (!chunks.length) return;
-
-  // Remember which chat model was running so we can restore it
-  const engineStatus = engineManager.getStatus();
-  const previousModel = engineStatus.currentModel || null;
-
-  console.log(`[AutoEmbed] Starting embedding for collection ${collectionId} (${chunks.length} chunks)`);
-
-  // Switch engine to embedding model
-  const startResult = await engineManager.startEngine(embedModelPath);
-  if (!startResult.success) {
-    console.warn('[AutoEmbed] Failed to start embedding engine:', startResult.error);
-    return;
-  }
-
-  autoEmbedRunning = true;
-  mainWindow?.webContents.send('kb:auto-embed-start', {
-    collectionId,
-    total: chunks.length,
-  });
-
-  const BATCH_SIZE = 10;
-  let totalStored = 0;
-
-  try {
-    for (let i = 0; i < chunks.length; i += BATCH_SIZE) {
-      const batch = chunks.slice(i, i + BATCH_SIZE);
-
-      for (const chunk of batch) {
-        try {
-          const result = await engineManager.embed(chunk.content);
-          if (result.success && result.embedding) {
-            kbStorage.storeEmbeddings([{
-              chunkId: chunk.id,
-              embedding: new Float32Array(result.embedding),
-            }]);
-            totalStored++;
-          }
-        } catch {
-          // skip individual failures
-        }
-      }
-
-      const processed = Math.min(i + BATCH_SIZE, chunks.length);
-      mainWindow?.webContents.send('kb:auto-embed-progress', {
-        collectionId,
-        processed,
-        total: chunks.length,
-      });
-    }
-  } finally {
-    autoEmbedRunning = false;
-    mainWindow?.webContents.send('kb:auto-embed-done', {
-      collectionId,
-      embedded: totalStored,
-      total: chunks.length,
-    });
-
-    // Restore previous chat model if one was running before embedding
-    if (previousModel && previousModel !== embedModelPath) {
-      console.log(`[AutoEmbed] Restoring previous model: ${path.basename(previousModel)}`);
-      engineManager.startEngine(previousModel).catch(err =>
-        console.warn('[AutoEmbed] Failed to restore previous model:', err.message)
-      );
-    }
-  }
-}
-
-// ── Embed Query for KB Search ───────────────────────────────────
-// Uses the nomic-embed-text model via iimagine-engine for vector search.
-// Temporarily switches the engine to the embedding model, embeds the query,
-// then restores the previous chat model.
-async function embedQueryForSearch(text) {
-  if (!kbStorage.isVecLoaded()) return null;
-
-  const modelsDir = engineManager.getModelsDir();
-  const embedModelPath = path.join(modelsDir, EMBED_MODEL_FILENAME);
-  if (!fs.existsSync(embedModelPath)) {
-    console.log('[EmbedQuery] Embedding model not found — KB vector search unavailable.');
-    return null;
-  }
-
-  // Remember current model so we can restore it after embedding
-  const engineStatus = engineManager.getStatus();
-  const previousModel = engineStatus.currentModel || null;
-
-  // Start embedding model (stops current model if different)
-  const startResult = await engineManager.startEngine(embedModelPath);
-  if (!startResult.success) {
-    console.warn('[EmbedQuery] Failed to start embedding engine:', startResult.error);
-    return null;
-  }
-
-  let queryVec = null;
-  try {
-    const result = await engineManager.embed(text);
-    if (result.success && result.embedding) {
-      queryVec = new Float32Array(result.embedding);
-    }
-  } catch (err) {
-    console.warn('[EmbedQuery] Embed failed:', err.message);
-  }
-
-  // Restore previous chat model (fire and forget)
-  if (previousModel && previousModel !== embedModelPath) {
-    engineManager.startEngine(previousModel).catch(err =>
-      console.warn('[EmbedQuery] Failed to restore previous model:', err.message)
-    );
-  }
-
-  return queryVec;
-}
-function parseDuckDuckGoResults(html) {
-  const results = [];
-  // Match result blocks: <a class="result__a" href="...">title</a> and <a class="result__snippet">snippet</a>
-  const linkRegex = /<a[^>]*class="result__a"[^>]*href="([^"]*)"[^>]*>([\s\S]*?)<\/a>/gi;
-  const snippetRegex = /<a[^>]*class="result__snippet"[^>]*>([\s\S]*?)<\/a>/gi;
-
-  const links = [...html.matchAll(linkRegex)];
-  const snippets = [...html.matchAll(snippetRegex)];
-
-  for (let i = 0; i < Math.min(links.length, 8); i++) {
-    const url = links[i][1] || '';
-    const title = (links[i][2] || '').replace(/<[^>]*>/g, '').trim();
-    const snippet = snippets[i] ? snippets[i][1].replace(/<[^>]*>/g, '').trim() : '';
-
-    if (title && url) {
-      // DuckDuckGo wraps URLs in a redirect — extract the actual URL
-      let cleanUrl = url;
-      const uddg = url.match(/uddg=([^&]+)/);
-      if (uddg) cleanUrl = decodeURIComponent(uddg[1]);
-
-      results.push({ title, url: cleanUrl, snippet });
-    }
-  }
-  return results;
-}
-
 // ── IPC Handlers ────────────────────────────────────────────────
 function setupIPC() {
-  // Auth
-  ipcMain.handle('auth:login', (event, url) => {
-    if (url) activeWebAppUrl = url;
-    shell.openExternal(`${activeWebAppUrl}/auth/desktop-callback`);
-  });
-
-  ipcMain.handle('auth:exchangeCode', async (event, code) => {
-    try {
-      await exchangeCodeForToken(code);
-      return { success: true };
-    } catch (err) {
-      return { error: err.message || 'Exchange failed' };
-    }
-  });
-
-  ipcMain.handle('auth:getUser', () => store.get('auth.user') || null);
+  // Auth — open source mode (no sign-in required)
+  ipcMain.handle('auth:getUser', () => store.get('auth.user') || { email: 'Local User', isGuest: true });
   ipcMain.handle('auth:getToken', () => store.get('auth.token') || null);
   ipcMain.handle('auth:isRequired', () => AUTH_REQUIRED);
+  ipcMain.handle('auth:validate', async () => await validateToken());
 
+  // Legacy auth handlers — no-op stubs for renderer compatibility
+  ipcMain.handle('auth:login', () => {});
+  ipcMain.handle('auth:exchangeCode', () => ({ error: 'Auth disabled in open source mode' }));
   ipcMain.handle('auth:logout', () => {
     store.delete('auth.token');
     store.delete('auth.tokenId');
@@ -439,105 +209,8 @@ function setupIPC() {
     return true;
   });
 
-  ipcMain.handle('auth:validate', async () => await validateToken());
-
-  // Vertex AI — streaming chat via server proxy
-  ipcMain.handle('vertex:chat', async (event, { messages, model, region }) => {
-    const token = store.get('auth.token');
-    const serverUrl = store.get('auth.serverUrl') || activeWebAppUrl;
-    if (!token) return { success: false, error: 'Not authenticated' };
-
-    try {
-      const res = await fetch(`${serverUrl}/api/desktop/vertex-chat`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
-        },
-        body: JSON.stringify({ messages, model, region }),
-      });
-
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({ error: `HTTP ${res.status}` }));
-        return { success: false, error: err.error || `Server error ${res.status}` };
-      }
-
-      // Parse SSE stream
-      const reader = res.body.getReader();
-      const decoder = new TextDecoder();
-
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-
-        const chunk = decoder.decode(value);
-        const lines = chunk.split('\n').filter(l => l.startsWith('data: '));
-
-        for (const line of lines) {
-          const data = line.slice(6);
-          if (data === '[DONE]') {
-            mainWindow?.webContents.send('vertex:stream-done');
-          } else {
-            try {
-              const parsed = JSON.parse(data);
-              if (parsed.content) {
-                mainWindow?.webContents.send('vertex:stream-chunk', parsed);
-              } else if (parsed.error) {
-                mainWindow?.webContents.send('vertex:stream-done');
-                return { success: false, error: parsed.error };
-              }
-            } catch { /* skip malformed */ }
-          }
-        }
-      }
-
-      return { success: true };
-    } catch (err) {
-      return { success: false, error: err.message };
-    }
-  });
-
-  // AI Gateway — image generation
-  ipcMain.handle('gateway:generateImage', async (event, { prompt, model, aspectRatio }) => {
-    const token = store.get('auth.token');
-    const serverUrl = store.get('auth.serverUrl') || activeWebAppUrl;
-    if (!token) return { success: false, error: 'Not authenticated' };
-
-    try {
-      const res = await fetch(`${serverUrl}/api/desktop/gateway-image`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
-        },
-        body: JSON.stringify({ prompt, model, aspectRatio }),
-      });
-
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({ error: `HTTP ${res.status}` }));
-        return { success: false, error: err.error || `Server error ${res.status}` };
-      }
-
-      const data = await res.json();
-      return { success: true, image: data.image, mediaType: data.mediaType, model: data.model };
-    } catch (err) {
-      return { success: false, error: err.message };
-    }
-  });
-
   // AI Gateway — streaming chat via server proxy OR direct provider call
   ipcMain.handle('gateway:chat', async (event, { messages, model }) => {
-    // Inject active persona system prompt
-    const activePersonaGw = personaStorage.getActivePersona();
-    if (activePersonaGw && activePersonaGw.custom_instructions) {
-      const hasSystem = messages.some(m => m.role === 'system');
-      if (!hasSystem) {
-        messages.unshift({ role: 'system', content: activePersonaGw.custom_instructions });
-      } else {
-        const sysIdx = messages.findIndex(m => m.role === 'system');
-        messages[sysIdx].content = activePersonaGw.custom_instructions + '\n\n' + messages[sysIdx].content;
-      }
-    }
 
     const controller = new AbortController();
     streamAbort.setActiveStreamController(controller);
@@ -624,9 +297,9 @@ function setupIPC() {
           // OpenAI-compatible (openai, openrouter) — streaming with tool calling
           const toolCalling = require('./tool-calling');
           const webSearchEnabled = !!store.get('webSearch.enabled') || !!store.get('local.webSearchEnabled');
-          const kbStats = kbStorage.getKBStats();
-          const hasKBDocuments = kbStats.embeddingCount > 0;
-          const tools = toolCalling.getActiveTools({ webSearchEnabled, hasKBDocuments });
+          
+          
+          const tools = toolCalling.getActiveTools({ webSearchEnabled, hasKBDocuments: false });
 
           // Merge MCP tools (from connected integrations)
           const mcpTools = mcpClient.getToolsAsOpenAIFunctions();
@@ -716,7 +389,7 @@ function setupIPC() {
             const hasMCPTools = gwToolCallChunks.some(tc => tc.name.startsWith('mcp_'));
             const indicator = hasMCPTools ? '\n\n⚡ *Running action...*\n\n' : '\n\n🔍 *Searching...*\n\n';
             mainWindow?.webContents.send('gateway:stream-chunk', { content: indicator });
-            const context = { store, kbStorage };
+            const context = { store };
             const updatedMessages = [...messages];
             const assistantToolCalls = gwToolCallChunks.map((tc, i) => ({
               id: tc.id || `call_${i}`,
@@ -904,7 +577,7 @@ function setupIPC() {
 
     // Fallback: use server proxy (requires auth)
     const token = store.get('auth.token');
-    const serverUrl = store.get('auth.serverUrl') || activeWebAppUrl;
+    const serverUrl = store.get('auth.serverUrl') || 'https://app.iimagine.ai';
     if (!token) return { success: false, error: 'No API key configured. Add your OpenAI key in Settings → Public Cloud.' };
 
     try {
@@ -972,6 +645,17 @@ function setupIPC() {
     if (url && (url.startsWith('https://') || url.startsWith('http://'))) {
       shell.openExternal(url);
     }
+  });
+
+  // Shell — pick folder via native dialog
+  ipcMain.handle('shell:pickFolder', async (event, title) => {
+    const { dialog } = require('electron');
+    const result = await dialog.showOpenDialog(mainWindow, {
+      properties: ['openDirectory'],
+      title: title || 'Select folder',
+    });
+    if (result.canceled || !result.filePaths.length) return null;
+    return result.filePaths[0];
   });
 
   // Hardware scanner
@@ -1104,18 +788,6 @@ function setupIPC() {
     streamAbort.setActiveStreamController(controller);
 
     try {
-      // Inject active persona
-      const activePersona = personaStorage.getActivePersona();
-      if (activePersona && activePersona.custom_instructions) {
-        const hasSystem = messages.some(m => m.role === 'system');
-        if (!hasSystem) {
-          messages.unshift({ role: 'system', content: activePersona.custom_instructions });
-        } else {
-          const sysIdx = messages.findIndex(m => m.role === 'system');
-          messages[sysIdx].content = activePersona.custom_instructions + '\n\n' + messages[sysIdx].content;
-        }
-      }
-
       // Auto-start engine if not running
       const engineStatus = await engineManager.getStatus();
       const modelFilename = store.get('provider.active')?.model || store.get('local.selectedModel');
@@ -1171,9 +843,9 @@ function setupIPC() {
       const numCtx = store.get('local.contextWindow', '4096');
       const toolsEnabled = store.get('local.toolsEnabled', false);
       const webSearchEnabled = !!store.get('webSearch.enabled') || !!store.get('local.webSearchEnabled');
-      const kbStats = kbStorage.getKBStats();
-      const hasKBDocuments = kbStats.embeddingCount > 0;
-      const tools = toolsEnabled ? toolCalling.getActiveTools({ webSearchEnabled, hasKBDocuments }) : [];
+      
+      
+      const tools = toolsEnabled ? toolCalling.getActiveTools({ webSearchEnabled, hasKBDocuments: false }) : [];
 
       const result = await engineManager.chat({
         messages,
@@ -1256,7 +928,7 @@ function setupIPC() {
       if (toolCallChunks.length > 0) {
         mainWindow?.webContents.send('localAI:stream-chunk', { message: { content: '\n\n🔍 *Searching...*\n\n' } });
 
-        const context = { store, kbStorage };
+        const context = { store };
         const updatedMessages = [...messages];
         
         // Add assistant message with tool_calls
@@ -1400,18 +1072,6 @@ function setupIPC() {
   ipcMain.handle('localAI:chatStream', async (event, { model, messages }) => {
     const toolCalling = require('./tool-calling');
     try {
-      // Inject active persona system prompt
-      const activePersona = personaStorage.getActivePersona();
-      if (activePersona && activePersona.custom_instructions) {
-        const hasSystem = messages.some(m => m.role === 'system');
-        if (!hasSystem) {
-          messages.unshift({ role: 'system', content: activePersona.custom_instructions });
-        } else {
-          const sysIdx = messages.findIndex(m => m.role === 'system');
-          messages[sysIdx].content = activePersona.custom_instructions + '\n\n' + messages[sysIdx].content;
-        }
-      }
-
       // Ensure engine is running (auto-starts if needed)
       const ensureResult = await localAI.ensureRunning();
 
@@ -1605,8 +1265,6 @@ function setupIPC() {
   ipcMain.handle('storage:getConversationsForProject', (event, projectId, limit) => storage.getConversationsForProject(projectId, limit));
   ipcMain.handle('storage:getConversation', (event, id) => storage.getConversation(id));
   ipcMain.handle('storage:updateConversationTitle', (event, id, title) => storage.updateConversationTitle(id, title));
-  ipcMain.handle('storage:updateConversationCollection', (event, id, collectionId) => storage.updateConversationCollection(id, collectionId));
-  ipcMain.handle('storage:updateConversationKBSelections', (event, id, selections) => storage.updateConversationKBSelections(id, selections));
   ipcMain.handle('storage:deleteConversation', (event, id) => storage.deleteConversation(id));
 
   // Storage — Messages
@@ -1623,907 +1281,39 @@ function setupIPC() {
   ipcMain.handle('storage:getStats', () => storage.getStats());
   ipcMain.handle('storage:getDbPath', () => storage.getDbPath());
 
-  // Storage — Media
-  ipcMain.handle('media:save', async (event, { id, type, prompt, model, filename, mediaType, base64Data }) => {
-    const mediaDir = storage.getMediaDir();
-    const filePath = path.join(mediaDir, filename);
-    const buffer = Buffer.from(base64Data, 'base64');
-    fs.writeFileSync(filePath, buffer);
-    return storage.saveMedia({ id, type, prompt, model, filename, mediaType, fileSize: buffer.length });
-  });
 
-  ipcMain.handle('media:saveVideo', async (event, { id, prompt, model, filename, uint8Array }) => {
-    const mediaDir = storage.getMediaDir();
-    const filePath = path.join(mediaDir, filename);
-    const buffer = Buffer.from(uint8Array);
-    fs.writeFileSync(filePath, buffer);
-    return storage.saveMedia({ id, type: 'video', prompt, model, filename, mediaType: 'video/mp4', fileSize: buffer.length });
-  });
 
-  ipcMain.handle('media:list', (event, type, limit) => storage.listMedia(type, limit));
-  ipcMain.handle('media:get', (event, id) => storage.getMedia(id));
-  ipcMain.handle('media:delete', (event, id) => storage.deleteMedia(id));
-  ipcMain.handle('media:getPath', (event, filename) => {
-    return path.join(storage.getMediaDir(), filename);
-  });
-  ipcMain.handle('media:getStats', () => storage.getMediaStats());
-  ipcMain.handle('media:getDir', () => storage.getMediaDir());
-
-  // Knowledge Base
-  ipcMain.handle('kb:createCollection', (event, data) => kbStorage.createCollection(data));
-  ipcMain.handle('kb:getCollections', () => kbStorage.getCollections());
-  ipcMain.handle('kb:getCollection', (event, id) => kbStorage.getCollection(id));
-  ipcMain.handle('kb:updateCollection', (event, id, data) => kbStorage.updateCollection(id, data));
-  ipcMain.handle('kb:deleteCollection', (event, id) => kbStorage.deleteCollection(id));
-
-  ipcMain.handle('kb:addDocument', async (event, data) => {
-    const result = kbStorage.addDocument(data);
-    // Fire-and-forget: auto-embed new chunks
-    autoEmbedCollection(data.collectionId).catch(err =>
-      console.warn('[KB] Auto-embed after add failed:', err.message)
-    );
-    return result;
-  });
-  ipcMain.handle('kb:getDocuments', (event, collectionId) => kbStorage.getDocuments(collectionId));
-  ipcMain.handle('kb:getDocument', (event, id) => kbStorage.getDocument(id));
-  ipcMain.handle('kb:updateDocument', async (event, id, data) => {
-    const result = kbStorage.updateDocument(id, data);
-    if (result) {
-      // Fire-and-forget: auto-embed any new/changed chunks
-      const doc = kbStorage.getDocument(id);
-      if (doc) {
-        autoEmbedCollection(doc.collection_id).catch(err =>
-          console.warn('[KB] Auto-embed after update failed:', err.message)
-        );
-      }
-    }
-    return result;
-  });
-  ipcMain.handle('kb:deleteDocument', (event, id) => kbStorage.deleteDocument(id));
-
-  ipcMain.handle('kb:storeEmbeddings', (event, items) => {
-    // Convert plain arrays back to Float32Array
-    const converted = items.map(i => ({
-      chunkId: i.chunkId,
-      embedding: new Float32Array(i.embedding),
-    }));
-    return kbStorage.storeEmbeddings(converted);
-  });
-  ipcMain.handle('kb:getUnembeddedChunks', (event, collectionId, limit) => kbStorage.getUnembeddedChunks(collectionId, limit));
-  ipcMain.handle('kb:searchSimilar', (event, { embedding, collectionId, topK }) => {
-    const vec = new Float32Array(embedding);
-    return kbStorage.searchSimilar(vec, collectionId, topK);
-  });
-  ipcMain.handle('kb:getStats', () => kbStorage.getKBStats());
-  ipcMain.handle('kb:isVecLoaded', () => kbStorage.isVecLoaded());
-  ipcMain.handle('kb:hasEmbedModel', () => {
-    const modelsDir = engineManager.getModelsDir();
-    const embedModelPath = path.join(modelsDir, EMBED_MODEL_FILENAME);
-    return fs.existsSync(embedModelPath);
-  });
-
-  // Assistants
-  ipcMain.handle('asst:create', (event, data) => assistantStorage.createAssistant(data));
-
-  // Chat RAG — KB-augmented chat for the general chat page
-  ipcMain.handle('chat:ragSend', async (event, { conversationId, userMessage, collectionId, kbSelections, chatHistory, fullContext }) => {
+  // ── Plugin Generator — AI-powered plugin creation ───────────────
+  const pluginGenerator = require('./plugin-generator');
+  // agentChat: non-streaming chat function for plugin generator
+  // Uses the engine if available, falls back to gateway
+  const agentChat = async (messages) => {
     try {
-      // ── DIAGNOSTIC: Chat Submit State ──────────────────────────
-      const activePlugins = pluginManager.getAll().filter(p => p.enabled).map(p => p.name);
-      const cwPlugin = pluginManager.getAll().find(p => p.id === 'client-workspace');
-      const cwInstance = cwPlugin?.hasInstance ? pluginManager.plugins?.get('client-workspace')?.instance : null;
-      const activeProject = cwInstance?.getActiveProject?.() || null;
-      console.log('═══════════════════════════════════════════════════════');
-      console.log('[Chat:Submit] PATH: KB RAG');
-      console.log('[Chat:Submit] Query:', userMessage?.slice(0, 80));
-      console.log('[Chat:Submit] Active plugins:', activePlugins.join(', '));
-      console.log('[Chat:Submit] KB selections:', JSON.stringify(kbSelections || [{ collectionId }]));
-      console.log('[Chat:Submit] Active project:', activeProject ? `"${activeProject.name}" (${activeProject.id})` : 'NONE');
-      console.log('[Chat:Submit] Chat history length:', (chatHistory || []).length);
-      console.log('[Chat:Submit] Model:', store.get('provider.active')?.model || 'auto');
-      const _dV = store.get('gateway.vendor') || 'openai';
-      const _dM = store.get('gateway.model') || 'NONE';
-      const _dT = store.get('provider.active')?.type || 'local';
-      const _dKS = { openai: 'openai.apiKey', anthropic: 'anthropic.apiKey', google: 'gemini.apiKey', openrouter: 'openrouter.apiKey' };
-      const _dHK = !!store.get(_dKS[_dV]);
-      const _dWillCloud = _dM !== 'NONE' && _dHK && _dT !== 'local';
-      console.log('[Chat:Submit] UI selected: vendor=' + _dV + ' model=' + _dM + ' type=' + _dT);
-      console.log('[Chat:Submit] API key for ' + _dV + ':', _dHK ? 'YES' : '⚠️  MISSING');
-      console.log('[Chat:Submit] Will use:', _dWillCloud ? _dV + '/' + _dM : 'LOCAL ENGINE');
-      if (!_dWillCloud && _dM !== 'NONE' && !_dHK) {
-        console.log('⚠️⚠️⚠️  MODEL MISMATCH: Selected ' + _dV + '/' + _dM + ' but API key MISSING — will fall back to LOCAL ENGINE!');
+      const engineStatus = await engineManager.getStatus();
+      if (engineStatus.running) {
+        const result = await engineManager.chat({ messages, stream: false });
+        if (result.success) return result.content || result.message?.content || null;
       }
-      console.log('═══════════════════════════════════════════════════════');
-      // ── END DIAGNOSTIC ─────────────────────────────────────────
-
-      console.log('[ChatRAG] Starting KB chat, selections:', JSON.stringify(kbSelections || [{ collectionId }]), 'fullContext:', !!fullContext);
-      const numCtx = store.get('local.contextWindow') || 4096;
-
-      // RAG: retrieve relevant KB chunks from all selected sources
-      let contextChunks = [];
-      const selections = kbSelections && kbSelections.length > 0
-        ? kbSelections
-        : (collectionId ? [{ collectionId }] : []);
-
-      if (fullContext && selections.length > 0) {
-        // FULL CONTEXT MODE: Load all document content directly (skip vector search)
-        console.log('[ChatRAG:FullContext] Loading all documents for', selections.length, 'source(s)');
-        for (const sel of selections) {
-          if (sel.collectionId) {
-            const docs = kbStorage.getDocumentsWithContent(sel.collectionId);
-            for (const doc of docs) {
-              if (sel.documentId && doc.id !== sel.documentId) continue;
-              contextChunks.push({ content: doc.content, docTitle: doc.title, distance: 0 });
-            }
-          }
-        }
-        console.log('[ChatRAG:FullContext] Loaded', contextChunks.length, 'documents, total chars:', contextChunks.reduce((sum, c) => sum + c.content.length, 0));
-      } else if (selections.length > 0 && kbStorage.isVecLoaded()) {
-        try {
-          console.log('[ChatRAG] Embedding query for KB search...');
-          const queryVec = await embedQueryForSearch(userMessage);
-          if (queryVec) {
-            console.log('[ChatRAG] Searching KB, vector dims:', queryVec.length, 'across', selections.length, 'source(s)');
-            // Search across all selected collections/documents
-            const results = kbStorage.searchMultiple(queryVec, selections, 8);
-            contextChunks = results.map(r => ({ content: r.content, docTitle: r.doc_title, distance: r.distance }));
-
-              // RECENCY WINDOW: Always include the 3 most recent chunks from the collection
-              // so that recent comms are never missed regardless of semantic similarity
-              try {
-                const db = storage.getDb();
-                for (const sel of selections) {
-                  const collId = sel.collectionId || sel.documentId;
-                  if (!collId || !db) continue;
-                  const recent = db.prepare(
-                    'SELECT c.content, d.title as doc_title FROM kb_chunks c JOIN kb_documents d ON c.document_id = d.id WHERE c.collection_id = ? ORDER BY c.rowid DESC LIMIT 3'
-                  ).all(collId);
-                  const existingKeys = new Set(contextChunks.map(c => c.content.slice(0, 80)));
-                  for (const r of recent) {
-                    if (!existingKeys.has(r.content.slice(0, 80))) {
-                      contextChunks.unshift({ content: r.content, docTitle: r.doc_title + ' (recent)', distance: null });
-                    }
-                  }
-                }
-              } catch (recErr) {
-                console.warn('[ChatRAG] Recency window failed:', recErr.message);
-              }
-
-              console.log('[ChatRAG] Found', contextChunks.length, 'relevant chunks');
-              contextChunks.forEach((c, i) => {
-                console.log(`[ChatRAG] Chunk ${i}: "${c.docTitle}" (distance: ${c.distance?.toFixed(4) || 'recent'}) — ${c.content.substring(0, 100)}...`);
-              });
-          }
-        } catch (err) {
-          console.warn('[ChatRAG] KB search failed:', err.message);
-        }
-      }
-
-      // Build system prompt with KB context
-      let systemContent = 'You are a knowledge base assistant. Your primary job is to answer questions based on the documents provided to you and any remembered conversation context.';
-      if (contextChunks.length > 0) {
-        const kbContext = contextChunks.map(c =>
-          `[Source: ${c.docTitle}]\n${c.content}`
-        ).join('\n\n---\n\n');
-
-        if (fullContext) {
-          // Full Context mode: stronger instruction to find and quote specific answers
-          systemContent = `You are a document search assistant with access to the COMPLETE text of the user's documents below. The user is asking you to find specific information within these documents.
-
-CRITICAL INSTRUCTIONS:
-1. Search the ENTIRE document thoroughly for the answer. Do not skim.
-2. When you find the relevant section, QUOTE the exact text from the document. Use quotation marks.
-3. If the user asks "what did I say" or "what was my response", find THEIR words/messages and quote them directly.
-4. If the user asks about what someone else said, find that person's exact words and quote them.
-5. Always include the surrounding context so the answer makes sense.
-6. If you cannot find the specific information after searching the full document, say "I searched the entire document but could not find [specific thing]."
-7. NEVER paraphrase when the user is asking for specific quotes or responses. Give them the exact text.
-
-FULL DOCUMENT CONTENT:
-
-${kbContext}
-
-END OF DOCUMENT`;
-        } else {
-          // RAG mode: use context-aware prompt from RAG prompt storage
-          const isCommsKB = selections.some(s => (s.collectionId || '').startsWith('cw_project_'));
-          const ragPromptContent = ragPromptStorage.getActivePromptContent({
-            isCommsKB,
-            isKBSelected: true,
-            isProjectActive: !!store.get('client-workspace.activeProjectId'),
-          });
-          const ragInstruction = ragPromptContent || 'You are a helpful assistant. Answer questions using the documents below. If the answer is in the documents, use it and cite the source. If the documents don\'t contain the answer, say so.';
-          systemContent = `${ragInstruction}
-
-DOCUMENTS FROM KNOWLEDGE BASE:
-
-${kbContext}
-
-END OF DOCUMENTS`;
-        }
-        console.log('[ChatRAG] System prompt length:', systemContent.length, 'chars', fullContext ? '(FULL CONTEXT MODE)' : '(RAG MODE)');
-      } else {
-        console.log('[ChatRAG] WARNING: No context chunks found, responding without KB context');
-      }
-
-      // Build messages array with system prompt
-      // IMPORTANT: Limit chat history to avoid overwhelming small models.
-      // The system prompt with KB context must remain dominant.
-      const historyLimit = store.get('chat.historyMessages') || 6;
-      const recentHistory = (chatHistory || []).slice(-historyLimit);
-      let messages = [
-        { role: 'system', content: systemContent },
-        ...recentHistory,
-      ];
-
-      // Run plugin preprocess hooks (Cortex Lite memory injection, Client Workspace context, etc.)
-      try {
-        const preprocessed = await pluginManager.runChatPreprocess({ messages, assistant: null });
-        messages = preprocessed.messages || messages;
-        console.log('[ChatRAG] After plugin preprocess: messages count =', messages.length, ', roles:', messages.map(m => m.role).join(', '));
-      } catch (err) {
-        console.warn('[ChatRAG] Plugin preprocess error:', err.message);
-      }
-
-      console.log('[ChatRAG] Sending', messages.length, 'messages to model (trimmed from', (chatHistory || []).length, '). Roles:', messages.map(m => m.role).join(', '));
-
-      // Determine which provider to use — reuse the active provider logic
-      const pm = store.get('provider.active');
-      const providerType = pm?.type || 'local';
-
-      // Check if a cloud provider (OpenAI, Anthropic, etc.) is configured
+      // Fallback to gateway (defined below in pluginGatewayChat pattern)
       const vendor = store.get('gateway.vendor') || 'openai';
       const PROVIDER_CONFIG = {
         openai: { url: 'https://api.openai.com/v1/chat/completions', keyStore: 'openai.apiKey', authHeader: 'Bearer' },
         anthropic: { url: 'https://api.anthropic.com/v1/messages', keyStore: 'anthropic.apiKey', isAnthropic: true },
-        google: { url: 'https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent', keyStore: 'gemini.apiKey', isGemini: true },
         openrouter: { url: 'https://openrouter.ai/api/v1/chat/completions', keyStore: 'openrouter.apiKey', authHeader: 'Bearer' },
       };
-      const cloudConfig = PROVIDER_CONFIG[vendor];
-      const cloudApiKey = cloudConfig ? store.get(cloudConfig.keyStore) : null;
-      const gatewayModel = store.get('gateway.model');
-
-      // Use cloud provider if configured and has API key AND user selected cloud
-      // CRITICAL: Respect the user's model selection. If type is 'local', use iimagine-engine.
-      if (gatewayModel && cloudApiKey && cloudConfig && providerType !== 'local') {
-        console.log('[ChatRAG] Using cloud provider:', vendor, 'model:', gatewayModel);
-
-        if (cloudConfig.isAnthropic) {
-          // Anthropic
-          const systemMsgs = messages.filter(m => m.role === 'system').map(m => m.content).join('\n\n');
-          const nonSystemMsgs = messages.filter(m => m.role !== 'system');
-          const res = await fetch(cloudConfig.url, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'x-api-key': cloudApiKey, 'anthropic-version': '2023-06-01' },
-            body: JSON.stringify({ model: gatewayModel, max_tokens: 4096, system: systemMsgs, messages: nonSystemMsgs, stream: false }),
-          });
-          if (!res.ok) {
-            const errText = await res.text().catch(() => '');
-            console.error('[ChatRAG] Anthropic error:', res.status, errText.slice(0, 200));
-            mainWindow?.webContents.send('chat:rag-done');
-            return { success: false, error: `Anthropic error: ${res.status}` };
-          }
-          const data = await res.json();
-          const fullResponse = data.content?.[0]?.text || '';
-          mainWindow?.webContents.send('chat:rag-chunk', { content: fullResponse });
-          mainWindow?.webContents.send('chat:rag-done');
-          console.log('[ChatRAG] Response complete, length:', fullResponse.length, 'chars');
-          try { await pluginManager.runChatPostprocess({ response: fullResponse, assistant: null }); } catch (err) { console.warn('[ChatRAG] Plugin postprocess error:', err.message); }
-          return { success: true, contextUsed: contextChunks.length };
-
-        } else if (cloudConfig.isGemini) {
-          // Gemini
-          const url = cloudConfig.url.replace('{model}', gatewayModel) + `?key=${cloudApiKey}`;
-          const contents = messages.filter(m => m.role !== 'system').map(m => ({ role: m.role === 'assistant' ? 'model' : 'user', parts: [{ text: m.content }] }));
-          const systemInstruction = messages.filter(m => m.role === 'system').map(m => m.content).join('\n\n');
-          const res = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ contents, systemInstruction: { parts: [{ text: systemInstruction }] } }) });
-          if (!res.ok) { mainWindow?.webContents.send('chat:rag-done'); return { success: false, error: `Gemini error: ${res.status}` }; }
-          const data = await res.json();
-          const fullResponse = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
-          mainWindow?.webContents.send('chat:rag-chunk', { content: fullResponse });
-          mainWindow?.webContents.send('chat:rag-done');
-          console.log('[ChatRAG] Response complete, length:', fullResponse.length, 'chars');
-          try { await pluginManager.runChatPostprocess({ response: fullResponse, assistant: null }); } catch (err) { console.warn('[ChatRAG] Plugin postprocess error:', err.message); }
-          return { success: true, contextUsed: contextChunks.length };
-
-        } else {
-          // OpenAI-compatible (openai, openrouter) — streaming
-          const headers = { 'Content-Type': 'application/json', 'Authorization': `${cloudConfig.authHeader} ${cloudApiKey}` };
-          if (vendor === 'openrouter') { headers['HTTP-Referer'] = 'https://iimagine.ai'; headers['X-Title'] = 'IIMAGINE Desktop'; }
-          const res = await fetch(cloudConfig.url, {
-            method: 'POST',
-            headers,
-            body: JSON.stringify({ model: gatewayModel, messages, stream: true }),
-          });
-          if (!res.ok) {
-            const errText = await res.text().catch(() => '');
-            console.error('[ChatRAG] OpenAI error:', res.status, errText.slice(0, 200));
-            mainWindow?.webContents.send('chat:rag-done');
-            return { success: false, error: `${vendor} error: ${res.status}` };
-          }
-          const reader = res.body.getReader();
-          const decoder = new TextDecoder();
-          let fullResponse = '';
-          let buffer = '';
-          while (true) {
-            const { done, value } = await reader.read();
-            if (done) break;
-            buffer += decoder.decode(value, { stream: true });
-            const lines = buffer.split('\n');
-            buffer = lines.pop() || '';
-            for (const line of lines) {
-              if (!line.startsWith('data: ')) continue;
-              const data = line.slice(6);
-              if (data === '[DONE]') break;
-              try {
-                const parsed = JSON.parse(data);
-                const content = parsed.choices?.[0]?.delta?.content;
-                if (content) { fullResponse += content; mainWindow?.webContents.send('chat:rag-chunk', { content }); }
-              } catch {}
-            }
-          }
-          mainWindow?.webContents.send('chat:rag-done');
-          console.log('[ChatRAG] Response complete, length:', fullResponse.length, 'chars');
-          try { await pluginManager.runChatPostprocess({ response: fullResponse, assistant: null }); } catch (err) { console.warn('[ChatRAG] Plugin postprocess error:', err.message); }
-          return { success: true, contextUsed: contextChunks.length };
-        }
-      }
-
-      // Fallback: Use local iimagine-engine (llama.cpp)
-      if (providerType === 'local' || !cloudApiKey) {
-        const engineStatus = await engineManager.getStatus();
-        const modelFilename = pm?.model || store.get('local.selectedModel');
-
-        if (!modelFilename) {
-          mainWindow?.webContents.send('chat:rag-done');
-          return { success: false, error: 'No local model selected. Download and select a model in Settings → Models.' };
-        }
-
-        // Resolve model path from filename
-        const modelsDir = engineManager.getModelsDir();
-        // Handle case where filename might not have .gguf extension
-        let modelPath = path.join(modelsDir, modelFilename);
-        if (!fs.existsSync(modelPath) && !modelFilename.endsWith('.gguf')) {
-          modelPath = path.join(modelsDir, modelFilename + '.gguf');
-        }
-
-        if (!fs.existsSync(modelPath)) {
-          mainWindow?.webContents.send('chat:rag-done');
-          return { success: false, error: `Model file not found: ${modelFilename}. Download it from Settings → Models.` };
-        }
-
-        // Start engine if not running, or switch model if different
-        if (!engineStatus.running || engineStatus.currentModel !== modelPath) {
-          console.log('[ChatRAG] Starting iimagine-engine with:', modelFilename);
-
-          // If engine is running with a different model, stop it first and wait for port release
-          if (engineStatus.running && engineStatus.currentModel !== modelPath) {
-            console.log('[ChatRAG] Stopping current engine to switch models...');
-            await engineManager.stopEngine();
-            // Brief delay to let the OS release the port
-            await new Promise(r => setTimeout(r, 500));
-          }
-
-          const startResult = await engineManager.startEngine(modelPath);
-          if (!startResult.success) {
-            console.error('[ChatRAG] Engine start failed:', startResult.error);
-            mainWindow?.webContents.send('chat:rag-done');
-            return { success: false, error: `Failed to start AI engine: ${startResult.error}` };
-          }
-          console.log('[ChatRAG] Engine started successfully on port:', startResult.port || 8847);
-        }
-
-        console.log('[ChatRAG] Using local engine with model:', modelFilename);
-
-        // Send chat via engine (OpenAI-compatible streaming)
-        const chatResult = await engineManager.chat({ messages, stream: true, options: { num_ctx: numCtx } });
-        if (!chatResult.success) {
-          mainWindow?.webContents.send('chat:rag-done');
-          return { success: false, error: chatResult.error };
-        }
-
-        const reader = chatResult.response.body.getReader();
-        const decoder = new TextDecoder();
-        let fullResponse = '';
-
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
-          const chunk = decoder.decode(value);
-          for (const line of chunk.split('\n').filter(l => l.startsWith('data: '))) {
-            const data = line.slice(6).trim();
-            if (data === '[DONE]') break;
-            try {
-              const parsed = JSON.parse(data);
-              const content = parsed.choices?.[0]?.delta?.content || '';
-              if (content) {
-                const cleaned = content.replace(/<unused\d+>|<tool_response\|>|<\/tool_response>|\[multimodal\]/g, '');
-                if (cleaned) {
-                  fullResponse += cleaned;
-                  mainWindow?.webContents.send('chat:rag-chunk', { content: cleaned });
-                }
-              }
-            } catch {}
-          }
-        }
-
-        mainWindow?.webContents.send('chat:rag-done');
-        console.log('[ChatRAG] Response complete, length:', fullResponse.length, 'chars');
-
-        // Run plugin postprocess hooks
-        try {
-          await pluginManager.runChatPostprocess({ response: fullResponse, assistant: null });
-        } catch (err) {
-          console.warn('[ChatRAG] Plugin postprocess error:', err.message);
-        }
-
-        return { success: true, contextUsed: contextChunks.length };
-      }
-
-      // For non-local providers, inject KB context into the regular provider stream
-      // The chat page will fall back to the normal provider stream with augmented messages
-      mainWindow?.webContents.send('chat:rag-done');
-      return { success: true, contextUsed: contextChunks.length, augmentedMessages: messages };
-
-    } catch (err) {
-      console.error('[ChatRAG] Error:', err);
-      mainWindow?.webContents.send('chat:rag-done');
-      return { success: false, error: err.message };
-    }
-  });
-
-  // Estimate token count for Full Context mode
-  ipcMain.handle('chat:ragEstimateFullContext', async (event, selections) => {
-    try {
-      let totalChars = 0;
-      let docCount = 0;
-      const selArray = selections || [];
-      for (const sel of selArray) {
-        if (sel.collectionId) {
-          const docs = kbStorage.getDocumentsWithContent(sel.collectionId);
-          for (const doc of docs) {
-            if (sel.documentId && doc.id !== sel.documentId) continue;
-            totalChars += (doc.content || '').length;
-            docCount++;
-          }
-        }
-      }
-      return { totalChars, docCount };
-    } catch (err) {
-      console.warn('[ChatRAG:Estimate] Error:', err.message);
-      return { totalChars: 0, docCount: 0 };
-    }
-  });
-
-  ipcMain.handle('asst:list', () => assistantStorage.getAssistants());
-  ipcMain.handle('asst:get', (event, id) => assistantStorage.getAssistant(id));
-  ipcMain.handle('asst:update', (event, id, data) => assistantStorage.updateAssistant(id, data));
-  ipcMain.handle('asst:delete', (event, id) => assistantStorage.deleteAssistant(id));
-
-  ipcMain.handle('asst:createConversation', (event, data) => assistantStorage.createConversation(data));
-  ipcMain.handle('asst:getConversations', (event, assistantId) => assistantStorage.getConversations(assistantId));
-  ipcMain.handle('asst:deleteConversation', (event, id) => assistantStorage.deleteConversation(id));
-  ipcMain.handle('asst:addMessage', (event, data) => assistantStorage.addMessage(data));
-  ipcMain.handle('asst:getMessages', (event, conversationId, limit) => assistantStorage.getMessages(conversationId, limit));
-
-  // Assistant RAG chat — embed query, search KB, build context, stream response
-  ipcMain.handle('asst:ragChat', async (event, { assistantId, conversationId, userMessage }) => {
-    try {
-      console.log('[RAG] Starting chat for assistant:', assistantId);
-      const assistant = assistantStorage.getAssistant(assistantId);
-      if (!assistant) return { success: false, error: 'Assistant not found' };
-
-      const numCtx = store.get('local.contextWindow') || 4096;
-
-      // Save user message
-      assistantStorage.addMessage({ conversationId, role: 'user', content: userMessage });
-
-      // RAG: retrieve relevant KB chunks if collection is linked
-      let contextChunks = [];
-      // Support new kb_selections JSON or legacy collection_id
-      let selections = [];
-      if (assistant.kb_selections) {
-        try { selections = JSON.parse(assistant.kb_selections); } catch {}
-      } else if (assistant.collection_id) {
-        selections = [{ collectionId: assistant.collection_id }];
-      }
-
-      if (selections.length > 0 && kbStorage.isVecLoaded()) {
-        try {
-          console.log('[RAG] Embedding query for KB search...');
-          const queryVec = await embedQueryForSearch(userMessage);
-          if (queryVec) {
-            console.log('[RAG] Searching KB, vector dims:', queryVec.length, 'across', selections.length, 'source(s)');
-            const results = kbStorage.searchMultiple(queryVec, selections, 5);
-            contextChunks = results.map(r => ({ content: r.content, docTitle: r.doc_title, distance: r.distance }));
-            console.log('[RAG] Found', contextChunks.length, 'relevant chunks');
-          }
-        } catch (err) {
-          console.warn('[RAG] KB search failed:', err.message);
-        }
-      }
-
-      // Build system prompt with KB context
-      let systemContent = assistant.system_prompt || 'You are a helpful assistant.';
-      if (contextChunks.length > 0) {
-        const kbContext = contextChunks.map((c, i) =>
-          `[Source: ${c.docTitle}]\n${c.content}`
-        ).join('\n\n---\n\n');
-        systemContent += `\n\nUse the following knowledge base context to inform your response. If the context is relevant, use it. If not, respond based on your general knowledge.\n\n--- KNOWLEDGE BASE CONTEXT ---\n${kbContext}\n--- END CONTEXT ---`;
-      }
-
-      // Get conversation history (last 20 messages to keep context manageable)
-      const history = assistantStorage.getMessages(conversationId, 20);
-      const messages = [
-        { role: 'system', content: systemContent },
-        ...history.map(m => ({ role: m.role, content: m.content })),
-      ];
-
-      // Ensure engine is running
-      const ensureResult = await localAI.ensureRunning();
-      if (!ensureResult.success) {
-        console.log('[RAG] No local AI engine available');
-        mainWindow?.webContents.send('asst:stream-done');
-        return { success: false, error: 'No AI model available. Download a local model in Settings.' };
-      }
-
-      // Run plugin preprocess hooks
-      const preprocessed = await pluginManager.runChatPreprocess({ messages, assistant });
-      const finalMessages = preprocessed.messages || messages;
-
-      console.log('[RAG] Sending to iimagine-engine, messages:', finalMessages.length);
-
-      const chatResult = await engineManager.chat({
-        messages: finalMessages,
-        stream: true,
-        options: { num_ctx: numCtx },
+      const config = PROVIDER_CONFIG[vendor];
+      const apiKey = config ? store.get(config.keyStore) : null;
+      if (!apiKey || !config) return null;
+      const res = await fetch(config.url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `${config.authHeader} ${apiKey}` },
+        body: JSON.stringify({ model: store.get('gateway.model') || 'gpt-4o-mini', messages, stream: false }),
       });
-
-      if (!chatResult.success) {
-        console.error('[RAG] Engine chat error:', chatResult.error);
-        mainWindow?.webContents.send('asst:stream-done');
-        return { success: false, error: `Engine error: ${chatResult.error}` };
-      }
-
-      const reader = chatResult.response.body.getReader();
-      const decoder = new TextDecoder();
-      let fullResponse = '';
-
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        const chunk = decoder.decode(value);
-        const lines = chunk.split('\n').filter(Boolean);
-        for (const line of lines) {
-          try {
-            const parsed = JSON.parse(line);
-            if (parsed.message?.content) {
-              fullResponse += parsed.message.content;
-              mainWindow?.webContents.send('asst:stream-chunk', { content: parsed.message.content });
-            }
-          } catch {}
-        }
-      }
-
-      console.log('[RAG] Response complete, length:', fullResponse.length);
-
-      // Run plugin postprocess hooks
-      const postprocessed = await pluginManager.runChatPostprocess({ response: fullResponse, assistant });
-      const finalResponse = postprocessed.response || fullResponse;
-
-      // If plugins modified the response, send the final version to UI
-      if (finalResponse !== fullResponse) {
-        mainWindow?.webContents.send('asst:stream-chunk', { content: finalResponse.slice(fullResponse.length) });
-      }
-
-      mainWindow?.webContents.send('asst:stream-done');
-
-      // Save assistant response
-      assistantStorage.addMessage({
-        conversationId, role: 'assistant', content: finalResponse,
-        contextChunks: contextChunks.length > 0 ? contextChunks : null,
-      });
-      return { success: true, contextUsed: contextChunks.length };
-
-    } catch (err) {
-      console.error('[RAG] Unhandled error:', err);
-      mainWindow?.webContents.send('asst:stream-done');
-      return { success: false, error: err.message || 'Unknown error' };
-    }
-  });
-
-  // Plugins
-  ipcMain.handle('plugins:list', () => pluginManager.getAll());
-  ipcMain.handle('plugins:setEnabled', (event, id, enabled) => pluginManager.setEnabled(id, enabled));
-  ipcMain.handle('plugins:getSidebarItems', () => pluginManager.getSidebarItems());
-  ipcMain.handle('plugins:renderPage', (event, pluginId) => {
-    try {
-      const renderer = pluginManager.getPageRenderer(pluginId);
-      if (!renderer) return null;
-      return renderer();
-    } catch (err) {
-      console.error(`[Plugin] renderPage error for ${pluginId}:`, err.message);
-      pluginManager._logError(pluginId, `renderPage crash: ${err.message}`);
-      return `<div class="p-6"><div class="bg-rose-50 dark:bg-rose-900/20 border border-rose-200 dark:border-rose-800 rounded-2xl p-5"><h3 class="text-sm font-medium text-rose-700 dark:text-rose-400 mb-2">Plugin Error</h3><p class="text-xs text-rose-600 dark:text-rose-500">${err.message}</p><p class="text-xs text-neutral-500 dark:text-neutral-400 mt-3">Try saying "fix the ${pluginId} plugin" in chat.</p></div></div>`;
-    }
-  });
-  ipcMain.handle('plugins:event', (event, eventName, data) => {
-    // Route plugin events to the appropriate plugin instance
-    // Events are namespaced: 'legal:complete-setup' → plugin 'legal-companion'
-    const prefix = eventName.split(':')[0];
-    const pluginMap = { 'legal': 'legal-companion', 'cortex-lite': 'cortex-lite', 'cw': 'client-workspace' };
-    let pluginId = pluginMap[prefix];
-
-    // Also check AI-generated plugins (their events use plugin-id as prefix)
-    if (!pluginId) {
-      const matched = pluginManager.plugins.get(prefix);
-      if (matched?.instance?.onEvent) pluginId = prefix;
-    }
-
-    if (pluginId) {
-      const plugin = pluginManager.plugins.get(pluginId);
-      if (plugin?.instance?.onEvent) {
-        try {
-          return plugin.instance.onEvent(eventName, data);
-        } catch (err) {
-          console.error(`[Plugin] Event handler error (${eventName}):`, err.message);
-          pluginManager._logError(pluginId, `onEvent(${eventName}) crash: ${err.message}`);
-          return { __pluginError: err.message };
-        }
-      }
-    }
-    return null;
-  });
-  ipcMain.handle('plugins:getDir', () => pluginManager.getPluginsDir());
-  ipcMain.handle('plugins:openFolder', (event, pluginId) => {
-    const dir = pluginManager.getPluginsDir();
-    const pluginPath = require('path').join(dir, pluginId);
-    require('electron').shell.openPath(pluginPath);
-  });
-  ipcMain.handle('plugins:uninstall', (event, id) => pluginManager.uninstall(id));
-
-  // Plugin file operations — sandboxed to ~/.iimagine/plugin-data/<pluginId>/
-  ipcMain.handle('plugins:fileSave', (event, { pluginId, filename, base64Data }) => {
-    const dataDir = path.join(os.homedir(), '.iimagine', 'plugin-data', pluginId);
-    if (!fs.existsSync(dataDir)) fs.mkdirSync(dataDir, { recursive: true });
-    const safeName = path.basename(filename);
-    const filePath = path.join(dataDir, safeName);
-    try {
-      const buffer = Buffer.from(base64Data, 'base64');
-      fs.writeFileSync(filePath, buffer);
-      return { success: true, path: filePath, filename: safeName };
-    } catch (err) {
-      return { success: false, error: err.message };
-    }
-  });
-
-  ipcMain.handle('plugins:fileList', (event, { pluginId }) => {
-    const dataDir = path.join(os.homedir(), '.iimagine', 'plugin-data', pluginId);
-    try {
-      if (!fs.existsSync(dataDir)) return [];
-      return fs.readdirSync(dataDir).map(f => {
-        const stats = fs.statSync(path.join(dataDir, f));
-        return { filename: f, size: stats.size, modified: stats.mtime };
-      });
-    } catch { return []; }
-  });
-
-  ipcMain.handle('plugins:fileRead', (event, { pluginId, filename }) => {
-    const dataDir = path.join(os.homedir(), '.iimagine', 'plugin-data', pluginId);
-    const safeName = path.basename(filename);
-    const filePath = path.join(dataDir, safeName);
-    try {
-      if (!fs.existsSync(filePath)) return { success: false, error: 'Not found' };
-      const buffer = fs.readFileSync(filePath);
-      return { success: true, base64: buffer.toString('base64'), filename: safeName };
-    } catch (err) {
-      return { success: false, error: err.message };
-    }
-  });
-
-  ipcMain.handle('plugins:fileDelete', (event, { pluginId, filename }) => {
-    const dataDir = path.join(os.homedir(), '.iimagine', 'plugin-data', pluginId);
-    const safeName = path.basename(filename);
-    const filePath = path.join(dataDir, safeName);
-    try {
-      if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
-      return { success: true };
-    } catch (err) {
-      return { success: false, error: err.message };
-    }
-  });
-
-  ipcMain.handle('plugins:fileGetPath', (event, { pluginId, filename }) => {
-    const dataDir = path.join(os.homedir(), '.iimagine', 'plugin-data', pluginId);
-    const safeName = path.basename(filename);
-    return path.join(dataDir, safeName);
-  });
-  ipcMain.handle('plugins:checkLicense', async (event, pluginId) => {
-    return await pluginManager.checkLicense(pluginId);
-  });
-  ipcMain.handle('plugins:getAllLicenses', () => {
-    return pluginManager.getLicenseChecker().getAllCached();
-  });
-
-  // Plugin chat hooks
-  ipcMain.handle('plugins:chatPreprocess', async (event, data) => {
-    // ── DIAGNOSTIC: Standard Chat (no KB) ────────────────────────
-    const activePlugins = pluginManager.getAll().filter(p => p.enabled).map(p => p.name);
-    const cwPlugin = pluginManager.getAll().find(p => p.id === 'client-workspace');
-    const cwInstance = cwPlugin?.hasInstance ? pluginManager.plugins?.get('client-workspace')?.instance : null;
-    const activeProject = cwInstance?.getActiveProject?.() || null;
-    const lastMsg = [...(data.messages || [])].reverse().find(m => m.role === 'user');
-    console.log('═══════════════════════════════════════════════════════');
-    console.log('[Chat:Submit] PATH: Standard (no KB)');
-    console.log('[Chat:Submit] Query:', lastMsg?.content?.slice(0, 80) || '(empty)');
-    console.log('[Chat:Submit] Active plugins:', activePlugins.join(', '));
-    console.log('[Chat:Submit] Active project:', activeProject ? `"${activeProject.name}" (${activeProject.id})` : 'NONE');
-    console.log('[Chat:Submit] Messages count:', (data.messages || []).length);
-    console.log('[Chat:Submit] Mentions:', JSON.stringify(data.mentions || []));
-    console.log('[Chat:Submit] Model:', store.get('provider.active')?.model || 'auto');
-    console.log('═══════════════════════════════════════════════════════');
-    // ── END DIAGNOSTIC ───────────────────────────────────────────
-    return await pluginManager.runChatPreprocess(data);
-  });
-  ipcMain.handle('plugins:chatPostprocess', async (event, data) => {
-    return await pluginManager.runChatPostprocess(data);
-  });
-  ipcMain.handle('plugins:getCommands', () => pluginManager.getCommands());
-  ipcMain.handle('plugins:getMentions', () => pluginManager.getMentions());
-
-  // Skills
-  ipcMain.handle('skills:list', () => skillsManager.getAll());
-  ipcMain.handle('skills:autocomplete', () => skillsManager.getAutocompleteList());
-  ipcMain.handle('skills:getContent', (event, slug) => skillsManager.getSkillContent(slug));
-  ipcMain.handle('skills:buildContext', (event, slugs) => skillsManager.buildSkillContext(slugs));
-
-  // Agent — non-streaming LLM calls for planning and task execution
-  // Uses the same provider the user has active (respects their model selection)
-  async function agentChat(messages) {
-    const gatewayModel = store.get('gateway.model'); // e.g. "gpt-5-mini"
-    const vendor = store.get('gateway.vendor') || 'openai'; // e.g. "anthropic"
-
-    const PROVIDER_CONFIG = {
-      openai: { url: 'https://api.openai.com/v1/chat/completions', keyStore: 'openai.apiKey', authHeader: 'Bearer' },
-      anthropic: { url: 'https://api.anthropic.com/v1/messages', keyStore: 'anthropic.apiKey', isAnthropic: true },
-      google: { url: 'https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent', keyStore: 'gemini.apiKey', isGemini: true },
-      openrouter: { url: 'https://openrouter.ai/api/v1/chat/completions', keyStore: 'openrouter.apiKey', authHeader: 'Bearer' },
-    };
-
-    const config = PROVIDER_CONFIG[vendor];
-    const apiKey = config ? store.get(config.keyStore) : null;
-
-    if (gatewayModel && apiKey && config) {
-      console.log('[Agent] Calling', vendor, 'directly with model:', gatewayModel);
-      try {
-        let res, content;
-
-        if (config.isAnthropic) {
-          // Extract system message from messages array
-          const systemMsg = messages.find(m => m.role === 'system');
-          const nonSystemMsgs = messages.filter(m => m.role !== 'system');
-          const body = { model: gatewayModel, messages: nonSystemMsgs, max_tokens: 4096, temperature: 0.7 };
-          if (systemMsg) body.system = systemMsg.content;
-
-          res = await fetch(config.url, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'x-api-key': apiKey, 'anthropic-version': '2023-06-01' },
-            body: JSON.stringify(body),
-            signal: AbortSignal.timeout(60000),
-          });
-          if (!res.ok) {
-            const errBody = await res.text().catch(() => '');
-            console.log('[Agent] Anthropic returned status:', res.status, errBody.substring(0, 200));
-            if (res.status === 401) return '__ERROR__:Invalid Anthropic API key. Check Settings → Public Cloud.';
-          } else {
-            const data = await res.json();
-            content = data.content?.[0]?.text || '';
-          }
-        } else if (config.isGemini) {
-          const url = config.url.replace('{model}', gatewayModel) + `?key=${apiKey}`;
-          // Convert messages to Gemini format
-          const contents = messages.filter(m => m.role !== 'system').map(m => ({
-            role: m.role === 'assistant' ? 'model' : 'user',
-            parts: [{ text: m.content }],
-          }));
-          // Prepend system as a user message if present
-          const systemMsg = messages.find(m => m.role === 'system');
-          if (systemMsg) contents.unshift({ role: 'user', parts: [{ text: systemMsg.content }] });
-
-          res = await fetch(url, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ contents }),
-            signal: AbortSignal.timeout(60000),
-          });
-          if (!res.ok) {
-            const errBody = await res.text().catch(() => '');
-            console.log('[Agent] Gemini returned status:', res.status, errBody.substring(0, 200));
-            if (res.status === 400 || res.status === 403) return '__ERROR__:Invalid Gemini API key. Check Settings → Public Cloud.';
-          } else {
-            const data = await res.json();
-            content = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
-          }
-        } else {
-          // OpenAI-compatible (openai, openrouter)
-          const headers = { 'Content-Type': 'application/json', 'Authorization': `${config.authHeader} ${apiKey}` };
-          if (vendor === 'openrouter') {
-            headers['HTTP-Referer'] = 'https://iimagine.ai';
-            headers['X-Title'] = 'IIMAGINE Desktop';
-          }
-          res = await fetch(config.url, {
-            method: 'POST',
-            headers,
-            body: JSON.stringify({ model: gatewayModel, messages, max_completion_tokens: 4096, temperature: 0.7 }),
-            signal: AbortSignal.timeout(120000),
-          });
-          if (!res.ok) {
-            const errBody = await res.text().catch(() => '');
-            console.log(`[Agent] ${vendor} returned status:`, res.status, errBody.substring(0, 200));
-            if (res.status === 401) return `__ERROR__:Invalid ${vendor} API key. Check Settings → Public Cloud.`;
-          } else {
-            const data = await res.json();
-            content = data.choices?.[0]?.message?.content || '';
-          }
-        }
-
-        if (content) {
-          console.log('[Agent] Response length:', content.length);
-          return content;
-        }
-      } catch (err) {
-        console.log('[Agent] Fetch failed:', err.message);
-      }
-    }
-
-    // Fallback: use iimagine-engine (local models)
-    const ensureResult = await localAI.ensureRunning();
-    if (!ensureResult.success) {
-      console.log('[Agent] No local AI engine available');
-      return null;
-    }
-
-    console.log('[Agent] Using local iimagine-engine');
-    const numCtx = store.get('local.contextWindow') || 4096;
-    try {
-      const chatResult = await localAI.chat({ model: null, messages, options: { num_ctx: numCtx } });
-      if (chatResult.success && chatResult.message?.content) {
-        return chatResult.message.content;
-      }
-    } catch {}
-    return null;
-  }
-
-  ipcMain.handle('agent:plan', async (event, messages) => {
-    try {
-      const content = await agentChat(messages);
-      if (content?.startsWith('__ERROR__:')) {
-        return { content: null, error: content.slice(10) };
-      }
-      if (content) return { content };
-      return { content: null, error: 'No model available' };
-    } catch (err) {
-      console.error('[Agent:plan] Error:', err.message);
-      return { content: null, error: err.message };
-    }
-  });
-
-  ipcMain.handle('agent:execute', async (event, messages) => {
-    try {
-      const content = await agentChat(messages);
-      if (content?.startsWith('__ERROR__:')) {
-        return { content: null, error: content.slice(10) };
-      }
-      if (content) return { content };
-      return { content: null, error: 'No model available' };
-    } catch (err) {
-      console.error('[Agent:execute] Error:', err.message);
-      return { content: null, error: err.message };
-    }
-  });
-
-  // ── Plugin Generator — AI-powered plugin creation ───────────────
-  const pluginGenerator = require('./plugin-generator');
+      if (!res.ok) return null;
+      const data = await res.json();
+      return data.choices?.[0]?.message?.content || null;
+    } catch { return null; }
+  };
   pluginGenerator.setAgentChat(agentChat);
   pluginGenerator.setPluginManager(pluginManager);
 
@@ -2552,6 +1342,99 @@ END OF DOCUMENTS`;
   });
   // ── End Plugin Generator ───────────────────────────────────────
 
+  // ── Plugins ─────────────────────────────────────────────────────
+  ipcMain.handle('plugins:list', () => pluginManager.getAll());
+  ipcMain.handle('plugins:setEnabled', (event, id, enabled) => pluginManager.setEnabled(id, enabled));
+  ipcMain.handle('plugins:getSidebarItems', () => pluginManager.getSidebarItems());
+  ipcMain.handle('plugins:renderPage', (event, pluginId) => {
+    const renderer = pluginManager.getPageRenderer(pluginId);
+    if (!renderer) return null;
+    // renderPage returns HTML string (or object with html property)
+    try { return renderer(); } catch { return null; }
+  });
+  ipcMain.handle('plugins:renderSettings', (event, pluginId) => {
+    const plugin = pluginManager.plugins.get(pluginId);
+    if (!plugin?.instance?.renderSettings) return null;
+    try {
+      // Support both patterns:
+      // 1. renderSettings(container) — sets container.innerHTML (legacy)
+      // 2. renderSettings() — returns HTML string directly (preferred)
+      const mock = { innerHTML: '', querySelector: () => null, querySelectorAll: () => [] };
+      const result = plugin.instance.renderSettings(mock);
+      // If the function returned a string, use that; otherwise use mock.innerHTML
+      if (typeof result === 'string' && result.trim()) return result;
+      return mock.innerHTML || null;
+    } catch { return null; }
+  });
+  ipcMain.handle('plugins:event', async (event, eventName, data) => {
+    // Plugin events — route to plugins that listen for this event
+    for (const [id, p] of pluginManager.plugins) {
+      if (p.enabled && p.instance?.onEvent) {
+        try {
+          const result = await p.instance.onEvent(eventName, data);
+          if (result !== undefined && result !== null) return result;
+        } catch (err) {
+          console.warn(`[Plugin] ${id} onEvent error:`, err.message);
+        }
+      }
+    }
+    return null;
+  });
+  ipcMain.handle('plugins:getDir', () => pluginManager.getPluginsDir());
+  ipcMain.handle('plugins:openFolder', (event, pluginId) => {
+    const pluginPath = path.join(pluginManager.getPluginsDir(), pluginId);
+    if (fs.existsSync(pluginPath)) shell.openPath(pluginPath);
+  });
+  ipcMain.handle('plugins:uninstall', (event, id) => pluginManager.uninstall(id));
+  ipcMain.handle('plugins:chatPreprocess', (event, data) => pluginManager.runChatPreprocess(data));
+  ipcMain.handle('plugins:chatPostprocess', (event, data) => pluginManager.runChatPostprocess(data));
+  ipcMain.handle('plugins:modelRegister', () => pluginManager.runModelRegister());
+  ipcMain.handle('plugins:providerRegister', async () => {
+    const providers = await pluginManager.runProviderRegister();
+    pluginManager.setProviders(providers);
+    return [...providers.keys()]; // Return plugin IDs that registered providers
+  });
+  ipcMain.handle('plugins:providerChat', async (event, { pluginId, messages, model }) => {
+    const provider = pluginManager.getProvider(pluginId);
+    if (!provider) return { success: false, error: `No provider registered for plugin: ${pluginId}` };
+    try {
+      const result = await provider.chat(messages, model);
+      return { success: true, ...result };
+    } catch (err) {
+      return { success: false, error: err.message };
+    }
+  });
+  ipcMain.handle('plugins:getCommands', () => pluginManager.getCommands());
+  ipcMain.handle('plugins:getMentions', () => pluginManager.getMentions());
+  ipcMain.handle('plugins:checkLicense', (event, pluginId) => pluginManager.checkLicense(pluginId));
+  ipcMain.handle('plugins:getAllLicenses', () => pluginManager.getLicenseChecker().getAllLicenses());
+  // Plugin file operations (sandboxed per plugin)
+  ipcMain.handle('plugins:fileSave', async (event, { pluginId, filename, base64Data }) => {
+    const dir = path.join(app.getPath('home'), '.iimagine', 'plugin-data', pluginId);
+    fs.mkdirSync(dir, { recursive: true });
+    const filePath = path.join(dir, filename);
+    fs.writeFileSync(filePath, Buffer.from(base64Data, 'base64'));
+    return { success: true, path: filePath };
+  });
+  ipcMain.handle('plugins:fileList', async (event, { pluginId }) => {
+    const dir = path.join(app.getPath('home'), '.iimagine', 'plugin-data', pluginId);
+    if (!fs.existsSync(dir)) return [];
+    return fs.readdirSync(dir).map(f => ({ name: f, size: fs.statSync(path.join(dir, f)).size }));
+  });
+  ipcMain.handle('plugins:fileRead', async (event, { pluginId, filename }) => {
+    const filePath = path.join(app.getPath('home'), '.iimagine', 'plugin-data', pluginId, filename);
+    if (!fs.existsSync(filePath)) return null;
+    return fs.readFileSync(filePath).toString('base64');
+  });
+  ipcMain.handle('plugins:fileDelete', async (event, { pluginId, filename }) => {
+    const filePath = path.join(app.getPath('home'), '.iimagine', 'plugin-data', pluginId, filename);
+    if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
+    return { success: true };
+  });
+  ipcMain.handle('plugins:fileGetPath', async (event, { pluginId, filename }) => {
+    return path.join(app.getPath('home'), '.iimagine', 'plugin-data', pluginId, filename);
+  });
+
   ipcMain.handle('plugins:install', async (event) => {
     const { dialog } = require('electron');
     const result = await dialog.showOpenDialog(mainWindow, {
@@ -2562,296 +1445,7 @@ END OF DOCUMENTS`;
     return pluginManager.install(result.filePaths[0]);
   });
 
-  // File dialog for document upload
-  ipcMain.handle('kb:openFileDialog', async () => {
-    const { dialog } = require('electron');
-    const result = await dialog.showOpenDialog(mainWindow, {
-      properties: ['openFile', 'multiSelections'],
-      filters: [
-        { name: 'Documents', extensions: ['pdf', 'docx', 'txt', 'csv', 'md'] },
-      ],
-    });
-    if (result.canceled) return { canceled: true, files: [] };
 
-    const files = [];
-    for (const filePath of result.filePaths) {
-      const ext = path.extname(filePath).toLowerCase();
-      const filename = path.basename(filePath);
-      const buffer = fs.readFileSync(filePath);
-
-      if (ext === '.txt' || ext === '.md') {
-        files.push({ filename, content: buffer.toString('utf-8'), type: ext.slice(1) });
-      } else if (ext === '.csv') {
-        try {
-          const content = parseCsvToReadableText(buffer.toString('utf-8'));
-          files.push({ filename, content, type: 'csv' });
-        } catch (err) {
-          console.error('[KB] CSV parse error:', err.message);
-          files.push({ filename, content: buffer.toString('utf-8'), type: 'csv' });
-        }
-      } else if (ext === '.pdf') {
-        try {
-          const pdfParse = require('pdf-parse');
-          const pdfData = await pdfParse(buffer);
-          files.push({ filename, content: pdfData.text || '', type: 'pdf' });
-        } catch (err) {
-          console.error('[KB] PDF parse error:', err.message);
-          files.push({ filename, content: '[PDF parsing failed — copy and paste the text instead]', type: 'pdf' });
-        }
-      } else if (ext === '.docx') {
-        try {
-          const mammoth = require('mammoth');
-          const result = await mammoth.extractRawText({ buffer });
-          files.push({ filename, content: result.value || '', type: 'docx' });
-        } catch (err) {
-          console.error('[KB] DOCX parse error:', err.message);
-          files.push({ filename, content: '[DOCX parsing failed — copy and paste the text instead]', type: 'docx' });
-        }
-      }
-    }
-    return { canceled: false, files };
-  });
-
-  // Read files from drag-and-drop (receives file paths from renderer)
-  ipcMain.handle('kb:readDroppedFiles', async (event, filePaths) => {
-    if (!filePaths || !filePaths.length) return { files: [] };
-    console.log('[KB] readDroppedFiles called with', filePaths.length, 'paths:', filePaths);
-
-    const files = [];
-    const SUPPORTED_EXTS = ['.txt', '.md', '.csv', '.pdf', '.docx'];
-
-    for (const filePath of filePaths) {
-      try {
-        const ext = path.extname(filePath).toLowerCase();
-        if (!SUPPORTED_EXTS.includes(ext)) {
-          console.log('[KB] Skipping unsupported file:', filePath);
-          continue;
-        }
-
-        const filename = path.basename(filePath);
-        const buffer = fs.readFileSync(filePath);
-
-        if (ext === '.txt' || ext === '.md') {
-          files.push({ filename, content: buffer.toString('utf-8'), type: ext.slice(1) });
-        } else if (ext === '.csv') {
-          try {
-            const content = parseCsvToReadableText(buffer.toString('utf-8'));
-            files.push({ filename, content, type: 'csv' });
-          } catch (err) {
-            console.error('[KB] CSV parse error:', err.message);
-            files.push({ filename, content: buffer.toString('utf-8'), type: 'csv' });
-          }
-        } else if (ext === '.pdf') {
-          try {
-            const pdfParse = require('pdf-parse');
-            const pdfData = await pdfParse(buffer);
-            files.push({ filename, content: pdfData.text || '', type: 'pdf' });
-          } catch (err) {
-            console.error('[KB] PDF parse error:', err.message);
-            files.push({ filename, content: '[PDF parsing failed]', type: 'pdf' });
-          }
-        } else if (ext === '.docx') {
-          try {
-            const mammoth = require('mammoth');
-            const result = await mammoth.extractRawText({ buffer });
-            files.push({ filename, content: result.value || '', type: 'docx' });
-          } catch (err) {
-            console.error('[KB] DOCX parse error:', err.message);
-            files.push({ filename, content: '[DOCX parsing failed]', type: 'docx' });
-          }
-        }
-      } catch (err) {
-        console.error('[KB] Error reading dropped file:', filePath, err.message);
-      }
-    }
-
-    return { files };
-  });
-
-  // AI Gateway — video generation
-  ipcMain.handle('gateway:generateVideo', async (event, { prompt, model, aspectRatio, duration }) => {
-    const token = store.get('auth.token');
-    const serverUrl = store.get('auth.serverUrl') || activeWebAppUrl;
-    if (!token) return { success: false, error: 'Not authenticated' };
-
-    try {
-      const res = await fetch(`${serverUrl}/api/desktop/gateway-video`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
-        },
-        body: JSON.stringify({ prompt, model, aspectRatio, duration }),
-      });
-
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({ error: `HTTP ${res.status}` }));
-        return { success: false, error: err.error || `Server error ${res.status}` };
-      }
-
-      // Video comes back as binary (mp4)
-      const contentType = res.headers.get('content-type') || '';
-      if (contentType.includes('video') || contentType.includes('octet-stream')) {
-        const arrayBuf = await res.arrayBuffer();
-        const uint8 = new Uint8Array(arrayBuf);
-        return { success: true, video: Array.from(uint8), mediaType: 'video/mp4', model };
-      }
-
-      // Fallback: JSON response with base64 or error
-      const data = await res.json();
-      if (data.video) {
-        return { success: true, video: data.video, mediaType: data.mediaType || 'video/mp4', model: data.model || model };
-      }
-      return { success: false, error: data.error || 'No video in response' };
-    } catch (err) {
-      return { success: false, error: err.message };
-    }
-  });
-
-  // ── Folder Connect ──────────────────────────────────────────────
-  ipcMain.handle('folder:add', async () => {
-    const { dialog } = require('electron');
-    const result = await dialog.showOpenDialog(mainWindow, {
-      properties: ['openDirectory'],
-      title: 'Connect a Folder',
-    });
-    if (result.canceled || !result.filePaths.length) return { canceled: true };
-    const folderPath = result.filePaths[0];
-
-    // Check if already connected
-    const existing = folderConnect.getFolders().find(f => f.path === folderPath);
-    if (existing) return { error: 'Folder already connected' };
-
-    const folder = folderConnect.addFolder(folderPath);
-
-    // Index in background, then auto-embed
-    folderConnect.indexFolder(folder.id, (progress) => {
-      mainWindow?.webContents.send('folder:index-progress', progress);
-      if (progress.done) {
-        mainWindow?.webContents.send('folder:index-done', { folderId: folder.id });
-        // Trigger auto-embed for the new collection
-        autoEmbedCollection(folder.id);
-      }
-    });
-
-    // Start watching for changes
-    folderConnect.startWatching(folder.id, (progress) => {
-      mainWindow?.webContents.send('folder:index-progress', progress);
-    });
-
-    return folder;
-  });
-
-  ipcMain.handle('folder:list', () => folderConnect.getFolders());
-
-  ipcMain.handle('folder:remove', (event, id) => {
-    folderConnect.removeFolder(id);
-    return { success: true };
-  });
-
-  ipcMain.handle('folder:reindex', async (event, id) => {
-    const result = await folderConnect.indexFolder(id, (progress) => {
-      mainWindow?.webContents.send('folder:index-progress', progress);
-      if (progress.done) {
-        mainWindow?.webContents.send('folder:index-done', { folderId: id });
-        // Trigger auto-embed after re-indexing
-        autoEmbedCollection(id);
-      }
-    });
-    return result;
-  });
-
-  ipcMain.handle('folder:processKG', async (event, id) => {
-    // Get the Cortex extractor from the active plugin
-    const cortexPlugin = pluginManager.plugins.get('cortex-lite');
-    if (!cortexPlugin?.instance) {
-      return { error: 'Cortex Lite plugin is not active. Enable it in Settings > Plugins.' };
-    }
-    const cortexDir = path.join(pluginManager.getPluginsDir(), 'cortex-lite');
-    let extractor;
-    try {
-      extractor = require(path.join(cortexDir, 'extractor.js'));
-    } catch (err) {
-      return { error: 'Could not load Cortex extractor: ' + err.message };
-    }
-    const result = await folderConnect.processKG(id, extractor, (progress) => {
-      mainWindow?.webContents.send('folder:cortex-progress', progress);
-    });
-    return result;
-  });
-
-  // ── Prompt Manager ──────────────────────────────────────────────
-  ipcMain.handle('prompts:create', (event, data) => promptStorage.createPrompt(data));
-  ipcMain.handle('prompts:list', () => promptStorage.getPrompts());
-  ipcMain.handle('prompts:update', (event, id, data) => promptStorage.updatePrompt(id, data));
-  ipcMain.handle('prompts:delete', (event, id) => promptStorage.deletePrompt(id));
-  ipcMain.handle('prompts:search', (event, query) => promptStorage.searchPrompts(query));
-
-  // ── RAG Prompts (context-aware system prompts) ─────────────────
-  ipcMain.handle('rag-prompts:list', () => ragPromptStorage.getAll());
-  ipcMain.handle('rag-prompts:list-by-category', (event, category) => ragPromptStorage.getByCategory(category));
-  ipcMain.handle('rag-prompts:get', (event, id) => ragPromptStorage.getPrompt(id));
-  ipcMain.handle('rag-prompts:create', (event, data) => ragPromptStorage.createPrompt(data));
-  ipcMain.handle('rag-prompts:update', (event, id, data) => ragPromptStorage.updatePrompt(id, data));
-  ipcMain.handle('rag-prompts:delete', (event, id) => ragPromptStorage.deletePrompt(id));
-  ipcMain.handle('rag-prompts:get-active', (event, category) => ragPromptStorage.getActivePromptId(category));
-  ipcMain.handle('rag-prompts:set-active', (event, category, promptId) => {
-    ragPromptStorage.setActivePromptId(category, promptId);
-    return true;
-  });
-
-  // ── Personas ────────────────────────────────────────────────────
-  ipcMain.handle('persona:create', (event, data) => personaStorage.createPersona(data));
-  ipcMain.handle('persona:list', () => personaStorage.getPersonas());
-  ipcMain.handle('persona:getActive', () => personaStorage.getActivePersona());
-  ipcMain.handle('persona:update', (event, id, data) => personaStorage.updatePersona(id, data));
-  ipcMain.handle('persona:delete', (event, id) => personaStorage.deletePersona(id));
-  ipcMain.handle('persona:activate', (event, id) => personaStorage.activatePersona(id));
-  ipcMain.handle('persona:deactivate', () => personaStorage.deactivateAll());
-
-  // ── Web Search ──────────────────────────────────────────────────
-  ipcMain.handle('websearch:search', async (event, query) => {
-    if (!query || !query.trim()) return [];
-
-    const token = store.get('auth.token');
-    const serverUrl = store.get('auth.serverUrl') || activeWebAppUrl;
-
-    // Try backend API first
-    try {
-      const headers = { 'Content-Type': 'application/json' };
-      if (token) headers['Authorization'] = `Bearer ${token}`;
-
-      const res = await fetch(`${serverUrl}/api/desktop/web-search`, {
-        method: 'POST',
-        headers,
-        body: JSON.stringify({ query: query.trim() }),
-        signal: AbortSignal.timeout(10000),
-      });
-
-      if (res.ok) {
-        const data = await res.json();
-        return data.results || [];
-      }
-    } catch (err) {
-      console.warn('[WebSearch] Backend unavailable:', err.message);
-    }
-
-    // Fallback: DuckDuckGo HTML scrape
-    try {
-      const encoded = encodeURIComponent(query.trim());
-      const res = await fetch(`https://html.duckduckgo.com/html/?q=${encoded}`, {
-        headers: { 'User-Agent': 'Mozilla/5.0 (compatible; IIMAGINE Desktop/1.0)' },
-        signal: AbortSignal.timeout(8000),
-      });
-
-      if (!res.ok) return [];
-      const html = await res.text();
-      return parseDuckDuckGoResults(html);
-    } catch (err) {
-      console.warn('[WebSearch] DuckDuckGo fallback failed:', err.message);
-      return [];
-    }
-  });
 }
 
 // ── macOS protocol handler ──────────────────────────────────────
@@ -2863,12 +1457,6 @@ app.on('open-url', (event, url) => {
 // ── App Lifecycle ───────────────────────────────────────────────
 app.whenReady().then(async () => {
   storage.init();
-  kbStorage.init(storage.getDb());
-  assistantStorage.init(storage.getDb());
-  personaStorage.init(storage.getDb());
-  folderConnect.init(storage.getDb(), kbStorage);
-  promptStorage.init(storage.getDb());
-  ragPromptStorage.init(storage.getDb(), store);
 
   // Initialize model registry manifest (non-blocking remote fetch)
   manifestManager.initialize().catch(err => {
@@ -2938,10 +1526,8 @@ app.whenReady().then(async () => {
   pluginManager.setContext({
     db: storage.getDb(),
     store,
-    kbStorage,
-    assistantStorage,
+    mcp: mcpClient,
     getEnginePort: () => engineManager.getPort(),
-    autoEmbedCollection: (collectionId) => autoEmbedCollection(collectionId),
     gatewayChat: pluginGatewayChat,
     // File helpers for plugins — sandboxed to ~/.iimagine/plugin-data/<pluginId>/
     files: {
@@ -3043,6 +1629,8 @@ app.whenReady().then(async () => {
   if (fs.existsSync(samplePluginsDir)) {
     for (const folder of fs.readdirSync(samplePluginsDir, { withFileTypes: true })) {
       if (!folder.isDirectory()) continue;
+      // Skip iimagine-cloud until web app endpoints are deployed
+      if (folder.name === 'iimagine-cloud') continue;
       const src = path.join(samplePluginsDir, folder.name);
       const dest = path.join(userPluginsDir, folder.name);
       try {
@@ -3109,62 +1697,6 @@ app.whenReady().then(async () => {
   });
 
   // ── Google OAuth IPC Handler ─────────────────────────────────────────
-  ipcMain.handle('google:connect', async () => {
-    const { runGoogleOAuth, getCredentials } = require('./google-oauth');
-    const creds = getCredentials();
-    if (!creds) return { success: false, error: 'Google OAuth credentials not available in this build.' };
-
-    try {
-      const tokens = await runGoogleOAuth();
-      // Save refresh token to MCP config so the Google Workspace server uses it
-      mcpClient.updateServer('google-workspace', {
-        env: {
-          GOOGLE_WORKSPACE_CLIENT_ID: creds.client_id,
-          GOOGLE_WORKSPACE_CLIENT_SECRET: creds.client_secret,
-          GOOGLE_WORKSPACE_REFRESH_TOKEN: tokens.refresh_token,
-          GOOGLE_CLIENT_ID: creds.client_id,
-          GOOGLE_CLIENT_SECRET: creds.client_secret,
-        },
-        enabled: true,
-        autoConnect: true,
-      });
-      // Auto-connect after OAuth
-      await mcpClient.connect('google-workspace');
-      return { success: true, toolCount: mcpClient.getServers()['google-workspace']?.toolCount || 0 };
-    } catch (err) {
-      console.error('[GoogleOAuth] Failed:', err.message);
-      return { success: false, error: err.message };
-    }
-  });
-
-  ipcMain.handle('google:disconnect', async () => {
-    try {
-      await mcpClient.disconnect('google-workspace');
-      mcpClient.updateServer('google-workspace', {
-        env: {
-          GOOGLE_WORKSPACE_CLIENT_ID: '',
-          GOOGLE_WORKSPACE_CLIENT_SECRET: '',
-          GOOGLE_WORKSPACE_REFRESH_TOKEN: '',
-          GOOGLE_CLIENT_ID: '',
-          GOOGLE_CLIENT_SECRET: '',
-        },
-        enabled: false,
-        autoConnect: false,
-      });
-      return { success: true };
-    } catch (err) {
-      return { success: false, error: err.message };
-    }
-  });
-
-  ipcMain.handle('google:status', () => {
-    const server = mcpClient.getServers()['google-workspace'];
-    return {
-      connected: server?.status === 'connected',
-      toolCount: server?.toolCount || 0,
-      hasCredentials: !!require('./google-oauth').getCredentials(),
-    };
-  });
 
   createWindow();
   createTray();

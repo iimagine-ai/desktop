@@ -43,3 +43,27 @@ docs/client-workspace-plugin.md
 docs/cortex-lite-plugin.md
 docs/legal-companion-plugin.md
 docs/client-coms-example.md
+
+# Kiro IDE configuration
+.kiro/
+
+# Whisper binary (downloaded separately)
+bin/whisper/
+
+# Cloud plugin (not ready until web app endpoints deployed)
+plugins/iimagine-cloud/
+
+# Docs (internal planning, not part of open source release)
+docs/
+
+# Python virtual environments in plugins
+plugins/**/.venv/
+plugins/**/__pycache__/
+
+# Paid/proprietary plugins (distributed via marketplace)
+plugins/cortex/
+plugins/business-os/
+
+# Experimental (not ready for public release)
+plugins/shopping-list/
+plugins/privacy-proxy/

@@ -40,21 +40,6 @@ class MCPClientManager {
   _loadConfig() {
     const defaultConfig = {
       servers: {
-        'google-workspace': {
-          name: 'Google Workspace',
-          description: 'Gmail, Calendar, Docs, Sheets, Drive',
-          command: process.execPath,
-          args: [path.join(__dirname, 'mcp-servers', 'google-workspace', 'server.mjs')],
-          env: {
-            GOOGLE_WORKSPACE_CLIENT_ID: '',
-            GOOGLE_WORKSPACE_CLIENT_SECRET: '',
-            GOOGLE_WORKSPACE_REFRESH_TOKEN: ''
-          },
-          transport: 'stdio',
-          enabled: false,
-          autoConnect: false,
-          category: 'productivity'
-        },
         'filesystem': {
           name: 'Local Files',
           description: 'Read and search files on your computer',
@@ -65,17 +50,6 @@ class MCPClientManager {
           enabled: false,
           autoConnect: false,
           category: 'local'
-        },
-        'brave-search': {
-          name: 'Web Search',
-          description: 'Search the web via Brave Search',
-          command: path.join(app.getPath('home'), '.local/bin/uvx'),
-          args: ['mcp-server-brave-search'],
-          env: { BRAVE_API_KEY: '' },
-          transport: 'stdio',
-          enabled: false,
-          autoConnect: false,
-          category: 'search'
         }
       }
     };
@@ -90,6 +64,8 @@ class MCPClientManager {
             parsed.servers[id] = server;
           }
         }
+        // Remove legacy servers now managed by plugins
+        delete parsed.servers['google-workspace'];
         return parsed;
       }
     } catch (err) {
@@ -150,12 +126,36 @@ class MCPClientManager {
         arg.replace(/^~/, app.getPath('home'))
       );
 
-      // Build environment
-      const env = { ...process.env, ...(serverConfig.env || {}) };
+      // Build environment — ensure PATH includes common install locations
+      // Electron apps don't inherit the user's full shell PATH
+      const extraPaths = [
+        '/opt/homebrew/bin',
+        '/opt/homebrew/sbin',
+        '/usr/local/bin',
+        '/usr/bin',
+        '/bin',
+        path.join(app.getPath('home'), '.local/bin'),
+        path.join(app.getPath('home'), '.nvm/versions/node', process.version, 'bin'),
+      ];
+      const existingPath = process.env.PATH || '/usr/bin:/bin';
+      const fullPath = [...new Set([...extraPaths, ...existingPath.split(path.delimiter)])].join(path.delimiter);
+      const env = { ...process.env, ...(serverConfig.env || {}), PATH: fullPath };
+
+      // Resolve bare command names to full paths (Electron spawn requires this)
+      let resolvedCommand = serverConfig.command;
+      if (!path.isAbsolute(resolvedCommand) && !resolvedCommand.includes('/')) {
+        for (const dir of fullPath.split(path.delimiter)) {
+          const candidate = path.join(dir, resolvedCommand);
+          if (fs.existsSync(candidate)) {
+            resolvedCommand = candidate;
+            break;
+          }
+        }
+      }
 
       // Create transport
       const transport = new StdioClientTransport({
-        command: serverConfig.command,
+        command: resolvedCommand,
         args: resolvedArgs,
         env
       });

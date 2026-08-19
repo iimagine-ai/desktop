@@ -79,6 +79,21 @@ const ProviderManager = {
       }
     }
 
+    // Load plugin-registered models (cloud models from plugins like IIMAGINE Cloud)
+    try {
+      this.providers = this.providers.filter(p => p.type !== 'plugin');
+      const pluginModels = await window.api.plugins.modelRegister();
+      if (Array.isArray(pluginModels)) {
+        for (const m of pluginModels) {
+          this.providers.push(new window.PluginProvider(m.id, m.name, m.pluginId));
+        }
+      }
+      // Also register plugin providers (cache the chat functions on the main process side)
+      await window.api.plugins.providerRegister();
+    } catch (err) {
+      console.warn('[ProviderManager] Plugin model registration failed:', err.message);
+    }
+
     // Restore active from settings or pick first available
     const savedActive = await window.api.settings.get('activeModel');
     if (savedActive) {
@@ -220,5 +235,25 @@ class GatewayProvider {
   }
 }
 
+// ── Plugin-Registered Provider (Cloud via plugin) ───────────────
+
+class PluginProvider {
+  constructor(modelId, modelName, pluginId) {
+    this.type = 'plugin';
+    this.name = modelName;
+    this.modelId = modelId;
+    this.pluginId = pluginId;
+    this.privacyLevel = 'cloud';
+    this.status = 'ready';
+    this.privacyColor = '#3b82f6'; // blue — cloud via IIMAGINE platform
+    this.privacyLabel = '🔵';
+  }
+
+  async chat(messages) {
+    return window.api.plugins.providerChat(this.pluginId, messages, this.modelId);
+  }
+}
+
 window.GatewayProvider = GatewayProvider;
+window.PluginProvider = PluginProvider;
 window.GATEWAY_MODELS = GATEWAY_MODELS;

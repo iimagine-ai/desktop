@@ -37,7 +37,12 @@ const path = require('path');
 const fs = require('fs');
 const { app } = require('electron');
 const Store = require('electron-store');
-const licenseChecker = require('./license-checker');
+
+// License checking removed — open source, all plugins are valid
+const licenseChecker = {
+  check: async () => ({ valid: true }),
+  getAllLicenses: () => [],
+};
 
 const store = new Store();
 
@@ -93,8 +98,16 @@ class PluginManager {
     const manifests = this.discover();
     const enabledMap = store.get('plugins.enabled', {});
 
+    // First-run: enable useful defaults so the app isn't blank
+    const isFirstRun = !store.has('plugins.enabled');
+    if (isFirstRun) {
+      const defaults = { 'word-count': true };
+      store.set('plugins.enabled', defaults);
+      Object.assign(enabledMap, defaults);
+    }
+
     for (const manifest of manifests) {
-      const enabled = enabledMap[manifest.id] !== false; // enabled by default
+      const enabled = enabledMap[manifest.id] === true; // disabled by default, user must enable
       this.plugins.set(manifest.id, { manifest, instance: null, enabled });
 
       if (enabled) {
@@ -336,6 +349,58 @@ class PluginManager {
     return result;
   }
 
+  // Run modelRegister hooks — collect models from plugins for the model dropdown
+  // Each plugin with this hook should export: onModelRegister() → Array<{ id, name, provider? }>
+  async runModelRegister() {
+    const models = [];
+    for (const p of this.getWithHook('modelRegister')) {
+      try {
+        if (typeof p.instance.onModelRegister === 'function') {
+          const pluginModels = await p.instance.onModelRegister();
+          if (Array.isArray(pluginModels)) {
+            for (const m of pluginModels) {
+              models.push({ ...m, pluginId: p.id });
+            }
+          }
+        }
+      } catch (err) {
+        console.warn(`[Plugin] ${p.id} modelRegister error:`, err.message);
+      }
+    }
+    console.log(`[Plugin] modelRegister: ${models.length} models from ${this.getWithHook('modelRegister').length} plugins`);
+    return models;
+  }
+
+  // Run providerRegister hooks — collect chat provider functions from plugins
+  // Each plugin with this hook should export: onProviderRegister() → { chat(messages, model) → Promise }
+  async runProviderRegister() {
+    const providers = new Map(); // pluginId → provider function
+    for (const p of this.getWithHook('providerRegister')) {
+      try {
+        if (typeof p.instance.onProviderRegister === 'function') {
+          const provider = await p.instance.onProviderRegister();
+          if (provider && typeof provider.chat === 'function') {
+            providers.set(p.id, provider);
+          }
+        }
+      } catch (err) {
+        console.warn(`[Plugin] ${p.id} providerRegister error:`, err.message);
+      }
+    }
+    console.log(`[Plugin] providerRegister: ${providers.size} providers registered`);
+    return providers;
+  }
+
+  // Get a registered provider by plugin ID (for routing chat to plugin providers)
+  getProvider(pluginId) {
+    return this._providers?.get(pluginId) || null;
+  }
+
+  // Cache providers after registration (called by main on startup or plugin reload)
+  setProviders(providers) {
+    this._providers = providers;
+  }
+
   // Get all registered slash commands from plugins
   getCommands() {
     const commands = [];
@@ -366,6 +431,7 @@ class PluginManager {
       id: p.manifest.id,
       label: p.manifest.hooks.sidebar.label || p.manifest.name,
       icon: p.manifest.hooks.sidebar.icon || '🔌',
+      hasSettings: !!p.manifest.hooks.settings,
     }));
   }
 

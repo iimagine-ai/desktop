@@ -1,7 +1,7 @@
 // Settings page — provider configuration UI
 
 const SettingsPage = {
-  _activeTab: 'profile',
+  _activeTab: 'models',
 
   render(container) {
     container.innerHTML = `
@@ -9,12 +9,9 @@ const SettingsPage = {
         <div class="p-6 pb-0">
           <h2 class="text-xl font-semibold tracking-tight text-neutral-900 dark:text-neutral-100 mb-4">Settings</h2>
           <div class="flex gap-1 border-b border-neutral-200/40 dark:border-neutral-700/40">
-            <button data-settings-tab="profile" class="settings-tab-btn px-4 py-2 text-sm font-medium transition-all border-b-2">Profile</button>
             <button data-settings-tab="models" class="settings-tab-btn px-4 py-2 text-sm font-medium transition-all border-b-2">Models</button>
-            <button data-settings-tab="chat" class="settings-tab-btn px-4 py-2 text-sm font-medium transition-all border-b-2">Chat</button>
             <button data-settings-tab="plugins" class="settings-tab-btn px-4 py-2 text-sm font-medium transition-all border-b-2">Plugins</button>
             <button data-settings-tab="integrations" class="settings-tab-btn px-4 py-2 text-sm font-medium transition-all border-b-2">Integrations</button>
-            <button data-settings-tab="personas" class="settings-tab-btn px-4 py-2 text-sm font-medium transition-all border-b-2">Personas</button>
             <button data-settings-tab="memory" id="memoryTabBtn" class="settings-tab-btn px-4 py-2 text-sm font-medium transition-all border-b-2 hidden">Memory</button>
           </div>
         </div>
@@ -24,7 +21,7 @@ const SettingsPage = {
 
     this._bindTabs(container);
     this._checkMemoryTabVisibility(container);
-    this._showTab('profile', container);
+    this._showTab('models', container);
   },
 
   async _checkMemoryTabVisibility(container) {
@@ -75,219 +72,14 @@ const SettingsPage = {
       window.RuntimeMonitor.stopPolling();
     }
 
-    if (tab === 'profile') this._renderProfile(content);
-    else if (tab === 'models') this._renderModelsTab(content);
-    else if (tab === 'chat') this._renderChatTab(content);
+    if (tab === 'models') this._renderModelsTab(content);
     else if (tab === 'plugins') this._renderPluginsTab(content);
-    else if (tab === 'integrations') this._renderIntegrationsTab(content);
-    else if (tab === 'personas') this._renderPersonasTab(content);
+    else if (tab === 'integrations') this._renderIntegrationsTab(content).catch(err => {
+      console.error('[Settings] _renderIntegrationsTab failed:', err);
+      content.innerHTML = `<p class="text-rose-500 p-4">Error loading integrations: ${err.message}</p>`;
+    });
     else if (tab === 'memory') this._renderMemoryTab(content);
   },
-
-  // ─── Profile Tab ──────────────────────────────────────────────────────────
-  _renderProfile(content) {
-    content.innerHTML = `
-      <!-- Account -->
-      <section class="bg-white/50 dark:bg-neutral-800/50 border border-neutral-200/40 dark:border-neutral-700/40 rounded-2xl p-5 shadow-[0_2px_10px_rgb(0,0,0,0.02)] dark:shadow-[0_2px_10px_rgb(0,0,0,0.2)] backdrop-blur-md">
-        <div class="flex items-center gap-2 mb-3">
-          <div class="p-2 bg-white dark:bg-neutral-800 rounded-xl border border-neutral-100 dark:border-neutral-800 shadow-sm text-neutral-700 dark:text-neutral-300"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></div>
-          <div>
-            <h3 class="text-sm font-semibold text-neutral-900 dark:text-neutral-100">Profile</h3>
-            <p id="settingsUserEmail" class="text-xs text-neutral-500 dark:text-neutral-400"></p>
-          </div>
-        </div>
-        <div class="space-y-3">
-          <div>
-            <label class="text-xs font-medium text-neutral-400 uppercase tracking-wider mb-1.5 block">Display Name</label>
-            <div class="flex gap-2">
-              <input id="profileNameInput" type="text" placeholder="Enter your name"
-                class="flex-1 bg-white/60 dark:bg-neutral-800/60 border border-neutral-200/50 dark:border-neutral-700/50 rounded-xl px-3 py-2 text-sm text-neutral-700 dark:text-neutral-300 placeholder-neutral-400 dark:placeholder-neutral-500 focus:bg-white/90 dark:focus:bg-neutral-800/90 focus:outline-none transition-all shadow-sm" />
-              <button id="saveProfileNameBtn" class="px-4 py-2 rounded-lg bg-neutral-900 dark:bg-neutral-100 text-sm font-medium text-white dark:text-neutral-900 hover:bg-neutral-800 dark:hover:bg-neutral-200 transition-all shadow-sm">Save</button>
-            </div>
-            <p id="profileNameStatus" class="text-xs text-emerald-600 mt-1 hidden">Saved</p>
-          </div>
-        </div>
-      </section>
-
-      <!-- Your Data -->
-      <section class="bg-white/50 dark:bg-neutral-800/50 border border-neutral-200/40 dark:border-neutral-700/40 rounded-2xl p-5 shadow-[0_2px_10px_rgb(0,0,0,0.02)] dark:shadow-[0_2px_10px_rgb(0,0,0,0.2)] backdrop-blur-md">
-        <div class="flex items-center gap-2 mb-3">
-          <div class="p-2 bg-white dark:bg-neutral-800 rounded-xl border border-neutral-100 dark:border-neutral-800 shadow-sm text-neutral-700 dark:text-neutral-300"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></svg></div>
-          <div>
-            <h3 class="text-sm font-semibold text-neutral-900 dark:text-neutral-100">Your Data</h3>
-            <p class="text-xs text-neutral-500 dark:text-neutral-400">Stored locally on this computer — you own it</p>
-          </div>
-        </div>
-        <div id="dataStats" class="space-y-1 text-sm text-neutral-600">
-          <p>Loading...</p>
-        </div>
-      </section>
-    `;
-
-    this._bindProfile(content);
-  },
-
-  async _bindProfile(content) {
-    const settingsUserEmail = content.querySelector('#settingsUserEmail');
-
-    // Account email
-    if (window.AppState?.currentUser) {
-      settingsUserEmail.textContent = window.AppState.currentUser.email || 'Not signed in';
-    }
-
-    // Profile name
-    const profileNameInput = content.querySelector('#profileNameInput');
-    const saveProfileNameBtn = content.querySelector('#saveProfileNameBtn');
-    const profileNameStatus = content.querySelector('#profileNameStatus');
-
-    const savedName = await window.api.settings.get('profile.displayName');
-    if (savedName) {
-      profileNameInput.value = savedName;
-    }
-
-    saveProfileNameBtn.addEventListener('click', async () => {
-      const name = profileNameInput.value.trim();
-      await window.api.settings.set('profile.displayName', name);
-      const sidebarUser = document.querySelector('#sidebarUser');
-      if (sidebarUser) sidebarUser.textContent = name || window.AppState?.currentUser?.email || 'Local User';
-      if (window.AppState?.currentUser) {
-        window.AppState.currentUser.displayName = name;
-      }
-      profileNameStatus.classList.remove('hidden');
-      setTimeout(() => profileNameStatus.classList.add('hidden'), 2000);
-    });
-
-    profileNameInput.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter') saveProfileNameBtn.click();
-    });
-
-    // Data stats
-    const dataStats = content.querySelector('#dataStats');
-    try {
-      const stats = await window.api.storage.getStats();
-      dataStats.innerHTML = `
-        <div class="flex items-center justify-between py-1">
-          <span class="text-neutral-500 dark:text-neutral-400">Location</span>
-          <span class="text-xs font-mono text-neutral-700 dark:text-neutral-300 truncate max-w-[200px]" title="${stats.dbPath}">${stats.dbPath}</span>
-        </div>
-        <div class="flex items-center justify-between py-1">
-          <span class="text-neutral-500 dark:text-neutral-400">Size</span>
-          <span class="text-neutral-700 dark:text-neutral-300">${stats.fileSizeMB} MB</span>
-        </div>
-        <div class="flex items-center justify-between py-1">
-          <span class="text-neutral-500 dark:text-neutral-400">Conversations</span>
-          <span class="text-neutral-700 dark:text-neutral-300">${stats.conversations}</span>
-        </div>
-        <div class="flex items-center justify-between py-1">
-          <span class="text-neutral-500 dark:text-neutral-400">Messages</span>
-          <span class="text-neutral-700 dark:text-neutral-300">${stats.messages}</span>
-        </div>
-        <div class="flex items-center justify-between py-1">
-          <span class="text-neutral-500 dark:text-neutral-400">Knowledge entities</span>
-          <span class="text-neutral-700 dark:text-neutral-300">${stats.entities}</span>
-        </div>
-        <div class="flex items-center justify-between py-1">
-          <span class="text-neutral-500 dark:text-neutral-400">Media files</span>
-          <span class="text-neutral-700 dark:text-neutral-300">${stats.media || 0}</span>
-        </div>
-      `;
-
-      // Add KB stats
-      try {
-        const kbStats = await window.api.kb.getStats();
-        dataStats.innerHTML += `
-          <div class="flex items-center justify-between py-1 border-t border-neutral-200/40 dark:border-neutral-700/40 mt-1 pt-1">
-            <span class="text-neutral-500 dark:text-neutral-400">KB collections</span>
-            <span class="text-neutral-700 dark:text-neutral-300">${kbStats.collections}</span>
-          </div>
-          <div class="flex items-center justify-between py-1">
-            <span class="text-neutral-500 dark:text-neutral-400">KB documents</span>
-            <span class="text-neutral-700 dark:text-neutral-300">${kbStats.documents}</span>
-          </div>
-          <div class="flex items-center justify-between py-1">
-            <span class="text-neutral-500 dark:text-neutral-400">KB chunks</span>
-            <span class="text-neutral-700 dark:text-neutral-300">${kbStats.chunks}</span>
-          </div>
-          <div class="flex items-center justify-between py-1">
-            <span class="text-neutral-500 dark:text-neutral-400">Vector search</span>
-            <span class="${kbStats.vecLoaded ? 'text-emerald-600' : 'text-amber-500'}">${kbStats.vecLoaded ? 'Active' : 'Unavailable'}</span>
-          </div>
-        `;
-      } catch { /* KB not initialized yet */ }
-    } catch {
-      dataStats.innerHTML = '<p class="text-xs text-neutral-400">Could not load stats</p>';
-    }
-  },
-
-  // ─── Chat Tab ─────────────────────────────────────────────────────────────
-  _renderChatTab(content) {
-    content.innerHTML = `
-      <section class="bg-white/50 dark:bg-neutral-800/50 border border-neutral-200/40 dark:border-neutral-700/40 rounded-2xl p-5 shadow-[0_2px_10px_rgb(0,0,0,0.02)] dark:shadow-[0_2px_10px_rgb(0,0,0,0.2)] backdrop-blur-md">
-        <div class="flex items-center gap-2 mb-4">
-          <div class="p-2 bg-white dark:bg-neutral-800 rounded-xl border border-neutral-100 dark:border-neutral-800 shadow-sm text-neutral-700 dark:text-neutral-300"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></div>
-          <div>
-            <h3 class="text-sm font-semibold text-neutral-900 dark:text-neutral-100">Chat Memory</h3>
-            <p class="text-xs text-neutral-500 dark:text-neutral-400">How much conversation history is sent to the model each turn</p>
-          </div>
-        </div>
-
-        <div class="space-y-4">
-          <div>
-            <label class="text-xs font-medium text-neutral-500 uppercase tracking-wider mb-1.5 block">Messages to include</label>
-            <p class="text-[10px] text-neutral-400 mb-3">The number of recent messages from the current chat that are sent to the model with each new message. More messages = better recall within the chat, but uses more of the context window and may slow responses.</p>
-            <div class="flex items-center gap-4">
-              <input id="chatHistorySlider" type="range" min="2" max="50" step="2" value="6"
-                class="flex-1 h-2 bg-neutral-200 dark:bg-neutral-700 rounded-lg appearance-none cursor-pointer accent-neutral-900 dark:accent-neutral-100" />
-              <span id="chatHistoryValue" class="text-sm font-mono font-medium text-neutral-700 dark:text-neutral-300 min-w-[3rem] text-right">6</span>
-            </div>
-            <div class="flex justify-between text-[10px] text-neutral-400 mt-1 px-0.5">
-              <span>2 (minimal)</span>
-              <span>50 (maximum)</span>
-            </div>
-          </div>
-
-          <div class="bg-neutral-50 dark:bg-neutral-900/50 border border-neutral-200/30 dark:border-neutral-700/30 rounded-xl p-3">
-            <p class="text-[11px] text-neutral-500 dark:text-neutral-400 leading-relaxed">
-              <strong class="text-neutral-700 dark:text-neutral-300">How it works:</strong> Each time you send a message, the last N messages from the current chat are included so the AI can follow the conversation. This only applies within a single chat — starting a new chat resets the history. For cross-chat memory, enable the Cortex plugin in Settings → Plugins.
-            </p>
-          </div>
-
-          <button id="saveChatSettingsBtn" class="w-full px-4 py-2.5 rounded-lg bg-neutral-900 dark:bg-neutral-100 text-sm font-medium text-white dark:text-neutral-900 hover:bg-neutral-800 dark:hover:bg-neutral-200 transition-all shadow-sm">
-            Save
-          </button>
-          <p id="chatSettingsSaveStatus" class="text-xs text-emerald-600 text-center hidden">Settings saved</p>
-        </div>
-      </section>
-    `;
-
-    this._bindChatTab(content);
-  },
-
-  async _bindChatTab(content) {
-    const slider = content.querySelector('#chatHistorySlider');
-    const valueDisplay = content.querySelector('#chatHistoryValue');
-    const saveBtn = content.querySelector('#saveChatSettingsBtn');
-    const saveStatus = content.querySelector('#chatSettingsSaveStatus');
-
-    // Load current value
-    const saved = await window.api.settings.get('chat.historyMessages');
-    const current = saved || 6;
-    slider.value = current;
-    valueDisplay.textContent = current;
-
-    // Update display on slide
-    slider.addEventListener('input', () => {
-      valueDisplay.textContent = slider.value;
-    });
-
-    // Save
-    saveBtn.addEventListener('click', async () => {
-      await window.api.settings.set('chat.historyMessages', parseInt(slider.value, 10));
-      saveStatus.classList.remove('hidden');
-      setTimeout(() => saveStatus.classList.add('hidden'), 2000);
-    });
-  },
-
   // ─── Models Tab ───────────────────────────────────────────────────────────
   _renderModelsTab(content) {
     content.innerHTML = `
@@ -811,15 +603,6 @@ const SettingsPage = {
     });
   },
 
-  // ─── Personas Tab ──────────────────────────────────────────────────────────
-  _renderPersonasTab(content) {
-    if (window.PersonalizationPage) {
-      window.PersonalizationPage.render(content);
-    } else {
-      content.innerHTML = '<p class="text-sm text-neutral-500 p-4">Personas not available.</p>';
-    }
-  },
-
   // ─── Memory Tab (Cortex Lite) ──────────────────────────────────────────────
   async _renderMemoryTab(content) {
     // Load current settings
@@ -1008,64 +791,62 @@ const SettingsPage = {
       </section>
     `;
 
-    this._loadPlugins(content);
+    this._loadPlugins(content).catch(err => {
+      console.error('[Settings] _loadPlugins failed:', err);
+      content.innerHTML += `<p class="text-rose-500 p-4">Error loading plugins: ${err.message}</p>`;
+    });
   },
 
   // ─── Integrations Tab (MCP) ──────────────────────────────────────────────
   async _renderIntegrationsTab(content) {
-    const googleStatus = await window.api.google.status();
-
     content.innerHTML = `
-      <!-- Google Workspace One-Click Connect -->
-      <section class="bg-white/50 dark:bg-neutral-800/50 border border-neutral-200/40 dark:border-neutral-700/40 rounded-2xl p-5 shadow-[0_2px_10px_rgb(0,0,0,0.02)] dark:shadow-[0_2px_10px_rgb(0,0,0,0.2)] backdrop-blur-md mb-4">
-        <div class="flex items-center justify-between">
+      <!-- Local Files — built-in integration -->
+      <section class="bg-white/50 dark:bg-neutral-800/50 border border-neutral-200/40 dark:border-neutral-700/40 rounded-2xl p-5 shadow-[0_2px_10px_rgb(0,0,0,0.02)] dark:shadow-[0_2px_10px_rgb(0,0,0,0.2)] backdrop-blur-md">
+        <div class="flex items-center justify-between mb-3">
           <div class="flex items-center gap-3">
-            <div class="p-2 bg-white dark:bg-neutral-800 rounded-xl border border-neutral-100 dark:border-neutral-800 shadow-sm">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/><path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/><path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/><path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/></svg>
+            <div class="p-2 bg-white dark:bg-neutral-800 rounded-xl border border-neutral-100 dark:border-neutral-800 shadow-sm text-emerald-600">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
             </div>
             <div>
-              <div class="text-sm font-medium text-neutral-900 dark:text-neutral-100">Google Workspace</div>
-              <div class="text-xs text-neutral-500 dark:text-neutral-400">Gmail, Calendar, Drive, Docs, Sheets</div>
-              ${googleStatus.connected ? `<div class="text-[10px] text-emerald-600 dark:text-emerald-400 mt-0.5 font-medium">Connected • ${googleStatus.toolCount} tools available</div>` : ''}
+              <div class="text-sm font-medium text-neutral-900 dark:text-neutral-100">Local Files</div>
+              <div id="localFilesStatus" class="text-xs text-neutral-500 dark:text-neutral-400">Read and search files on your computer</div>
             </div>
           </div>
-          <div>
-            ${!googleStatus.hasCredentials
-              ? `<span class="text-xs text-neutral-400 italic">Not available in this build</span>`
-              : googleStatus.connected
-                ? `<button id="googleDisconnectBtn" class="px-4 py-2 rounded-lg border border-neutral-200/50 dark:border-neutral-600/50 bg-white/60 dark:bg-neutral-700/60 text-sm font-medium text-neutral-600 dark:text-neutral-300 hover:bg-white/90 dark:hover:bg-neutral-700/90 transition-all">Disconnect</button>`
-                : `<button id="googleConnectBtn" class="px-4 py-2 rounded-lg bg-neutral-900 dark:bg-neutral-100 text-sm font-medium text-white dark:text-neutral-900 hover:bg-neutral-800 dark:hover:bg-neutral-200 transition-all shadow-sm">Connect Google</button>`
-            }
+          <div class="flex items-center gap-2">
+            <button id="localFilesConnectBtn" class="px-4 py-2 rounded-lg bg-neutral-900 dark:bg-neutral-100 text-sm font-medium text-white dark:text-neutral-900 hover:bg-neutral-800 dark:hover:bg-neutral-200 transition-all shadow-sm">Connect</button>
+            <button id="localFilesDisconnectBtn" class="hidden px-4 py-2 rounded-lg border border-neutral-200/50 dark:border-neutral-600/50 bg-white/60 dark:bg-neutral-700/60 text-sm font-medium text-neutral-600 dark:text-neutral-300 hover:bg-white/90 dark:hover:bg-neutral-700/90 transition-all">Disconnect</button>
           </div>
+        </div>
+
+        <!-- Folder setting -->
+        <div class="mb-3 flex items-center gap-2">
+          <label class="text-xs text-neutral-500 dark:text-neutral-400 flex-shrink-0">Folder:</label>
+          <span id="localFilesFolderPath" class="text-xs font-mono text-neutral-600 dark:text-neutral-400 bg-white/60 dark:bg-neutral-800/60 border border-neutral-200/40 dark:border-neutral-700/40 rounded-lg px-2.5 py-1 truncate flex-1">~/Documents</span>
+          <button id="localFilesChangeFolderBtn" class="text-xs px-2.5 py-1 rounded-lg bg-white/60 dark:bg-neutral-700/60 border border-neutral-200/50 dark:border-neutral-600/50 text-neutral-600 dark:text-neutral-300 hover:bg-white/90 dark:hover:bg-neutral-700/90 transition-all font-medium">Change</button>
+        </div>
+
+        <!-- Info toggle -->
+        <button id="localFilesInfoToggle" class="w-full flex items-center justify-between px-3 py-2 rounded-lg bg-white/40 dark:bg-neutral-800/40 border border-neutral-200/30 dark:border-neutral-700/30 text-left hover:bg-white/60 dark:hover:bg-neutral-800/60 transition-all">
+          <span class="text-[11px] font-medium text-neutral-500 dark:text-neutral-400">About this integration</span>
+          <svg id="localFilesInfoChevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-neutral-400 transition-transform"><polyline points="6 9 12 15 18 9"/></svg>
+        </button>
+        <div id="localFilesInfoPanel" class="hidden mt-2 px-3 py-3 rounded-lg bg-white/40 dark:bg-neutral-800/40 border border-neutral-200/30 dark:border-neutral-700/30">
+          <p class="text-xs text-neutral-600 dark:text-neutral-400 leading-relaxed mb-2">This integration gives your AI assistant direct access to files on your computer within the folder you select. Everything runs locally — no files are uploaded anywhere.</p>
+          <p class="text-[11px] font-medium text-neutral-700 dark:text-neutral-300 mb-1.5">Available tools (14):</p>
+          <div class="grid grid-cols-2 gap-x-4 gap-y-0.5 text-[11px] text-neutral-500 dark:text-neutral-400">
+            <span>read_file</span><span>write_file</span>
+            <span>read_multiple_files</span><span>edit_file</span>
+            <span>create_directory</span><span>list_directory</span>
+            <span>directory_tree</span><span>move_file</span>
+            <span>search_files</span><span>get_file_info</span>
+            <span>list_allowed_directories</span><span>find_files_by_name</span>
+            <span>find_files_by_extension</span><span>read_file_lines</span>
+          </div>
+          <p class="text-[11px] text-neutral-400 dark:text-neutral-500 mt-2 leading-relaxed">Ask naturally in chat: "What files are in my Documents folder?", "Read notes.md", "Search for files containing 'invoice'"</p>
         </div>
       </section>
 
-      <!-- Action Steps -->
-      <section class="bg-white/50 dark:bg-neutral-800/50 border border-neutral-200/40 dark:border-neutral-700/40 rounded-2xl p-5 shadow-[0_2px_10px_rgb(0,0,0,0.02)] dark:shadow-[0_2px_10px_rgb(0,0,0,0.2)] backdrop-blur-md mb-4">
-        <div class="flex items-center gap-2 mb-4">
-          <div class="p-2 bg-white dark:bg-neutral-800 rounded-xl border border-neutral-100 dark:border-neutral-800 shadow-sm text-neutral-700 dark:text-neutral-300">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="13 17 18 12 13 7"/><polyline points="6 17 11 12 6 7"/></svg>
-          </div>
-          <div>
-            <h3 class="text-sm font-semibold text-neutral-900 dark:text-neutral-100">Max Action Steps</h3>
-            <p class="text-xs text-neutral-500 dark:text-neutral-400">How many consecutive actions the AI can take before pausing</p>
-          </div>
-        </div>
-        <div class="space-y-3">
-          <div class="flex items-center gap-4">
-            <input id="maxActionStepsSlider" type="range" min="1" max="25" step="1" value="10"
-              class="flex-1 h-2 bg-neutral-200 dark:bg-neutral-700 rounded-lg appearance-none cursor-pointer accent-neutral-900 dark:accent-neutral-100" />
-            <span id="maxActionStepsValue" class="text-sm font-mono font-medium text-neutral-700 dark:text-neutral-300 min-w-[2.5rem] text-right">10</span>
-          </div>
-          <div class="flex justify-between text-[10px] text-neutral-400 px-0.5">
-            <span>1 (always pause)</span>
-            <span>25 (maximum autonomy)</span>
-          </div>
-          <p class="text-[10px] text-neutral-400 leading-relaxed">When the AI needs multiple steps to complete a task (e.g. search → read → write), it will chain them automatically up to this limit. Higher values allow more complex tasks to complete in one go but use more tokens.</p>
-        </div>
-      </section>
-
-      <!-- MCP Servers (Advanced) -->
+      <!-- Other Integrations (custom MCP servers) -->
       <section class="bg-white/50 dark:bg-neutral-800/50 border border-neutral-200/40 dark:border-neutral-700/40 rounded-2xl p-5 shadow-[0_2px_10px_rgb(0,0,0,0.02)] dark:shadow-[0_2px_10px_rgb(0,0,0,0.2)] backdrop-blur-md">
         <div class="flex items-center justify-between mb-4">
           <div class="flex items-center gap-2">
@@ -1073,8 +854,8 @@ const SettingsPage = {
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
             </div>
             <div>
-              <h3 class="text-sm font-semibold text-neutral-900 dark:text-neutral-100">Other Integrations</h3>
-              <p class="text-xs text-neutral-500 dark:text-neutral-400">Connect additional MCP servers</p>
+              <h3 class="text-sm font-semibold text-neutral-900 dark:text-neutral-100">Custom Integrations</h3>
+              <p class="text-xs text-neutral-500 dark:text-neutral-400">Add your own MCP servers</p>
             </div>
           </div>
           <button id="addMCPServerBtn" class="px-4 py-2 rounded-lg bg-neutral-900 dark:bg-neutral-100 text-sm font-medium text-white dark:text-neutral-900 hover:bg-neutral-800 dark:hover:bg-neutral-200 transition-all shadow-sm flex items-center gap-2">
@@ -1087,49 +868,91 @@ const SettingsPage = {
       </section>
     `;
 
-    // Bind Google Connect/Disconnect
-    const connectBtn = content.querySelector('#googleConnectBtn');
-    if (connectBtn) {
-      connectBtn.addEventListener('click', async () => {
-        connectBtn.disabled = true;
-        connectBtn.textContent = 'Connecting...';
-        const result = await window.api.google.connect();
-        if (result.success) {
-          await this._renderIntegrationsTab(content);
-        } else {
-          connectBtn.textContent = 'Failed';
-          connectBtn.title = result.error;
-          setTimeout(() => this._renderIntegrationsTab(content), 2000);
+    // ── Local Files card bindings ────────────────────────────────
+    const localFilesConnectBtn = content.querySelector('#localFilesConnectBtn');
+    const localFilesDisconnectBtn = content.querySelector('#localFilesDisconnectBtn');
+    const localFilesStatus = content.querySelector('#localFilesStatus');
+    const localFilesFolderPath = content.querySelector('#localFilesFolderPath');
+    const localFilesChangeFolderBtn = content.querySelector('#localFilesChangeFolderBtn');
+    const localFilesInfoToggle = content.querySelector('#localFilesInfoToggle');
+    const localFilesInfoPanel = content.querySelector('#localFilesInfoPanel');
+    const localFilesInfoChevron = content.querySelector('#localFilesInfoChevron');
+
+    // Info toggle
+    localFilesInfoToggle.addEventListener('click', () => {
+      localFilesInfoPanel.classList.toggle('hidden');
+      localFilesInfoChevron.style.transform = localFilesInfoPanel.classList.contains('hidden') ? '' : 'rotate(180deg)';
+    });
+
+    // Load current folder from MCP config
+    const updateLocalFilesUI = async () => {
+      try {
+        const servers = await window.api.mcp.getServers();
+        const fs = servers?.['filesystem'];
+        if (fs) {
+          // Extract folder from args (last arg is the path)
+          const folderArg = (fs.args || []).find(a => a.startsWith('~') || a.startsWith('/'));
+          if (folderArg) localFilesFolderPath.textContent = folderArg;
+
+          if (fs.status === 'connected') {
+            localFilesStatus.textContent = `Connected — ${fs.toolCount || 0} tools available`;
+            localFilesStatus.className = 'text-xs text-emerald-600 dark:text-emerald-400 font-medium';
+            localFilesConnectBtn.classList.add('hidden');
+            localFilesDisconnectBtn.classList.remove('hidden');
+          } else if (fs.status === 'error') {
+            localFilesStatus.textContent = `Error: ${fs.error || 'Unknown'}`;
+            localFilesStatus.className = 'text-xs text-rose-500';
+            localFilesConnectBtn.classList.remove('hidden');
+            localFilesDisconnectBtn.classList.add('hidden');
+          } else {
+            localFilesStatus.textContent = 'Disconnected';
+            localFilesStatus.className = 'text-xs text-neutral-500 dark:text-neutral-400';
+            localFilesConnectBtn.classList.remove('hidden');
+            localFilesDisconnectBtn.classList.add('hidden');
+          }
         }
-      });
-    }
+      } catch {}
+    };
+    await updateLocalFilesUI();
 
-    const disconnectBtn = content.querySelector('#googleDisconnectBtn');
-    if (disconnectBtn) {
-      disconnectBtn.addEventListener('click', async () => {
-        await window.api.google.disconnect();
-        await this._renderIntegrationsTab(content);
-      });
-    }
+    // Connect
+    localFilesConnectBtn.addEventListener('click', async () => {
+      localFilesConnectBtn.disabled = true;
+      localFilesConnectBtn.textContent = 'Connecting...';
+      try {
+        await window.api.mcp.connect('filesystem');
+      } catch {}
+      await updateLocalFilesUI();
+      localFilesConnectBtn.disabled = false;
+      localFilesConnectBtn.textContent = 'Connect';
+    });
 
+    // Disconnect
+    localFilesDisconnectBtn.addEventListener('click', async () => {
+      await window.api.mcp.disconnect('filesystem');
+      await updateLocalFilesUI();
+    });
+
+    // Change folder
+    localFilesChangeFolderBtn.addEventListener('click', async () => {
+      const newFolder = await window.api.shell.pickFolder('Select folder for Local Files access');
+      if (newFolder) {
+        // Update MCP server args
+        await window.api.mcp.updateServer('filesystem', {
+          args: ['-y', '@modelcontextprotocol/server-filesystem', newFolder]
+        });
+        localFilesFolderPath.textContent = newFolder;
+        // Reconnect to apply
+        try {
+          await window.api.mcp.disconnect('filesystem');
+          await window.api.mcp.connect('filesystem');
+        } catch {}
+        await updateLocalFilesUI();
+      }
+    });
+
+    // ── MCP servers list (excluding filesystem — it has its own card) ─────
     await this._loadMCPServers(content);
-
-    // Bind max action steps slider
-    const stepsSlider = content.querySelector('#maxActionStepsSlider');
-    const stepsValue = content.querySelector('#maxActionStepsValue');
-    if (stepsSlider) {
-      const savedSteps = await window.api.settings.get('integrations.maxActionSteps');
-      const currentSteps = savedSteps || 10;
-      stepsSlider.value = currentSteps;
-      stepsValue.textContent = currentSteps;
-
-      stepsSlider.addEventListener('input', () => {
-        stepsValue.textContent = stepsSlider.value;
-      });
-      stepsSlider.addEventListener('change', async () => {
-        await window.api.settings.set('integrations.maxActionSteps', parseInt(stepsSlider.value, 10));
-      });
-    }
 
     // Bind "Add" button
     const addBtn = content.querySelector('#addMCPServerBtn');
@@ -1223,10 +1046,10 @@ const SettingsPage = {
     const list = container.querySelector('#mcpServersList');
     try {
       const servers = await window.api.mcp.getServers();
-      // Filter out google-workspace (it has its own dedicated card above)
-      const filteredEntries = Object.entries(servers || {}).filter(([id]) => id !== 'google-workspace');
+      // Filter out filesystem (dedicated card) and brave-search (managed by plugin)
+      const filteredEntries = Object.entries(servers || {}).filter(([id]) => id !== 'filesystem' && id !== 'brave-search');
       if (!filteredEntries.length) {
-        list.innerHTML = '<p class="text-xs text-neutral-400 italic">No additional integrations configured.</p>';
+        list.innerHTML = '<p class="text-xs text-neutral-400 italic">No custom integrations configured. Click Add to connect an MCP server.</p>';
         return;
       }
 
@@ -1502,6 +1325,96 @@ const SettingsPage = {
         this._loadPlugins(container);
       }
     });
+  },
+
+  _renderPluginSettings(container, pluginId) {
+    // Render plugin-specific settings panel inline below the plugin list
+    const existingPanel = container.querySelector('#plugin-settings-panel');
+    if (existingPanel) existingPanel.remove();
+
+    const panel = document.createElement('div');
+    panel.id = 'plugin-settings-panel';
+    panel.className = 'mt-4 p-4 bg-white/50 dark:bg-neutral-800/50 border border-neutral-200/40 dark:border-neutral-700/40 rounded-2xl backdrop-blur-md';
+    panel.innerHTML = `
+      <div class="flex items-center justify-between mb-3">
+        <span class="text-xs font-medium text-neutral-500">Plugin Settings</span>
+        <button id="plugin-settings-close" class="text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-300 transition-colors">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
+      </div>
+      <div id="plugin-settings-content"></div>
+    `;
+
+    const pluginsList = container.querySelector('#pluginsList');
+    if (pluginsList) {
+      pluginsList.parentNode.insertBefore(panel, pluginsList.nextSibling);
+    } else {
+      container.appendChild(panel);
+    }
+
+    panel.querySelector('#plugin-settings-close').addEventListener('click', () => {
+      panel.remove();
+    });
+
+    // Call the plugin's renderSettings function via IPC
+    const settingsContent = panel.querySelector('#plugin-settings-content');
+    SettingsPage._loadPluginSettingsContent(settingsContent, pluginId);
+  },
+
+  async _loadPluginSettingsContent(container, pluginId) {
+    try {
+      const html = await window.api.plugins.renderSettings(pluginId);
+      if (html) {
+        container.innerHTML = html;
+        // Wire up event listeners for the IIMAGINE Cloud plugin settings
+        this._wirePluginSettingsEvents(container, pluginId);
+      } else {
+        container.innerHTML = '<p class="text-xs text-neutral-400">This plugin has no settings UI.</p>';
+      }
+    } catch (err) {
+      container.innerHTML = `<p class="text-xs text-rose-500">Error: ${err.message}</p>`;
+    }
+  },
+
+  _wirePluginSettingsEvents(container, pluginId) {
+    // Wire save button for iimagine-cloud plugin
+    const saveBtn = container.querySelector('#iimagine-cloud-save');
+    if (saveBtn) {
+      saveBtn.addEventListener('click', async () => {
+        const input = container.querySelector('#iimagine-cloud-key');
+        const newKey = input?.value?.trim();
+        if (!newKey || newKey.includes('••••')) return;
+
+        if (!newKey.startsWith('iia_live_')) {
+          this._showPluginStatus(container, 'Invalid key format. Keys start with iia_live_', 'error');
+          return;
+        }
+
+        await window.api.settings.set('iimagine-cloud.apiKey', newKey);
+        this._showPluginStatus(container, 'API key saved! Restart the app or reload plugins to activate.', 'success');
+        input.value = newKey.slice(0, 12) + '••••••••';
+      });
+    }
+
+    // Wire link
+    const link = container.querySelector('#iimagine-cloud-link');
+    if (link) {
+      link.addEventListener('click', (e) => {
+        e.preventDefault();
+        window.api.shell.openExternal('https://app.iimagine.ai/settings/developer');
+      });
+    }
+  },
+
+  _showPluginStatus(container, message, type) {
+    const statusEl = container.querySelector('#iimagine-cloud-status');
+    if (!statusEl) return;
+    const colors = {
+      success: 'rgba(34, 197, 94, 0.1)',
+      error: 'rgba(239, 68, 68, 0.1)',
+      info: 'rgba(59, 130, 246, 0.1)',
+    };
+    statusEl.innerHTML = `<div style="padding: 10px; background: ${colors[type] || colors.info}; border-radius: 6px; font-size: 12px;">${message}</div>`;
   },
 
   _renderModels(container, models) {

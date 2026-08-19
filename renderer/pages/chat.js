@@ -4,17 +4,13 @@
 const ChatPage = {
   conversations: [],
   activeConversationId: null,
-  activeCollectionId: null, // Legacy single ID (kept for backward compat)
-  activeKBSelections: [], // New: [{ collectionId, documentId? }]
   chatHistory: [],
   isStreaming: false,
-  fullContext: false, // Full Context mode: skip RAG, send all doc content
   activeAssistantEl: null,
   activeAssistantContent: '',
   activeTypingEl: null,
   pendingAttachments: [], // Attached files: [{ type, filename, base64, mimeType, text }]
   _listenersRegistered: false,
-  _collections: [],
   _ttsPlaying: false,
 
   async render(container) {
@@ -67,9 +63,6 @@ const ChatPage = {
                   <div id="builderDropdown" class="hidden absolute bottom-full left-0 mb-1 bg-white/95 dark:bg-neutral-800/95 backdrop-blur-xl border border-neutral-200/50 dark:border-neutral-700/50 rounded-lg shadow-lg z-50 min-w-[180px] py-1 max-h-48 overflow-y-auto">
                   </div>
                 </div>
-                <div id="projSelectorContainer" class="shrink-0"></div>
-                <div id="kbSelectorContainer" class="shrink-0 min-w-0"></div>
-                <div id="promptPickerMount" class="shrink-0"></div>
                 <div id="mcpIndicator" class="hidden shrink-0">
                   <span class="text-[10px] leading-none py-[5px] px-2 rounded-full bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 border border-emerald-100 dark:border-emerald-800 whitespace-nowrap inline-flex items-center gap-1">
                     <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 inline-block"></span>
@@ -82,12 +75,6 @@ const ChatPage = {
               </div>
             </div>
             <div class="flex items-center gap-2 mt-1.5 px-1">
-              <span id="kbBadge" class="hidden text-xs leading-none py-[5px] px-2.5 rounded-full bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 border border-emerald-100 dark:border-emerald-800 whitespace-nowrap inline-flex items-center">KB active</span>
-              <div id="kbModeButtons" class="hidden flex items-center gap-1">
-                <button id="btnModeRag" class="text-xs leading-none py-[5px] px-2.5 rounded-full border whitespace-nowrap transition-all inline-flex items-center bg-neutral-900 dark:bg-neutral-100 text-white dark:text-neutral-900 border-neutral-900 dark:border-neutral-100">RAG</button>
-                <button id="btnModeContext" class="text-xs leading-none py-[5px] px-2.5 rounded-full border whitespace-nowrap transition-all inline-flex items-center bg-white/60 dark:bg-neutral-700/60 text-neutral-500 dark:text-neutral-400 border-neutral-200/50 dark:border-neutral-600/50 hover:bg-white/90 dark:hover:bg-neutral-700/90">Context Window</button>
-              </div>
-              <span id="fullContextTokens" class="hidden text-xs leading-none py-[5px] px-2.5 rounded-full border border-amber-200 dark:border-amber-700 bg-amber-50 dark:bg-amber-900/20 text-amber-600 dark:text-amber-400 whitespace-nowrap inline-flex items-center"></span>
             </div>
           </div>
         </div>
@@ -105,12 +92,6 @@ const ChatPage = {
     const noProviderMsg = container.querySelector('#noProviderMsg');
     const goToSettings = container.querySelector('#goToSettings');
     const chatUserName = container.querySelector('#chatUserName');
-    const kbSelectorContainer = container.querySelector('#kbSelectorContainer');
-    const kbBadge = container.querySelector('#kbBadge');
-    const kbModeButtons = container.querySelector('#kbModeButtons');
-    const btnModeRag = container.querySelector('#btnModeRag');
-    const btnModeContext = container.querySelector('#btnModeContext');
-    const fullContextTokens = container.querySelector('#fullContextTokens');
     const stopBtn = container.querySelector('#stopBtn');
 
     if (window.AppState?.currentUser) {
@@ -130,74 +111,8 @@ const ChatPage = {
 
     goToSettings?.addEventListener('click', () => window.AppRouter?.navigate('settings'));
 
-    // Initialize KB multi-select component
-    window.KBSelector.render(kbSelectorContainer, async (selections) => {
-      this.activeKBSelections = selections;
-      this.activeCollectionId = selections.length > 0 ? selections[0].collectionId : null;
-      kbBadge.classList.toggle('hidden', selections.length === 0);
-      kbModeButtons.classList.toggle('hidden', selections.length === 0);
-      if (selections.length === 0) {
-        fullContextTokens.classList.add('hidden');
-        this.fullContext = false;
-      } else if (this.fullContext) {
-        this._estimateFullContextTokens(fullContextTokens);
-      }
-      if (this.activeConversationId) {
-        await window.api.storage.updateConversationKBSelections(this.activeConversationId, selections);
-      }
-      chatInput.placeholder = selections.length > 0
-        ? (this.fullContext ? 'Ask anything...' : 'Ask anything...')
-        : 'Ask anything...';
-    });
-
-    // Mode buttons click handlers
-    btnModeRag.addEventListener('click', () => {
-      this.fullContext = false;
-      this._updateModeButtonsUI(btnModeRag, btnModeContext, fullContextTokens);
-      chatInput.placeholder = 'Ask anything...';
-    });
-
-    btnModeContext.addEventListener('click', async () => {
-      this.fullContext = true;
-      this._updateModeButtonsUI(btnModeRag, btnModeContext, fullContextTokens);
-      chatInput.placeholder = 'Ask with full document context...';
-      await this._estimateFullContextTokens(fullContextTokens);
-    });
-
-    // Restore selections if conversation has them
-    if (this.activeKBSelections.length > 0) {
-      window.KBSelector.setSelections(this.activeKBSelections);
-      kbBadge.classList.toggle('hidden', this.activeKBSelections.length === 0);
-      kbModeButtons.classList.toggle('hidden', this.activeKBSelections.length === 0);
-      this._updateModeButtonsUI(btnModeRag, btnModeContext, fullContextTokens);
-      if (this.fullContext) {
-        this._estimateFullContextTokens(fullContextTokens);
-      }
-    }
-
-    // Initialize Prompt Picker below input
-    const promptPickerMount = container.querySelector('#promptPickerMount');
-    if (promptPickerMount && window.PromptPicker) {
-      window.PromptPicker.render(promptPickerMount, (content) => {
-        chatInput.value = content;
-        chatInput.style.height = 'auto';
-        chatInput.style.height = Math.min(chatInput.scrollHeight, 120) + 'px';
-        sendBtn.disabled = !content.trim() || this.isStreaming || !pm.activeProvider;
-        chatInput.focus();
-      });
-    }
-
     // Show active project indicator (Client Workspace plugin)
     this._updateActiveProjectBar(container);
-
-    // Initialize Project Selector dropdown
-    const projSelectorContainer = container.querySelector('#projSelectorContainer');
-    if (projSelectorContainer && window.ProjectSelector) {
-      window.ProjectSelector.render(projSelectorContainer, (project) => {
-        // Update the active project bar when selection changes
-        this._updateActiveProjectBar(container);
-      });
-    }
 
     // Load conversations (auto-load most recent or start new)
     await this._loadConversations(null, messages, welcomeMessage);
@@ -462,21 +377,6 @@ const ChatPage = {
         }
       });
 
-      // Chat RAG stream (KB-augmented chat)
-      window.api.chatRag.onChunk((chunk) => {
-        if (this.activeTypingEl?.parentNode) this.activeTypingEl.remove();
-        if (chunk.content && this.activeAssistantEl) {
-          this.activeAssistantEl.style.display = '';
-          this.activeAssistantContent += chunk.content;
-          this.activeAssistantEl.querySelector('.msg-content').textContent = this.activeAssistantContent;
-          const msgs = document.querySelector('#messages');
-          if (msgs) msgs.scrollTop = msgs.scrollHeight;
-        }
-      });
-
-      window.api.chatRag.onDone(async () => {
-        this._onStreamComplete();
-      });
     }
 
     chatInput.focus();
@@ -663,33 +563,6 @@ const ChatPage = {
 
     // Restore KB collection selection for this conversation
     const conv = await window.api.storage.getConversation(id);
-    // Support new multi-select format (kb_selections JSON) with fallback to legacy collection_id
-    if (conv?.kb_selections) {
-      try {
-        this.activeKBSelections = JSON.parse(conv.kb_selections);
-      } catch { this.activeKBSelections = []; }
-    } else if (conv?.collection_id) {
-      this.activeKBSelections = [{ collectionId: conv.collection_id }];
-    } else {
-      this.activeKBSelections = [];
-    }
-    this.activeCollectionId = this.activeKBSelections.length > 0 ? this.activeKBSelections[0].collectionId : null;
-    const kbBadge = document.querySelector('#kbBadge');
-    const kbModeButtons = document.querySelector('#kbModeButtons');
-    const btnModeRag = document.querySelector('#btnModeRag');
-    const btnModeContext = document.querySelector('#btnModeContext');
-    const fullContextTokens = document.querySelector('#fullContextTokens');
-    if (window.KBSelector) {
-      window.KBSelector.setSelections(this.activeKBSelections);
-    }
-    if (kbBadge) kbBadge.classList.toggle('hidden', this.activeKBSelections.length === 0);
-    if (kbModeButtons) kbModeButtons.classList.toggle('hidden', this.activeKBSelections.length === 0);
-    if (btnModeRag && btnModeContext) {
-      this._updateModeButtonsUI(btnModeRag, btnModeContext, fullContextTokens);
-    }
-    if (this.fullContext && this.activeKBSelections.length > 0 && fullContextTokens) {
-      this._estimateFullContextTokens(fullContextTokens);
-    }
     const chatInput = document.querySelector('#chatInput');
     if (chatInput) {
       chatInput.placeholder = 'Ask anything...';
@@ -721,8 +594,6 @@ const ChatPage = {
       title: 'New conversation',
       model: window.ProviderManager.activeProvider?.name || null,
       providerType: window.ProviderManager.activeProvider?.type || 'local',
-      collectionId: this.activeCollectionId || null,
-      kbSelections: this.activeKBSelections.length > 0 ? JSON.stringify(this.activeKBSelections) : null,
       projectId,
     });
     this.activeConversationId = id;
@@ -1039,32 +910,6 @@ const ChatPage = {
     this.activeTypingEl = this._appendTyping(messages);
     this.activeAssistantContent = '';
     this.activeAssistantEl = this._createAssistantBubble(messages);
-
-    // If KB selections are active, use RAG chat
-    if (this.activeKBSelections.length > 0) {
-      const result = await window.api.chatRag.send({
-        conversationId: this.activeConversationId,
-        userMessage: text,
-        collectionId: this.activeCollectionId, // Legacy: first collection
-        kbSelections: this.activeKBSelections,  // New: full selections array
-        chatHistory: this.chatHistory,
-        fullContext: this.fullContext,          // Full Context mode
-      });
-
-      if (!result.success) {
-        if (this.activeTypingEl?.parentNode) this.activeTypingEl.remove();
-        this.activeAssistantEl.style.display = '';
-        this.activeAssistantEl.querySelector('.msg-content').textContent =
-          `Error: ${result.error}`;
-        this.activeAssistantEl.querySelector('.msg-content').classList.add('text-red-500');
-        this.isStreaming = false;
-        sendBtn.disabled = false;
-        this.activeAssistantEl = null;
-        this.activeAssistantContent = '';
-        this.activeTypingEl = null;
-      }
-      return;
-    }
 
     // Run plugin preprocess hooks
     const preprocessed = await window.api.plugins.chatPreprocess({
@@ -1581,13 +1426,6 @@ const ChatPage = {
     }, 400);
   },
 
-  async _loadKBCollections() {
-    // Refresh the KB selector component
-    if (window.KBSelector) {
-      await window.KBSelector.refresh();
-    }
-  },
-
   // Build a subtle per-response stats line: time-to-first-token, tokens used, tokens/sec.
   // Returns null when no stats are available (e.g. cloud providers that don't emit them).
   _buildStatsLine() {
@@ -1677,47 +1515,6 @@ const ChatPage = {
   _updateActiveProjectBar(container) {
     // The ProjectSelector component handles the active project display.
     // This method is kept as a hook for future use (e.g. updating badges).
-  },
-
-  _updateModeButtonsUI(ragBtn, contextBtn, tokensEl) {
-    const activeClasses = ['bg-neutral-900', 'dark:bg-neutral-100', 'text-white', 'dark:text-neutral-900', 'border-neutral-900', 'dark:border-neutral-100'];
-    const inactiveClasses = ['bg-white/60', 'dark:bg-neutral-700/60', 'text-neutral-500', 'dark:text-neutral-400', 'border-neutral-200/50', 'dark:border-neutral-600/50'];
-
-    if (this.fullContext) {
-      // Context Window is active
-      ragBtn.classList.remove(...activeClasses);
-      ragBtn.classList.add(...inactiveClasses, 'hover:bg-white/90', 'dark:hover:bg-neutral-700/90');
-      contextBtn.classList.remove(...inactiveClasses, 'hover:bg-white/90', 'dark:hover:bg-neutral-700/90');
-      contextBtn.classList.add(...activeClasses);
-    } else {
-      // RAG is active
-      ragBtn.classList.remove(...inactiveClasses, 'hover:bg-white/90', 'dark:hover:bg-neutral-700/90');
-      ragBtn.classList.add(...activeClasses);
-      contextBtn.classList.remove(...activeClasses);
-      contextBtn.classList.add(...inactiveClasses, 'hover:bg-white/90', 'dark:hover:bg-neutral-700/90');
-      if (tokensEl) tokensEl.classList.add('hidden');
-    }
-  },
-
-  async _estimateFullContextTokens(tokensEl) {
-    if (!this.activeKBSelections.length) {
-      tokensEl.classList.add('hidden');
-      return;
-    }
-    try {
-      const estimate = await window.api.chatRag.estimateFullContext(this.activeKBSelections);
-      if (estimate && estimate.totalChars > 0) {
-        const tokens = Math.ceil(estimate.totalChars / 4); // ~4 chars per token
-        const display = tokens > 1000 ? `~${(tokens / 1000).toFixed(1)}k tokens` : `~${tokens} tokens`;
-        tokensEl.textContent = display;
-        tokensEl.classList.remove('hidden');
-      } else {
-        tokensEl.classList.add('hidden');
-      }
-    } catch (err) {
-      console.warn('[Chat] Token estimate failed:', err);
-      tokensEl.classList.add('hidden');
-    }
   },
 
   // ── Plugin Generation Handler ─────────────────────────────────

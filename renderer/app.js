@@ -14,12 +14,7 @@ const AppRouter = {
   pages: {
     chat: window.ChatPage,
     recent: window.RecentPage,
-    images: window.ImagesPage,
-    videos: window.VideosPage,
-    compare: window.ComparePage,
-    knowledge: window.KnowledgePage,
-    assistants: window.AssistantsPage,
-    prompts: window.PromptsPage,
+    audio: window.AudioPage,
 
     settings: window.SettingsPage,
   },
@@ -105,41 +100,9 @@ async function showDashboard() {
   $('#authScreen').classList.add('hidden');
   $('#dashboard').classList.remove('hidden');
 
-  const user = window.AppState.currentUser;
-  const isGuest = user?.isGuest;
-
-  // Update sidebar user area
+  // Update sidebar user area with display name or app name
   const savedDisplayName = await window.api.settings.get('profile.displayName');
-  $('#sidebarUser').textContent = savedDisplayName || (isGuest ? 'Local User' : (user?.email || ''));
-
-  // Hide sign-out button for guest users, show sign-in option instead
-  const logoutBtn = $('#logoutBtn');
-  if (isGuest) {
-    logoutBtn.textContent = 'Sign in';
-    logoutBtn.onclick = async () => {
-      // Switch to auth-required mode and show login
-      await window.api.settings.set('auth.required', true);
-      showAuth();
-    };
-  } else {
-    logoutBtn.textContent = 'Sign out';
-    logoutBtn.onclick = async () => {
-      await window.api.auth.logout();
-      window.AppState.currentUser = null;
-      window.ChatPage.chatHistory = [];
-      // Check if auth is required — if not, reload as guest
-      const authRequired = await window.api.auth.isRequired();
-      if (!authRequired) {
-        const guestUser = await window.api.auth.getUser();
-        if (guestUser) {
-          window.AppState.currentUser = guestUser;
-          showDashboard();
-          return;
-        }
-      }
-      showAuth();
-    };
-  }
+  $('#sidebarUser').textContent = savedDisplayName || 'IIMAGINE Desktop';
 
   AppRouter.navigate('chat');
 }
@@ -271,15 +234,36 @@ async function loadPluginSidebarItems() {
     const existingPluginBtns = nav.querySelectorAll('[data-page^="plugin:"]');
     const activeIds = new Set((items || []).map(i => `plugin:${i.id}`));
     existingPluginBtns.forEach(btn => {
-      if (!activeIds.has(btn.getAttribute('data-page'))) {
+      const page = btn.getAttribute('data-page');
+      // Keep if it matches an active plugin (main or settings sub-item)
+      const baseId = page.replace(/:settings$/, '');
+      if (!activeIds.has(baseId)) {
         btn.remove();
       }
     });
 
-    if (!items || !items.length) return;
+    // Remove divider if no plugin items
+    if (!items || !items.length) {
+      const divider = nav.querySelector('#pluginsDivider');
+      if (divider) divider.remove();
+      return;
+    }
 
     // Find the settings button to insert before it
     const settingsBtn = nav.querySelector('[data-page="settings"]');
+
+    // Add "PLUGINS" divider if not already present
+    if (!nav.querySelector('#pluginsDivider')) {
+      const divider = document.createElement('div');
+      divider.id = 'pluginsDivider';
+      divider.className = 'px-4 pt-4 pb-1 text-[10px] font-semibold uppercase tracking-wider text-neutral-400 dark:text-neutral-500';
+      divider.textContent = 'Plugins';
+      if (settingsBtn) {
+        nav.insertBefore(divider, settingsBtn);
+      } else {
+        nav.appendChild(divider);
+      }
+    }
 
     for (const item of items) {
       // Skip if already added
@@ -306,6 +290,26 @@ async function loadPluginSidebarItems() {
       } else {
         nav.appendChild(btn);
       }
+
+      // Add "Settings" sub-item if the plugin declares hooks.settings
+      if (item.hasSettings) {
+        const settingsSubBtn = document.createElement('button');
+        settingsSubBtn.setAttribute('data-page', `plugin:${item.id}:settings`);
+        settingsSubBtn.className = 'nav-btn w-full flex items-center gap-3 pl-10 pr-3 py-1.5 rounded-xl text-neutral-400 dark:text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300 hover:bg-white/30 dark:hover:bg-neutral-800/30 transition-all';
+        settingsSubBtn.innerHTML = `
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="flex-shrink-0"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+          <span class="text-xs font-medium sidebar-label">Settings</span>
+        `;
+        settingsSubBtn.addEventListener('click', () => {
+          AppRouter.navigatePlugin(item.id, 'settings');
+        });
+
+        if (settingsBtn) {
+          nav.insertBefore(settingsSubBtn, settingsBtn);
+        } else {
+          nav.appendChild(settingsSubBtn);
+        }
+      }
     }
   } catch (err) {
     console.warn('[App] Failed to load plugin sidebar items:', err.message);
@@ -322,6 +326,49 @@ AppRouter.navigatePlugin = async function(pluginId, activeTab) {
   const container = document.querySelector('#mainContent');
 
   try {
+    // If activeTab is 'settings', render the plugin's settings page
+    if (activeTab === 'settings') {
+      const settingsHtml = await window.api.plugins.renderSettings(pluginId);
+      if (settingsHtml) {
+        container.innerHTML = `
+          <div class="flex-1 overflow-y-auto p-6">
+            <div class="flex items-center gap-2 mb-6">
+              <button id="pluginSettingsBack" class="p-1.5 rounded-lg text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-300 hover:bg-white/40 dark:hover:bg-neutral-800/40 transition-all">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+              </button>
+              <h2 class="text-lg font-semibold text-neutral-900 dark:text-neutral-100">Plugin Settings</h2>
+            </div>
+            <div id="pluginSettingsContent">${settingsHtml}</div>
+          </div>
+        `;
+        container.querySelector('#pluginSettingsBack')?.addEventListener('click', () => {
+          AppRouter.navigatePlugin(pluginId);
+        });
+        // Execute any script tags
+        container.querySelectorAll('script').forEach(oldScript => {
+          const newScript = document.createElement('script');
+          newScript.textContent = oldScript.textContent;
+          oldScript.parentNode.replaceChild(newScript, oldScript);
+        });
+      } else {
+        container.innerHTML = '<div class="p-6 text-neutral-500">This plugin has no settings.</div>';
+      }
+      // Update nav highlight for settings sub-item
+      document.querySelectorAll('.nav-btn').forEach(btn => {
+        const isActive = btn.dataset.page === `plugin:${pluginId}:settings`;
+        if (isActive) {
+          btn.classList.remove('text-neutral-400', 'dark:text-neutral-500', 'hover:text-neutral-700', 'dark:hover:text-neutral-300', 'hover:bg-white/30', 'dark:hover:bg-neutral-800/30');
+          btn.classList.add('bg-white/50', 'dark:bg-neutral-800/50', 'text-neutral-700', 'dark:text-neutral-200');
+        } else {
+          btn.classList.remove('bg-white/50', 'dark:bg-neutral-800/50', 'bg-white/60', 'dark:bg-neutral-800/60', 'text-neutral-700', 'dark:text-neutral-200', 'text-neutral-900', 'dark:text-neutral-100', 'shadow-sm', 'border', 'border-white/50', 'dark:border-neutral-700/50');
+          if (btn.dataset.page?.startsWith('plugin:')) {
+            btn.classList.add('text-neutral-500', 'dark:text-neutral-400', 'hover:text-neutral-900', 'dark:hover:text-neutral-100', 'hover:bg-white/40', 'dark:hover:bg-neutral-800/40');
+          }
+        }
+      });
+      return;
+    }
+
     const html = await window.api.plugins.renderPage(pluginId, activeTab);
     if (html) {
       // Check if this is an AI-generated plugin — add edit button
