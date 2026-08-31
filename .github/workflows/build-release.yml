@@ -1,22 +1,26 @@
 name: Build & Release
 
+# MANUAL TRIGGER ONLY.
+# Nothing builds or releases automatically. A build starts only when someone
+# clicks "Run workflow" in the GitHub Actions UI (or dispatches via API) and
+# supplies the version. This is intentional: releases must be explicitly
+# approved, never fired by an incidental tag or commit push.
 on:
-  push:
-    tags:
-      - 'v*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Release version WITHOUT the leading v (e.g. 0.7.1). Must match package.json.'
+        required: true
+        type: string
+      publish:
+        description: 'Publish the release immediately? Leave false to create a DRAFT you review first.'
+        required: false
+        default: false
+        type: boolean
 
 jobs:
-  build:
-    strategy:
-      matrix:
-        include:
-          - os: macos-latest
-            build_cmd: npx electron-builder --mac --publish never
-          - os: windows-latest
-            build_cmd: npx electron-builder --win --publish never
-
-    runs-on: ${{ matrix.os }}
-
+  build-mac:
+    runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
 
@@ -28,13 +32,64 @@ jobs:
         run: npm install --legacy-peer-deps
 
       - name: Setup engine binary
-        if: matrix.os == 'macos-latest'
         run: |
           chmod +x scripts/setup-engine.sh
           ./scripts/setup-engine.sh
 
+      - name: Import Developer ID signing certificate
+        env:
+          MAC_CERTIFICATE: ${{ secrets.MAC_CERTIFICATE }}
+          MAC_CERTIFICATE_PASSWORD: ${{ secrets.MAC_CERTIFICATE_PASSWORD }}
+        run: |
+          CERTIFICATE_PATH=$RUNNER_TEMP/build_certificate.p12
+          KEYCHAIN_PATH=$RUNNER_TEMP/app-signing.keychain-db
+          KEYCHAIN_PASSWORD=$(openssl rand -base64 32)
+
+          echo -n "$MAC_CERTIFICATE" | base64 --decode -o $CERTIFICATE_PATH
+
+          security create-keychain -p "$KEYCHAIN_PASSWORD" $KEYCHAIN_PATH
+          security set-keychain-settings -lut 21600 $KEYCHAIN_PATH
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" $KEYCHAIN_PATH
+
+          security import $CERTIFICATE_PATH -P "$MAC_CERTIFICATE_PASSWORD" \
+            -A -t cert -f pkcs12 -k $KEYCHAIN_PATH
+          # NOTE: codesign: MUST be in the partition list, otherwise codesign is
+          # denied non-interactive key access and fails with errSecInternalComponent.
+          security set-key-partition-list -S apple-tool:,apple:,codesign: \
+            -k "$KEYCHAIN_PASSWORD" $KEYCHAIN_PATH
+          security list-keychain -d user -s $KEYCHAIN_PATH
+
+      - name: Build, sign & notarize macOS (arm64)
+        run: npx electron-builder --mac --arm64 --publish never
+        env:
+          # Consumed by scripts/notarize.js + scripts/notarize-dmg.js.
+          CSC_NAME: ${{ secrets.CSC_NAME }}
+          SIGNING_IDENTITY: ${{ secrets.SIGNING_IDENTITY }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+
+      - name: Upload macOS artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: dist-mac
+          path: |
+            dist/*.dmg
+            dist/*.zip
+
+  build-windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install dependencies
+        run: npm install --legacy-peer-deps
+
       - name: Setup engine binary (Windows)
-        if: matrix.os == 'windows-latest'
         shell: pwsh
         run: |
           $versionJson = Get-Content engine/version.json | ConvertFrom-Json
@@ -86,35 +141,65 @@ jobs:
           }
           Write-Host "VC++ Runtime DLLs bundled."
 
-      - name: Build
-        run: ${{ matrix.build_cmd }}
+      - name: Build Windows
+        run: npx electron-builder --win --publish never
         env:
           CSC_IDENTITY_AUTO_DISCOVERY: "false"
 
-      - name: Upload artifacts
+      - name: Upload Windows artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: dist-${{ matrix.os }}
-          path: |
-            dist/*.dmg
-            dist/*.zip
-            dist/*.exe
+          name: dist-windows
+          path: dist/*.exe
+
+  build-linux:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install dependencies
+        run: npm install --legacy-peer-deps
+
+      - name: Setup engine binary
+        run: |
+          chmod +x scripts/setup-engine.sh
+          ./scripts/setup-engine.sh
+
+      - name: Build Linux
+        run: npx electron-builder --linux --publish never
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: "false"
+
+      - name: Upload Linux artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: dist-linux
+          path: dist/*.AppImage
 
   release:
-    needs: build
+    needs: [build-mac, build-windows, build-linux]
     runs-on: ubuntu-latest
     permissions:
       contents: write
-
     steps:
       - name: Download all artifacts
         uses: actions/download-artifact@v4
         with:
           path: artifacts
 
+      - name: List artifacts
+        run: find artifacts -type f
+
       - name: Create Release
         uses: softprops/action-gh-release@v2
         with:
-          draft: false
+          tag_name: v${{ github.event.inputs.version }}
+          name: v${{ github.event.inputs.version }}
+          # draft:true unless you explicitly ticked "publish" when dispatching.
+          draft: ${{ github.event.inputs.publish != 'true' }}
           files: artifacts/**/*
           generate_release_notes: true

@@ -1,5 +1,5 @@
 {
-  "version": "2026-06-12",
+  "version": "2026-08-23",
   "manifest_url": "https://raw.githubusercontent.com/iimagine-ai/model-registry/main/model-registry.json",
   "categories": [
     "audio",
@@ -142,6 +142,42 @@
           "filename": "google_gemma-4-31B-it-Q8_0.gguf",
           "url": "https://huggingface.co/bartowski/google_gemma-4-31B-it-GGUF/resolve/main/google_gemma-4-31B-it-Q8_0.gguf",
           "sizeGB": 32.64,
+          "ramRequired": 36
+        }
+      ]
+    },
+    {
+      "id": "qwen3.8-27b-uncensored",
+      "name": "Qwen 3.8 27B Uncensored (Aggressive)",
+      "family": "qwen",
+      "categories": [
+        "text",
+        "code",
+        "reasoning",
+        "multimodal"
+      ],
+      "description": "HauhauCS uncensored Qwen3.8-27B. Dense 27B, no refusals, multimodal vision. Needs 18GB+ RAM.",
+      "variants": [
+        {
+          "quantization": "Q3_K_P",
+          "filename": "Qwen3.8-27B-Uncensored-HauhauCS-Aggressive-Q3_K_P.gguf",
+          "url": "https://huggingface.co/HauhauCS/Qwen3.8-27B-Uncensored-HauhauCS-Aggressive-MTP-GGUF/resolve/main/Qwen3.8-27B-Uncensored-HauhauCS-Aggressive-Q3_K_P.gguf",
+          "sizeGB": 13.44,
+          "ramRequired": 18
+        },
+        {
+          "quantization": "Q4_K_P",
+          "filename": "Qwen3.8-27B-Uncensored-HauhauCS-Aggressive-Q4_K_P.gguf",
+          "url": "https://huggingface.co/HauhauCS/Qwen3.8-27B-Uncensored-HauhauCS-Aggressive-MTP-GGUF/resolve/main/Qwen3.8-27B-Uncensored-HauhauCS-Aggressive-Q4_K_P.gguf",
+          "sizeGB": 17.92,
+          "ramRequired": 22,
+          "isDefault": true
+        },
+        {
+          "quantization": "Q8_K_P",
+          "filename": "Qwen3.8-27B-Uncensored-HauhauCS-Aggressive-Q8_K_P.gguf",
+          "url": "https://huggingface.co/HauhauCS/Qwen3.8-27B-Uncensored-HauhauCS-Aggressive-MTP-GGUF/resolve/main/Qwen3.8-27B-Uncensored-HauhauCS-Aggressive-Q8_K_P.gguf",
+          "sizeGB": 31.46,
           "ramRequired": 36
         }
       ]

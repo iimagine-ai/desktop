@@ -1,6 +1,41 @@
 // Chat page — renders into #mainContent when active
 // Persists conversations and messages to local SQLite
 
+/**
+ * Parse a raw engine/provider error and return a user-friendly message.
+ * Avoids showing raw JSON or internal error codes to the user.
+ */
+function _friendlyErrorMessage(rawError) {
+  if (!rawError) return 'Something went wrong. Please try again.';
+  const lower = rawError.toLowerCase();
+
+  // Context size exceeded — the conversation is too long for the model's context window
+  if (lower.includes('exceed') && lower.includes('context')) {
+    return 'This conversation is too long for the model\'s context window. Try starting a new conversation or use a shorter message.';
+  }
+  if (lower.includes('context_size_error') || lower.includes('n_ctx')) {
+    return 'This conversation is too long for the model\'s context window. Try starting a new conversation or use a shorter message.';
+  }
+
+  // Model not loaded / engine crashed
+  if (lower.includes('connection refused') || lower.includes('econnrefused')) {
+    return 'The AI engine isn\'t responding. Try restarting the model from Settings → Models.';
+  }
+
+  // Timeout
+  if (lower.includes('timeout') || lower.includes('timed out')) {
+    return 'The request timed out. The model may be overloaded — try again in a moment.';
+  }
+
+  // Out of memory
+  if (lower.includes('out of memory') || lower.includes('oom') || lower.includes('alloc')) {
+    return 'The model ran out of memory. Try a smaller model or close other applications to free up RAM.';
+  }
+
+  // Generic fallback — still better than showing raw JSON
+  return `Something went wrong: ${rawError.slice(0, 120)}${rawError.length > 120 ? '…' : ''}`;
+}
+
 const ChatPage = {
   conversations: [],
   activeConversationId: null,
@@ -788,7 +823,7 @@ const ChatPage = {
             this.activeAssistantEl.querySelector('.msg-content').classList.add('text-neutral-400');
           } else {
             this.activeAssistantEl.querySelector('.msg-content').textContent =
-              `Error: ${chatResult.error}. Make sure the AI engine is running.`;
+              _friendlyErrorMessage(chatResult.error);
             this.activeAssistantEl.querySelector('.msg-content').classList.add('text-red-500');
           }
           this.isStreaming = false;
@@ -930,7 +965,7 @@ const ChatPage = {
         this.activeAssistantEl.querySelector('.msg-content').classList.add('text-neutral-400');
       } else {
         this.activeAssistantEl.querySelector('.msg-content').textContent =
-          `Error: ${result.error}. Make sure the AI engine is running.`;
+          _friendlyErrorMessage(result.error);
         this.activeAssistantEl.querySelector('.msg-content').classList.add('text-red-500');
       }
       this.isStreaming = false;

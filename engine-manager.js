@@ -254,7 +254,7 @@ async function startEngine(modelPath, options = {}) {
   const port = options.port || enginePort;
   const numGpu = options.numGpu || store.get('engine.numGpu', 'auto');
   const numThread = options.numThread || store.get('engine.numThread', 'auto');
-  const numCtx = options.numCtx || store.get('engine.numCtx', '4096');
+  const numCtx = options.numCtx || store.get('local.contextWindow', '4096');
   // Reasoning ("thinking") toggle. Default OFF = fast, model answers directly.
   // When ON, the model is allowed to stream chain-of-thought before the answer,
   // which is slower but can improve quality on hard prompts.

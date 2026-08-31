@@ -1193,9 +1193,18 @@ const SettingsPage = {
       const ctxWindow = parseInt(contextWindowSelect.value);
       const keepAlive = keepAliveSelect.value;
 
+      // Check if context window changed — engine must restart to apply new --ctx-size
+      const prevCtx = await window.api.settings.get('local.contextWindow');
+      const ctxChanged = prevCtx && parseInt(prevCtx) !== ctxWindow;
+
       await window.api.settings.set('local.webSearchEnabled', webSearchEnabled);
       await window.api.settings.set('local.contextWindow', ctxWindow);
       await window.api.settings.set('engine.keepAlive', keepAlive);
+
+      // Stop the engine so it restarts with the new context size on next message
+      if (ctxChanged) {
+        await window.api.engine.stop();
+      }
 
       advancedSaveStatus.classList.remove('hidden');
       setTimeout(() => advancedSaveStatus.classList.add('hidden'), 2000);

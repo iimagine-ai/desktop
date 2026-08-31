@@ -67,3 +67,8 @@ plugins/business-os/
 # Experimental (not ready for public release)
 plugins/shopping-list/
 plugins/privacy-proxy/
+
+# macOS signing / notarization credentials (local only, never commit)
+.env.signing
+.env
+.env.local

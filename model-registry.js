@@ -132,6 +132,37 @@ const MODEL_REGISTRY = {
   },
 
   // ─── Qwen 3 (Alibaba) — Strong multilingual, reasoning, code ──
+  'qwen3.8-27b-uncensored': {
+    name: 'Qwen 3.8 27B Uncensored (Aggressive)',
+    description: 'HauhauCS uncensored Qwen3.8-27B. Dense 27B, no refusals, multimodal vision. Needs 18GB+ RAM.',
+    categories: ['text', 'code', 'reasoning', 'multimodal'],
+    family: 'qwen',
+    variants: [
+      {
+        quantization: 'Q3_K_P',
+        filename: 'Qwen3.8-27B-Uncensored-HauhauCS-Aggressive-Q3_K_P.gguf',
+        url: 'https://huggingface.co/HauhauCS/Qwen3.8-27B-Uncensored-HauhauCS-Aggressive-MTP-GGUF/resolve/main/Qwen3.8-27B-Uncensored-HauhauCS-Aggressive-Q3_K_P.gguf',
+        sizeGB: 13.44,
+        ramRequired: 18,
+      },
+      {
+        quantization: 'Q4_K_P',
+        filename: 'Qwen3.8-27B-Uncensored-HauhauCS-Aggressive-Q4_K_P.gguf',
+        url: 'https://huggingface.co/HauhauCS/Qwen3.8-27B-Uncensored-HauhauCS-Aggressive-MTP-GGUF/resolve/main/Qwen3.8-27B-Uncensored-HauhauCS-Aggressive-Q4_K_P.gguf',
+        sizeGB: 17.92,
+        ramRequired: 22,
+        isDefault: true,
+      },
+      {
+        quantization: 'Q8_K_P',
+        filename: 'Qwen3.8-27B-Uncensored-HauhauCS-Aggressive-Q8_K_P.gguf',
+        url: 'https://huggingface.co/HauhauCS/Qwen3.8-27B-Uncensored-HauhauCS-Aggressive-MTP-GGUF/resolve/main/Qwen3.8-27B-Uncensored-HauhauCS-Aggressive-Q8_K_P.gguf',
+        sizeGB: 31.46,
+        ramRequired: 36,
+      },
+    ],
+  },
+
   'qwen3-8b': {
     name: 'Qwen 3 8B',
     description: 'Alibaba\'s latest 8B. Excellent reasoning and multilingual support.',
